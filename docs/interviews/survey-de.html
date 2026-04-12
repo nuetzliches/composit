@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Composit — Infrastructure Visibility Survey</title>
+  <style>
+    :root {
+      --bg: #faf9f5;
+      --surface: #ffffff;
+      --border: #e8e6dc;
+      --text: #141413;
+      --text-secondary: #5a5850;
+      --text-muted: #b0aea5;
+      --accent: #d97757;
+      --accent-hover: #c4613f;
+      --green: #4a7c59;
+      --green-bg: #eef2e8;
+      --green-text: #2d5a3a;
+      --header-bg: #141413;
+      --header-text: #faf9f5;
+      --radius: 6px;
+      --radius-lg: 10px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .header {
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 1.25rem 2rem;
+    }
+    .header h1 { font-size: 1.15rem; font-weight: 600; }
+    .header p { font-size: 0.8rem; opacity: 0.6; margin-top: 0.25rem; }
+    .main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 1.5rem 2rem 3rem;
+    }
+    .intro {
+      background: var(--green-bg);
+      border: 1px solid #d0dcc4;
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.5rem;
+      font-size: 0.88rem;
+      color: var(--green-text);
+    }
+    .intro strong { display: block; margin-bottom: 0.25rem; }
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 1.25rem;
+    }
+    .section-header {
+      padding: 0.75rem 1.25rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+    .section-body { padding: 1.25rem; }
+    .question {
+      margin-bottom: 1.5rem;
+    }
+    .question:last-child { margin-bottom: 0; }
+    .question label.q-label {
+      display: block;
+      font-weight: 500;
+      font-size: 0.92rem;
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+    .question .q-hint {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+      font-style: italic;
+    }
+    .option-group { display: flex; flex-direction: column; gap: 0.35rem; }
+    .option-group label {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      font-size: 0.88rem;
+      padding: 0.4rem 0.5rem;
+      border-radius: var(--radius);
+      cursor: pointer;
+    }
+    .option-group label:hover { background: var(--bg); }
+    .option-group input[type="radio"],
+    .option-group input[type="checkbox"] {
+      margin-top: 0.2rem;
+      flex-shrink: 0;
+      accent-color: var(--accent);
+    }
+    input[type="text"], input[type="email"], input[type="number"],
+    textarea, select {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-family: inherit;
+      font-size: 0.88rem;
+      background: var(--surface);
+      color: var(--text);
+    }
+    textarea { min-height: 80px; resize: vertical; }
+    select { appearance: auto; }
+    input:focus, textarea:focus, select:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: -1px;
+      border-color: var(--accent);
+    }
+    .inline-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+    .inline-group .question { margin-bottom: 0; }
+    .btn-bar {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.65rem 1.5rem;
+      border: none;
+      border-radius: var(--radius);
+      font-family: inherit;
+      font-size: 0.88rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { background: var(--bg); }
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 0.75rem 1.5rem;
+      border-radius: var(--radius);
+      font-size: 0.88rem;
+      opacity: 0;
+      transition: all 0.3s ease;
+      z-index: 100;
+    }
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+    .privacy-note {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+      padding: 0.75rem;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+    }
+    .footer {
+      text-align: center;
+      padding: 1.5rem;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      margin-top: 1rem;
+    }
+    @media (max-width: 600px) {
+      .main { padding: 1rem; }
+      .inline-group { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Infrastructure Visibility Survey</h1>
+  <p>Composit Research &middot; Vertraulich &middot; ~10 Minuten</p>
+</div>
+
+<div class="main">
+
+  <div class="intro">
+    <strong>Hinweis</strong>
+    Bitte oeffnen Sie diese Datei in Ihrem Browser. Ihre Antworten werden
+    nicht automatisch uebermittelt und nicht gespeichert. Klicken Sie am Ende
+    auf &bdquo;Antworten kopieren&ldquo; und fuegen Sie den Text in Ihre
+    Antwort-E-Mail ein.
+  </div>
+
+  <!-- Block 1: Kontext -->
+  <div class="section">
+    <div class="section-header">1 &mdash; Kontext</div>
+    <div class="section-body">
+
+      <div class="inline-group">
+        <div class="question">
+          <label class="q-label" for="role">Ihre Rolle</label>
+          <select id="role" name="role">
+            <option value="">Bitte waehlen</option>
+            <option value="Platform Engineer">Platform Engineer</option>
+            <option value="DevOps Engineer">DevOps Engineer</option>
+            <option value="SRE">Site Reliability Engineer</option>
+            <option value="CTO">CTO / VP Engineering</option>
+            <option value="Engineering Manager">Engineering Manager</option>
+            <option value="Andere">Andere</option>
+          </select>
+        </div>
+        <div class="question">
+          <label class="q-label" for="team_size">Team-Groesse (Entwickler)</label>
+          <select id="team_size" name="team_size">
+            <option value="">Bitte waehlen</option>
+            <option value="1-5">1-5</option>
+            <option value="6-15">6-15</option>
+            <option value="16-50">16-50</option>
+            <option value="51-200">51-200</option>
+            <option value="200+">200+</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="question" style="margin-top: 1rem;">
+        <label class="q-label">Welche AI Coding Agents nutzt Ihr Team?</label>
+        <div class="q-hint">Mehrfachauswahl moeglich</div>
+        <div class="option-group">
+          <label><input type="checkbox" name="agents" value="Claude Code"> Claude Code</label>
+          <label><input type="checkbox" name="agents" value="Cursor"> Cursor</label>
+          <label><input type="checkbox" name="agents" value="GitHub Copilot"> GitHub Copilot</label>
+          <label><input type="checkbox" name="agents" value="Devin"> Devin</label>
+          <label><input type="checkbox" name="agents" value="Windsurf"> Windsurf</label>
+          <label><input type="checkbox" name="agents" value="Andere"> Andere: <input type="text" name="agents_other" style="width: 200px; display: inline-block;" placeholder="Welche?"></label>
+          <label><input type="checkbox" name="agents" value="Keine"> Wir nutzen aktuell keine AI Coding Agents</label>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="q-label" for="agent_duration">Seit wann nutzt Ihr Team AI Coding Agents?</label>
+        <select id="agent_duration" name="agent_duration">
+          <option value="">Bitte waehlen</option>
+          <option value="Noch nicht">Noch nicht / Evaluierung</option>
+          <option value="< 3 Monate">Weniger als 3 Monate</option>
+          <option value="3-6 Monate">3-6 Monate</option>
+          <option value="6-12 Monate">6-12 Monate</option>
+          <option value="> 12 Monate">Ueber 12 Monate</option>
+        </select>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Block 2: Workflow -->
+  <div class="section">
+    <div class="section-header">2 &mdash; Infrastructure Tracking Workflow</div>
+    <div class="section-body">
+
+      <div class="question">
+        <label class="q-label">Wie organisiert Ihr Team den Ueberblick ueber alle laufenden Services und Ressourcen?</label>
+        <div class="option-group">
+          <label><input type="radio" name="overview" value="Zentrales Inventar"> Wir pflegen ein zentrales Inventar (Backstage, Wiki, Spreadsheet, o.ae.)</label>
+          <label><input type="radio" name="overview" value="IaC als Quelle"> Unser IaC-State (Terraform, Pulumi, etc.) ist die Wahrheitsquelle</label>
+          <label><input type="radio" name="overview" value="Cloud Dashboards"> Wir nutzen die Cloud-Provider-Dashboards direkt</label>
+          <label><input type="radio" name="overview" value="Team-Wissen"> Der Ueberblick liegt im Team-Wissen / bei einzelnen Personen</label>
+          <label><input type="radio" name="overview" value="Kein zentraler Prozess"> Wir haben noch keinen zentralen Prozess dafuer</label>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="q-label">Wenn ein Agent oder Entwickler etwas Neues erstellt (Funktion, Datenbank, Cron-Job) — wie fliesst das in euren Ueberblick ein?</label>
+        <div class="option-group">
+          <label><input type="radio" name="flow" value="Automatisch via IaC/CI"> Automatisch ueber IaC-Pipeline / CI-CD</label>
+          <label><input type="radio" name="flow" value="Manuelle Dokumentation"> Manuelle Dokumentation (PR-Review, Ticket, Wiki-Update)</label>
+          <label><input type="radio" name="flow" value="Regelmaessige Audits"> Wir entdecken es bei regelmaessigen Audits / Reviews</label>
+          <label><input type="radio" name="flow" value="Zufaellig"> Meistens zufaellig (Kosten-Alert, Incident, Kollegen-Hinweis)</label>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="q-label" for="time_tracking">Wie viel Zeit investiert Ihr Team pro Woche in das Pflegen des Infrastruktur-Ueberblicks?</label>
+        <div class="q-hint">Inventar-Updates, Dashboard-Checks, State-Abgleich, Drift-Reviews</div>
+        <select id="time_tracking" name="time_tracking">
+          <option value="">Bitte waehlen</option>
+          <option value="< 1h">Weniger als 1 Stunde</option>
+          <option value="1-2h">1-2 Stunden</option>
+          <option value="2-4h">2-4 Stunden</option>
+          <option value="4-8h">4-8 Stunden</option>
+          <option value="> 8h">Mehr als 8 Stunden</option>
+          <option value="Nicht messbar">Schwer zu beziffern</option>
+        </select>
+      </div>
+
+      <div class="question">
+        <label class="q-label" for="biggest_challenge">Wo sehen Sie aktuell den groessten Verbesserungsbedarf in Ihrem Infrastructure-Tracking-Workflow?</label>
+        <textarea id="biggest_challenge" name="biggest_challenge" placeholder="Freitext..."></textarea>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Block 3: Tooling -->
+  <div class="section">
+    <div class="section-header">3 &mdash; Tooling &amp; Investment</div>
+    <div class="section-body">
+
+      <div class="question">
+        <label class="q-label">Welche Tools nutzt Ihr Team fuer Infrastructure Management?</label>
+        <div class="q-hint">Mehrfachauswahl moeglich</div>
+        <div class="option-group">
+          <label><input type="checkbox" name="tools" value="Terraform/OpenTofu"> Terraform / OpenTofu</label>
+          <label><input type="checkbox" name="tools" value="Pulumi"> Pulumi</label>
+          <label><input type="checkbox" name="tools" value="AWS Config"> AWS Config / Cloud Config</label>
+          <label><input type="checkbox" name="tools" value="Backstage"> Backstage</label>
+          <label><input type="checkbox" name="tools" value="Port"> Port (getport.io)</label>
+          <label><input type="checkbox" name="tools" value="Datadog"> Datadog</label>
+          <label><input type="checkbox" name="tools" value="Spacelift/env0"> Spacelift / env0</label>
+          <label><input type="checkbox" name="tools" value="Vanta/Drata"> Vanta / Drata (Compliance)</label>
+          <label><input type="checkbox" name="tools" value="Eigene Scripts"> Eigene Scripts / Automation</label>
+          <label><input type="checkbox" name="tools" value="Andere"> Andere: <input type="text" name="tools_other" style="width: 200px; display: inline-block;" placeholder="Welche?"></label>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="q-label" for="tool_investment">Wie hoch schaetzen Sie das monatliche Investment Ihres Teams in Infrastructure-Management-Tooling?</label>
+        <div class="q-hint">Lizenzkosten + geschaetzter Personalaufwand</div>
+        <select id="tool_investment" name="tool_investment">
+          <option value="">Bitte waehlen</option>
+          <option value="< 200 EUR">Unter 200 EUR/Monat</option>
+          <option value="200-500 EUR">200-500 EUR/Monat</option>
+          <option value="500-2000 EUR">500-2.000 EUR/Monat</option>
+          <option value="2000-5000 EUR">2.000-5.000 EUR/Monat</option>
+          <option value="> 5000 EUR">Ueber 5.000 EUR/Monat</option>
+          <option value="Unbekannt">Kann ich nicht einschaetzen</option>
+        </select>
+      </div>
+
+      <div class="question">
+        <label class="q-label" for="tool_gap">Was fehlt Ihnen in den Tools die Sie aktuell nutzen?</label>
+        <textarea id="tool_gap" name="tool_gap" placeholder="Freitext..."></textarea>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Block 4: Prioritaeten -->
+  <div class="section">
+    <div class="section-header">4 &mdash; Prioritaeten</div>
+    <div class="section-body">
+
+      <div class="question">
+        <label class="q-label">Welche Faehigkeit waere fuer Ihr Team am wertvollsten?</label>
+        <div class="q-hint">Bitte die wichtigste waehlen</div>
+        <div class="option-group">
+          <label><input type="radio" name="priority" value="Zentrales Inventar"> Zentrales Inventar aller Services und Ressourcen (inkl. agent-erstellter)</label>
+          <label><input type="radio" name="priority" value="Drift Detection"> Erkennung wenn Ist-Zustand von Soll-Zustand abweicht</label>
+          <label><input type="radio" name="priority" value="Cost Attribution"> Kostenaufschluesselung nach Team / Agent / Projekt</label>
+          <label><input type="radio" name="priority" value="Compliance Reports"> Automatische Berichte fuer Audits und regulatorische Anforderungen</label>
+          <label><input type="radio" name="priority" value="Policy Enforcement"> Regeln definieren was Agents erstellen duerfen</label>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="q-label">Welche regulatorischen Anforderungen beschaeftigen Ihr Team aktuell?</label>
+        <div class="q-hint">Mehrfachauswahl moeglich</div>
+        <div class="option-group">
+          <label><input type="checkbox" name="regulations" value="SOC2"> SOC2</label>
+          <label><input type="checkbox" name="regulations" value="ISO27001"> ISO 27001</label>
+          <label><input type="checkbox" name="regulations" value="GDPR/DSGVO"> GDPR / DSGVO</label>
+          <label><input type="checkbox" name="regulations" value="EU AI Act"> EU AI Act</label>
+          <label><input type="checkbox" name="regulations" value="Branchenspezifisch"> Branchenspezifisch (PCI-DSS, HIPAA, BaFin, etc.)</label>
+          <label><input type="checkbox" name="regulations" value="Keine aktuell"> Keine aktuell relevanten</label>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="q-label" for="tooling_decision">Wie laeuft bei Ihnen die Entscheidung fuer ein neues Tool ab?</label>
+        <select id="tooling_decision" name="tooling_decision">
+          <option value="">Bitte waehlen</option>
+          <option value="Selbst entscheiden">Ich kann selbst entscheiden (bis zu einem bestimmten Betrag)</option>
+          <option value="Team-Entscheidung">Team-Entscheidung</option>
+          <option value="Management-Genehmigung">Braucht Management-Genehmigung</option>
+          <option value="Procurement">Formaler Procurement-Prozess</option>
+        </select>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Block 5: Kontakt -->
+  <div class="section">
+    <div class="section-header">5 &mdash; Kontakt (optional)</div>
+    <div class="section-body">
+
+      <div class="question">
+        <label class="q-label">Duerfen wir Sie fuer ein kurzes Folgegespraech (20 min) kontaktieren?</label>
+        <div class="option-group">
+          <label><input type="radio" name="followup" value="Ja"> Ja, gerne</label>
+          <label><input type="radio" name="followup" value="Vielleicht"> Vielleicht — schicken Sie mir erst mehr Infos</label>
+          <label><input type="radio" name="followup" value="Nein"> Nein danke</label>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="q-label" for="email">E-Mail (nur wenn Sie kontaktiert werden moechten)</label>
+        <input type="email" id="email" name="email" placeholder="ihre@email.de">
+      </div>
+
+      <div class="privacy-note">
+        Ihre Antworten werden nicht automatisch uebermittelt und nicht
+        auf einem Server gespeichert. Erst wenn Sie den kopierten Text
+        per E-Mail senden, verlassen Ihre Daten dieses Dokument. Ihre
+        E-Mail-Adresse wird ausschliesslich fuer die Kontaktaufnahme
+        im Rahmen dieser Befragung verwendet.
+      </div>
+
+    </div>
+  </div>
+
+  <div class="btn-bar">
+    <button class="btn btn-primary" onclick="copyResults()">Antworten kopieren</button>
+    <button class="btn btn-secondary" onclick="resetForm()">Formular zuruecksetzen</button>
+  </div>
+
+</div>
+
+<div class="footer">
+  Composit Research &middot; April 2026<br>
+  Dieses Formular erhebt keine Daten automatisch.
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function gatherResults() {
+  const lines = [];
+  lines.push('=== Composit Infrastructure Visibility Survey ===');
+  lines.push('Datum: ' + new Date().toISOString().split('T')[0]);
+  lines.push('');
+
+  // Block 1
+  lines.push('--- 1. Kontext ---');
+  const role = document.getElementById('role').value;
+  lines.push('Rolle: ' + (role || '(nicht angegeben)'));
+  const teamSize = document.getElementById('team_size').value;
+  lines.push('Team-Groesse: ' + (teamSize || '(nicht angegeben)'));
+
+  const agents = [];
+  document.querySelectorAll('input[name="agents"]:checked').forEach(cb => {
+    if (cb.value === 'Andere') {
+      const other = document.querySelector('input[name="agents_other"]').value;
+      agents.push('Andere: ' + (other || '?'));
+    } else {
+      agents.push(cb.value);
+    }
+  });
+  lines.push('AI Agents: ' + (agents.length ? agents.join(', ') : '(keine Auswahl)'));
+
+  const duration = document.getElementById('agent_duration').value;
+  lines.push('Nutzungsdauer: ' + (duration || '(nicht angegeben)'));
+  lines.push('');
+
+  // Block 2
+  lines.push('--- 2. Infrastructure Tracking Workflow ---');
+  const overview = document.querySelector('input[name="overview"]:checked');
+  lines.push('Ueberblick-Methode: ' + (overview ? overview.value : '(keine Auswahl)'));
+
+  const flow = document.querySelector('input[name="flow"]:checked');
+  lines.push('Neue Ressourcen fliessen ein via: ' + (flow ? flow.value : '(keine Auswahl)'));
+
+  const timeTracking = document.getElementById('time_tracking').value;
+  lines.push('Zeitaufwand/Woche: ' + (timeTracking || '(nicht angegeben)'));
+
+  const challenge = document.getElementById('biggest_challenge').value.trim();
+  lines.push('Groesster Verbesserungsbedarf: ' + (challenge || '(kein Freitext)'));
+  lines.push('');
+
+  // Block 3
+  lines.push('--- 3. Tooling & Investment ---');
+  const tools = [];
+  document.querySelectorAll('input[name="tools"]:checked').forEach(cb => {
+    if (cb.value === 'Andere') {
+      const other = document.querySelector('input[name="tools_other"]').value;
+      tools.push('Andere: ' + (other || '?'));
+    } else {
+      tools.push(cb.value);
+    }
+  });
+  lines.push('Genutzte Tools: ' + (tools.length ? tools.join(', ') : '(keine Auswahl)'));
+
+  const investment = document.getElementById('tool_investment').value;
+  lines.push('Monatliches Investment: ' + (investment || '(nicht angegeben)'));
+
+  const gap = document.getElementById('tool_gap').value.trim();
+  lines.push('Was fehlt: ' + (gap || '(kein Freitext)'));
+  lines.push('');
+
+  // Block 4
+  lines.push('--- 4. Prioritaeten ---');
+  const priority = document.querySelector('input[name="priority"]:checked');
+  lines.push('Wichtigste Faehigkeit: ' + (priority ? priority.value : '(keine Auswahl)'));
+
+  const regulations = [];
+  document.querySelectorAll('input[name="regulations"]:checked').forEach(cb => {
+    regulations.push(cb.value);
+  });
+  lines.push('Regulatorische Anforderungen: ' + (regulations.length ? regulations.join(', ') : '(keine Auswahl)'));
+
+  const toolDecision = document.getElementById('tooling_decision').value;
+  lines.push('Tooling-Entscheidung: ' + (toolDecision || '(nicht angegeben)'));
+  lines.push('');
+
+  // Block 5
+  lines.push('--- 5. Kontakt ---');
+  const followup = document.querySelector('input[name="followup"]:checked');
+  lines.push('Folgegespraech: ' + (followup ? followup.value : '(keine Auswahl)'));
+
+  const email = document.getElementById('email').value.trim();
+  if (email) lines.push('E-Mail: ' + email);
+
+  lines.push('');
+  lines.push('=== Ende ===');
+
+  return lines.join('\n');
+}
+
+function copyResults() {
+  const text = gatherResults();
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Antworten in die Zwischenablage kopiert!');
+  }).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('Antworten in die Zwischenablage kopiert!');
+  });
+}
+
+function resetForm() {
+  if (confirm('Alle Antworten zuruecksetzen?')) {
+    document.querySelectorAll('input, textarea, select').forEach(el => {
+      if (el.type === 'checkbox' || el.type === 'radio') el.checked = false;
+      else if (el.tagName === 'SELECT') el.selectedIndex = 0;
+      else el.value = '';
+    });
+    showToast('Formular zurueckgesetzt');
+  }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+</script>
+
+</body>
+</html>
