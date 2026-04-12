@@ -1,0 +1,45 @@
+{
+  "composit": "0.1.0",
+  "provider": {
+    "name": "nuetzliche",
+    "description": "MCP-native infrastructure for AI-driven ecosystems",
+    "website": "https://nuetzliche.it",
+    "contact": "composit@nuetzliche.it"
+  },
+  "capabilities": [
+    {
+      "type": "scheduling",
+      "product": "croniq",
+      "protocol": "mcp",
+      "tools": 12,
+      "description": "Distributed cron with retries, DLQ, calendar rules, and React dashboard",
+      "repo": "https://github.com/nuetzliches/croniq",
+      "license": "MIT/Apache-2.0"
+    },
+    {
+      "type": "events",
+      "product": "hookaido",
+      "protocol": "mcp",
+      "tools": 8,
+      "description": "Durable webhook gateway with pull/push/exec delivery, HMAC auth, and DLQ",
+      "repo": "https://github.com/nuetzliches/hookaido",
+      "license": "MIT"
+    },
+    {
+      "type": "knowledge",
+      "product": "powerbrain",
+      "protocol": "mcp",
+      "tools": 23,
+      "description": "Policy-aware context engine with vector search, PII vault, and EU AI Act toolkit",
+      "repo": "https://github.com/nuetzliches/powerbrain",
+      "license": "Apache-2.0"
+    }
+  ],
+  "compliance": ["gdpr", "eu-ai-act"],
+  "region": "eu-central-1",
+  "self_hosted": true,
+  "contract_endpoint": "https://composit.nuetzliche.it/contract",
+  "discovery": {
+    "well_known": "https://composit.nuetzliche.it/.well-known/composit.json"
+  }
+}
