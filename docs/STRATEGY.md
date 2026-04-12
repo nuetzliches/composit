@@ -2,11 +2,118 @@
 
 ## Red Thread
 
-The core problem is not infrastructure composition — it's **creator control**.
+The core problem is not infrastructure composition — it's **visibility and control
+over what agents build**.
 
-Agents generate solutions faster than humans can track them. The creator needs
-a way to maintain oversight: what exists, why, what it costs, and what needs
-attention. Everything else (spec, CLI, registry) serves this purpose.
+Agents generate solutions faster than humans can track them. Platform teams and
+engineering leaders need a way to maintain oversight: what exists, why, what it
+costs, and what needs attention. Everything else (spec, CLI, registry) serves
+this purpose.
+
+The word "creator" remains in the spec context (the person who owns the
+Compositfile and defines policies). But the business narrative leads with
+**platform teams and CTOs** — the people who feel this pain most acutely
+and have budget to solve it.
+
+---
+
+## ICP — Wer zahlt?
+
+Validation (6.5/10, April 2026) hat die Zielgruppen-Hierarchie geklärt:
+
+### Primary Paying ICP: Platform Engineers / DevOps
+
+- Frustration: 5/5 (höchste aller Segmente)
+- Bestehender Budget-Kontext: Backstage ($375K-$750K/yr TCO), Datadog, IaC-Tools
+- Konkreter Pain: Drift-Audits (4h+/Woche), Agent-generierte Ressourcen außerhalb
+  des IaC-Pipelines, "terraform destroy auf Prod" durch AI-Agents
+- Compliance-Druck (SOC2, GDPR, EU AI Act Aug 2026) schafft Procurement-Urgency
+- **Sie sind die Buyer.** Product-Roadmap optimiert für diese Persona.
+
+### Secondary Paying ICP: CTOs / Engineering Managers
+
+- Frustration: 4/5
+- Teams von 5-50 Devs, AI-nativ
+- Pain: "Was hat der Agent gemacht? Welche Permissions hat er? Was kostet das?"
+- Budget-Rahmen: $200-500/mo für Tooling
+- Compliance-Deadline-Druck (EU AI Act) macht es zum Must-Have statt Nice-to-Have
+
+### Community ICP (Free Tier): Solo Devs / Indie Hackers
+
+- Frustration: 3/5 — sie fühlen den Pain, aber zahlen nicht dafür
+- Price-sensitive, suchen eher "besseres Agent-Verhalten" als Governance-Tools
+- **Wert für composit:** GitHub-Stars, HN-Traction, Word-of-Mouth, Spec-Adoption
+- Die Free CLI muss sie gut bedienen. Aber die Produkt-Roadmap wird nicht für
+  sie optimiert.
+
+### Konsequenz für die Narrative
+
+"Creator Control" → "Agent Infrastructure Visibility for Platform Teams"
+
+Die README und HN-Launch sprechen Platform Engineers und CTOs an.
+Solo Devs finden composit über die Open-Source-CLI und Community-Channels.
+
+---
+
+## Validation Findings (Kurzfassung)
+
+**Score: 6.5/10 — ITERATE** (April 2026)
+
+| Dimension           | Score | Signal  |
+|---------------------|-------|---------|
+| Problem Severity    | 7     | Stark   |
+| Existing Spending   | 5     | Mittel  |
+| Market Momentum     | 8     | Stark   |
+| Competitive Gap     | 8     | Stark   |
+| Monetization Clarity| 5     | Mittel  |
+
+**Stärken:** Problem dokumentiert (Prod-Datenverlust, 13h-Outages, $400M+
+Tech-Debt-Kosten). Kein Produkt besetzt composit's Position. Market Momentum
+explosiv (6.100% Anstieg agentic AI Interest).
+
+**Schwächen:** Grassroots-Demand dünn (Evidenz von Enterprise-Analysten, nicht
+Dev-Communities). Budget existiert in adjacent Categories (IDP, IaC), nicht
+spezifisch für "agent-built infra visibility". Solo-Devs zahlen nicht.
+
+**Zeitfenster:** 6-12 Monate bevor Hyperscaler (AWS Agent Registry, Microsoft
+Agent Governance Toolkit) proprietary Standards setzen.
+
+→ Vollständiger Report: `.claude/reports/business-validation/2026-04-12_composit-creator-control-for-agent-ecosystems.html`
+
+---
+
+## Feature vs. Product Risk
+
+Das größte strategische Risiko: composit wird ein Feature in einem größeren
+Produkt, bevor es als eigenständiges Produkt Traktion bekommt.
+
+### Risiko 1: IDPs adden Agent-Discovery
+
+Port ($800M Valuation, $100M frisches Kapital) pivotiert explizit Richtung
+"agents as first-class citizens". Backstage (~89% IDP-Marktanteil) könnte
+Agent-Awareness als Plugin nachliefern.
+
+### Risiko 2: Agent-Plattformen tracken selbst
+
+Claude Code, Cursor, Devin könnten Built-in Infrastructure Tracking liefern.
+Das wäre aber immer siloed — Claude Code trackt nur was Claude Code baut.
+
+### Risiko 3: Hyperscaler Lock-in
+
+AWS Agent Registry (Preview), Microsoft Agent Governance Toolkit —
+proprietäre Ansätze, die den offenen Standard-Raum besetzen könnten.
+
+### Defense-Strategie
+
+1. **Open Spec als Standard** — OpenTelemetry-Modell statt Docker-Modell.
+   Wenn die Compositfile-Spec adoptiert wird, validieren selbst Competitors
+   den Standard. Spec kann perspektivisch in eine Foundation wandern.
+
+2. **Cross-Agent Visibility** — composit trackt über ALLE Agents hinweg.
+   Kein Single-Vendor-Tool kann das. Das ist der Moat.
+
+3. **Geschwindigkeit** — 6-12 Monate Window. Spec draft + Working CLI
+   vor den Hyperscalern veröffentlichen.
 
 ---
 
@@ -147,7 +254,25 @@ Everything beyond this (CLI, dashboard, agent SDK) is product, not spec.
 
 ---
 
-## Prior Art
+## Competitive Landscape
+
+### Direkte Wettbewerber / Adjacent Players
+
+| Player              | Was sie tun                        | Composit-Differenzierung              |
+|---------------------|------------------------------------|---------------------------------------|
+| Backstage/Port      | Developer Portal / Service Catalog | Kein Agent-Awareness, kein Auto-Discovery |
+| Terraform/Pulumi    | IaC — deklariert + provisioniert   | Nur declared Resources; blind für ad-hoc Agent-Aktionen |
+| Port (getport.io)   | IDP, $800M Valuation               | Pivotiert zu Agents — beobachten. Kein Open Spec. |
+| Gravitee            | MCP Proxy, Agent-level IAM         | Traffic/Security-Fokus, nicht "was wurde gebaut" |
+| Pillar Security     | AI Asset Discovery                 | Security-only; kein Cost/Dependency Mapping |
+| Cortex.io           | Service Catalog, Scorecards        | Teuer ($25-65/user/mo), 6+ Monate Deploy, kein AI |
+| AWS Agent Registry  | Preview — agent inventory          | Proprietary, AWS-only. Composit ist cloud-agnostic. |
+| MS Agent Governance | Enterprise Agent Governance        | Azure-locked, top-down. Composit ist bottom-up + open spec. |
+
+**Niemand kombiniert:** Open Spec + Agent-nativ + MCP-native + Cross-Agent +
+Business-Case-Tracking + Cost Attribution.
+
+### Prior Art (Open Spec + Product)
 
 The pattern (open spec + product to bootstrap) has precedent:
 - MCP: Anthropic wrote the spec AND built the first implementation in Claude
