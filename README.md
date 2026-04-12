@@ -54,21 +54,30 @@ readable.
 
 From the creator's control perspective — "what do I need visibility into?":
 
-| Category       | Creator Question                        | Reference Provider |
-|----------------|-----------------------------------------|--------------------|
-| **Scheduling** | When does what run?                     | [croniq][]         |
-| **Events**     | What triggers what?                     | [hookaido][]       |
-| **Knowledge**  | What do my agents know?                 | [powerbrain][]     |
-| **Identity**   | Who/what is allowed to do what?         | TBD                |
-| **Cost**       | What does this cost me?                 | composit-native    |
-| **State**      | Where does data live? Who created it?   | composit-native    |
+| Category           | Creator Question                        | Reference Provider |
+|--------------------|-----------------------------------------|--------------------|
+| **Scheduling**     | When does what run?                     | [croniq][]         |
+| **Events**         | What triggers what?                     | [hookaido][]       |
+| **Knowledge**      | What do my agents know?                 | [powerbrain][]     |
+| **Identity**       | Who/what is allowed to do what?         | TBD                |
+| **Cost**           | What does this cost me?                 | composit-native    |
+| **State**          | Where does data live? Who created it?   | composit-native    |
+| **Observability**  | What happened, and why?                 | composit-native    |
 
 **Knowledge vs. State:** Knowledge (powerbrain) is about curated, policy-controlled
 context *for agents*. State in composit is inventory — the creator's view of *where
 data exists across the ecosystem*, regardless of whether agents consume it.
 
-State and Cost are not separate infrastructure projects. They are composit-native
-concerns — metadata that composit itself tracks by observing the providers.
+**State vs. Observability:** State = where data is now. Observability = what happened
+over time (traces, logs, audit trail). Addresses the "silent ecosystem failure"
+problem — agents fail silently, and the creator needs to know.
+
+**Identity includes Secrets:** Not just who-is-allowed-what, but also which API keys
+and tokens are in use, and whether they are rotated and scoped correctly.
+
+State, Cost, and Observability are not separate infrastructure projects. They are
+composit-native concerns — metadata that composit itself tracks by observing
+the providers.
 
 [croniq]: https://github.com/nuetzliches/croniq
 [hookaido]: https://github.com/nuetzliches/hookaido

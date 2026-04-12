@@ -56,6 +56,13 @@ my ecosystem, and under what terms."
 
 Framed from the creator's perspective — "what do I need control over?":
 
+### Herleitung
+
+Initial bottom-up aus bestehenden nuetzliches-Projekten (croniq, hookaido,
+powerbrain) abgeleitet, dann systematisch gegen CNCF/Cloud-Native Patterns
+validiert (OpenTelemetry, FinOps, SPIFFE, Service Catalog). Ergebnis: eine
+Category hinzugefügt (Observability), drei bewusst ausgeschlossen.
+
 ### Covered by existing nuetzliches projects:
 - **Scheduling** → croniq (when does what run?)
 - **Events** → hookaido (what triggers what?)
@@ -70,12 +77,30 @@ Framed from the creator's perspective — "what do I need control over?":
 - **Cost** — metering across providers. The feature that makes composit
   a business tool, not a nerd tool. "Your agents provisioned 47 services
   this month, estimated cost: X EUR."
+- **Observability** — what happened, when, and why. Traces, logs, audit trail
+  across the agent ecosystem. Distinct from State (State = where data is now;
+  Observability = what happened over time). Addresses the "silent ecosystem
+  failure" pain point: a scheduling component hasn't run in 3 days, a webhook
+  channel has 47 messages in the DLQ — and nobody noticed.
 
 ### Gap — needs strategic decision:
-- **Identity** — who/what is allowed to do what. Authentik exists in the
-  infrastructure (nuts-infra) but is not MCP-native. Decision needed:
-  build a composit-native identity layer, or integrate Authentik via adapter?
-  Apply the "funktioniert neu besser?" test.
+- **Identity** — who/what is allowed to do what. Includes secrets management
+  (which API keys/tokens do agents use, and are they rotated/scoped correctly?).
+  Authentik exists in the infrastructure (nuts-infra) but is not MCP-native.
+  Decision needed: build a composit-native identity layer, or integrate
+  Authentik via adapter? Apply the "funktioniert neu besser?" test.
+
+### Bewusst nicht included (mit Begründung):
+- **Lifecycle/Deployment** — composit ist Control Plane, nicht Deployment Plane.
+  State trackt *was* läuft. Wie es deployed wurde, ist Sache des CI/CD-Systems
+  oder des Agents selbst. Composit übernimmt keine Helm/ArgoCD-Funktion.
+- **Inter-Agent Communication** — Events (hookaido) deckt Event-Routing ab.
+  Direkte Agent-to-Agent Communication (A2A-Patterns) ist ein emergentes Feld.
+  Beobachten, ob Events als Category ausreicht oder ob A2A eine eigene
+  Category erfordert, sobald der Markt reift.
+- **Networking/Service Mesh** — composit operiert auf der Capability-Ebene,
+  nicht auf der Netzwerk-Ebene. Routing, mTLS, Traffic Shaping sind
+  Infrastruktur-Concerns unterhalb von composit.
 
 ---
 
@@ -132,3 +157,35 @@ The pattern (open spec + product to bootstrap) has precedent:
 
 Pure specs without products are PDFs. Specs with reference implementations
 that solve real problems attract adoption.
+
+---
+
+## Provider Interchangeability
+
+croniq, hookaido, powerbrain are reference providers — they prove the spec
+works. But composit's value proposition requires that ANY provider can fill
+a capability slot, not just ours.
+
+### What's in place:
+- Manifest Discovery: providers publish capabilities at a well-known URL
+- Contract Trust Protocol: standardized handshake for trust establishment
+- Policy Engine: creator controls which providers are approved (provider-approval.rego)
+
+### What's missing for real interchangeability:
+
+1. **Capability Interface Spec** — what MUST a "scheduling" provider support?
+   Minimum tool surface, required metadata, expected behavior. Without this,
+   "I offer scheduling" is a claim, not a contract.
+
+2. **Conformance Tests** — how does a provider prove it fulfills a capability?
+   A test suite that a third-party scheduling provider can run against itself.
+   Like Kubernetes conformance tests.
+
+3. **Migration Path** — how does a creator switch from provider A to provider B?
+   State export, contract transfer, zero-downtime cutover. Without this,
+   interchangeability is theoretical.
+
+### Validation milestone:
+First external provider integration (not croniq/hookaido/powerbrain) that
+demonstrates the spec is vendor-neutral. This is the single strongest
+proof point for composit's open-spec story.
