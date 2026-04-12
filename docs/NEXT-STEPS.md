@@ -2,7 +2,7 @@
 
 Stand: 2026-04-12 (post-Validation)
 
-Basiert auf Business Validation Report (6.5/10, ITERATE).
+Basiert auf Business Validation Report (7.0/10, BUILD).
 Alte 4-Phasen-Roadmap (Konzept > Spec > PoC > Validieren) ersetzt durch
 zeitgebundene Sprints mit klarem ICP-Fokus: Platform Engineers + CTOs.
 
@@ -29,8 +29,9 @@ zeitgebundene Sprints mit klarem ICP-Fokus: Platform Engineers + CTOs.
 
 ### Spec
 
-- [ ] **Compositfile Spec v0.1 als RFC** — Formales Schema (JSON Schema oder HCL Grammar),
+- [ ] **composit-report.yaml Spec v0.1 als RFC** — Formales Schema (JSON Schema),
   nicht nur Beispiele. Auf GitHub als Discussion oder PR veröffentlichen.
+  Compositfile (Governance-Spec) separat als Post-MVP Draft.
 - [ ] **Manifest Schema finalisieren** — composit.json v0.1 mit konkreten Feldern,
   Versionierung, Discovery-Mechanismus (.well-known URL, align mit MCP).
 
@@ -50,7 +51,7 @@ zeitgebundene Sprints mit klarem ICP-Fokus: Platform Engineers + CTOs.
 - [ ] **`composit status`** — Aggregierter Zustand via MCP-Provider:
   - Verbindet sich mit croniq, hookaido, powerbrain (wenn vorhanden)
   - Zeigt: X Jobs, Y Channels, Z Knowledge Sources, geschätzte Kosten
-  - Drift-Detection: Compositfile vs. Realität
+  - Drift-Detection: Compositfile (Governance) vs. composit-report (Realität)
 
 ### Tech-Entscheidung
 

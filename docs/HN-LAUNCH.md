@@ -42,15 +42,17 @@ Nobody is solving it for the human. Humans have the smaller context window.
 **Composit** is an open spec and open-core CLI for visibility over
 agent-generated infrastructure.
 
-The core: a **Compositfile** — a declarative document that describes what
-exists in your ecosystem, why it exists, who created it, and what rules govern it.
-Not a deployment tool (that's Terraform). Not a monitoring tool (that's Datadog).
+`composit scan` is the entry point. Zero config. Point it at a project and it
+inventories agent-created artifacts: MCP configs, Terraform state, Docker files,
+cron entries, webhook configs. Output: a **composit-report.yaml** — a machine-
+readable inventory of what exists, who created it, and what it costs. Not a
+deployment tool (that's Terraform). Not a monitoring tool (that's Datadog).
 A **visibility tool** — the missing layer between "agents build things" and
 "the platform team understands what exists."
 
-`composit scan` is the entry point. Zero config. Point it at a project and it
-inventories agent-created artifacts: MCP configs, Terraform state, Docker files,
-cron entries, webhook configs. Single-page output.
+Later, a **Compositfile** lets teams declare governance rules: approved providers,
+budget constraints, data residency policies. Drift detection compares the report
+(what exists) against the Compositfile (what should be true).
 
 Three protocols (the spec):
 
@@ -74,7 +76,7 @@ slow agents down. It gives the platform team a map of what they've built.
 **What exists today:**
 
 - `composit scan` CLI (TypeScript, zero-config)
-- Compositfile spec draft (v0.1)
+- composit-report.yaml format (v0.1) + Compositfile governance spec (draft)
 - Public manifest schema (JSON, well-known URL discovery)
 - OPA policy examples (agent limits, provider approval)
 - Three MCP-native reference providers we built:
@@ -100,11 +102,13 @@ on your behalf — including things you didn't explicitly ask for. Backstage is
 a developer portal. Composit is an agent-infrastructure inventory.
 
 **"How is this different from Terraform?"**
-Terraform provisions infrastructure. Composit observes it. The Compositfile is
-not "apply this state" — it's "here's what exists and why." Think `terraform
-state list` elevated to a product, with business-case attribution and cost
-tracking. Critically: Terraform only knows about declared resources. Agents
-create things outside Terraform all the time.
+Terraform provisions infrastructure. Composit observes it. The `composit-report.yaml`
+is not "apply this state" — it's "here's what exists and why." Think `terraform
+state list` elevated to a product, with attribution and cost tracking. The
+Compositfile (governance layer) then defines what *should* be true — like
+`.terraform-policy` but for agent-created infrastructure. Critically: Terraform
+only knows about declared resources. Agents create things outside Terraform
+all the time.
 
 **"Why not just use Datadog / Grafana?"**
 Observability tools monitor health. Composit tracks attribution. "Is this
@@ -119,13 +123,14 @@ platform team a consolidated view. The agent doesn't need to change.
 **"Isn't this just a CMDB?"**
 CMDBs require manual maintenance and are always out of date. Composit
 auto-populates from MCP-native providers. The providers report state, composit
-aggregates it. The Compositfile is intent; reality is tracked automatically.
+aggregates it. The composit-report is reality; the Compositfile is intent.
+Drift detection compares the two.
 
 **"Why should I trust an open spec from a solo developer?"**
 Fair question. The spec is designed to be contributed to a foundation (like
 OpenTelemetry moved to CNCF) if it gains traction. The value of an open spec
 is that even competitors building on it validates the standard. If Port or
-Backstage adopt the Compositfile format, composit wins.
+Backstage adopt the composit report format or Compositfile spec, composit wins.
 
 **"MCP lock-in?"**
 MCP is an open protocol (by Anthropic). Composit builds on MCP because it's

@@ -35,7 +35,7 @@ Composit State answers: **"Where does data live across my ecosystem?"**
 - Topology: which services depend on which data stores
 - Provenance: who created it (agent? human?), when, why
 - Risk: backup status, redundancy, access controls
-- Drift: does reality match what the Compositfile declares?
+- Drift: does reality (composit-report) match what the Compositfile declares?
 
 This is not a storage layer. Composit doesn't store data — it tracks
 **metadata about where data lives and who depends on it**.

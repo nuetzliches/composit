@@ -35,9 +35,10 @@ Nobody is solving it for the human. Humans have the smaller context window.
 
 Composit is two things:
 
-1. **An open specification** — a declarative format (Compositfile) and protocols
-   (Manifest Discovery, Contract Trust, Policy Interface) that describe what an
-   ecosystem looks like, who provides what, and under what rules.
+1. **An open specification** — protocols (Manifest Discovery, Contract Trust,
+   Policy Interface) and two artifacts: `composit-report.yaml` (generated
+   inventory of what exists) and the Compositfile (declarative governance:
+   policies, contracts, trust rules — post-MVP).
 
 2. **A product** — CLI, registry, and integrations that make the spec useful
    day one. Open-core: self-hosted is free, team features are commercial.
@@ -89,7 +90,8 @@ composit tracks by observing the providers. Not separate infrastructure projects
 │  "What exists? What costs? What needs attention?"   │
 ├─────────────────────────────────────────────────────┤
 │  Composit Control Plane                             │
-│  ├─ Compositfile      (declarative state-of-world)  │
+│  ├─ composit-report   (generated inventory)         │
+│  ├─ Compositfile      (governance: policies/rules)  │
 │  ├─ Policy Engine     (OPA: what's allowed)         │
 │  ├─ State Tracker     (inventory + drift detection) │
 │  ├─ Cost Aggregator   (metering across providers)   │
@@ -113,10 +115,19 @@ composit tracks by observing the providers. Not separate infrastructure projects
 
 ## Key Concepts
 
-### Compositfile
+### composit-report.yaml (MVP)
 
-Declarative document describing the ecosystem. Not a deployment tool — a
-**visibility tool**. What exists, why, and how it connects.
+Generated inventory from `composit scan`. What exists, why, who created it,
+what it costs. Not a deployment tool — a **visibility tool**. Machine-readable,
+versionable, diffable.
+
+→ See [`examples/composit-report.yaml`](examples/composit-report.yaml) for the format.
+
+### Compositfile (Post-MVP)
+
+Declarative governance document. Policies, contracts, trust rules, budget
+constraints — what **should** be true. Used for drift detection against the
+report: "reality vs. intent."
 
 → See [`examples/Compositfile`](examples/Compositfile) for the full format.
 
@@ -145,9 +156,9 @@ concrete MCP endpoints, credentials, SLAs, and pricing.
 
 | Tier | Target | Features |
 |------|--------|----------|
-| **Free CLI** (composit-core) | Solo devs, small teams | `composit scan`, `composit status`, Compositfile parser, local provider integrations |
-| **Team** ($29-99/mo) | Platform engineers, 5-50 dev teams | Multi-team dashboard, drift alerts, cost attribution, Slack/Teams integration |
-| **Enterprise** ($199+/mo) | Compliance-driven orgs | Audit trail, SOC2/GDPR reporting, managed manifest registry, SSO, SLA |
+| **Free CLI** (composit-core) | Solo devs, small teams | `composit scan`, `composit status`, report generator (YAML), `composit serve` (local dashboard), local provider integrations |
+| **Team** ($29-99/mo) | Platform engineers, 5-50 dev teams | Multi-team dashboard (self-hosted or cloud), drift alerts, cost attribution, Slack/Teams integration |
+| **Enterprise** ($199+/mo) | Compliance-driven orgs | Audit trail, SOC2/GDPR reporting, managed manifest registry, SSO, SLA — self-hosted or composit-cloud |
 
 The reference providers (croniq, hookaido, powerbrain) remain independent
 open-source projects. They are composit providers, not composit dependencies.
@@ -171,8 +182,8 @@ open-source projects. They are composit providers, not composit dependencies.
 
 **Phase: Spec Draft + CLI PoC.**
 
-Validation complete (6.5/10, ITERATE — April 2026). Building toward first
-working CLI (`composit scan`) and published spec draft (Compositfile v0.1).
+Validation complete (7.0/10, BUILD — April 2026). Building toward first
+working CLI (`composit scan`) and published spec draft (v0.1).
 
 → [Next Steps](docs/NEXT-STEPS.md) | [Strategy](docs/STRATEGY.md) | [Open Questions](docs/OPEN-QUESTIONS.md)
 

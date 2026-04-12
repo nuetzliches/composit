@@ -11,7 +11,8 @@ costs, and what needs attention. Everything else (spec, CLI, registry) serves
 this purpose.
 
 The word "creator" remains in the spec context (the person who owns the
-Compositfile and defines policies). But the business narrative leads with
+Compositfile governance rules and reviews composit reports). But the business
+narrative leads with
 **platform teams and CTOs** — the people who feel this pain most acutely
 and have budget to solve it.
 
@@ -19,7 +20,7 @@ and have budget to solve it.
 
 ## ICP — Wer zahlt?
 
-Validation (6.5/10, April 2026) hat die Zielgruppen-Hierarchie geklärt:
+Validation (7.0/10, BUILD — April 2026) hat die Zielgruppen-Hierarchie geklärt:
 
 ### Primary Paying ICP: Platform Engineers / DevOps
 
@@ -57,7 +58,7 @@ Solo Devs finden composit über die Open-Source-CLI und Community-Channels.
 
 ## Validation Findings (Kurzfassung)
 
-**Score: 6.5/10 — ITERATE** (April 2026)
+**Score: 7.0/10 — BUILD** (April 2026)
 
 | Dimension           | Score | Signal  |
 |---------------------|-------|---------|
@@ -106,8 +107,9 @@ proprietäre Ansätze, die den offenen Standard-Raum besetzen könnten.
 ### Defense-Strategie
 
 1. **Open Spec als Standard** — OpenTelemetry-Modell statt Docker-Modell.
-   Wenn die Compositfile-Spec adoptiert wird, validieren selbst Competitors
-   den Standard. Spec kann perspektivisch in eine Foundation wandern.
+   Wenn das composit-report-Format oder die Compositfile-Spec adoptiert wird,
+   validieren selbst Competitors den Standard. Spec kann perspektivisch in
+   eine Foundation wandern.
 
 2. **Cross-Agent Visibility** — composit trackt über ALLE Agents hinweg.
    Kein Single-Vendor-Tool kann das. Das ist der Moat.
@@ -214,21 +216,26 @@ Category hinzugefügt (Observability), drei bewusst ausgeschlossen.
 ## Spec vs. Product: Hybrid Model
 
 **Spec (open source, always):**
-- Compositfile format specification
+- composit-report.yaml format specification
+- Compositfile governance specification (post-MVP)
 - Manifest Discovery protocol
 - Contract Trust protocol  
 - Policy Interface schema (OPA-compatible)
 
 **Product (open core):**
 
-| Open Source (composit-core)     | Commercial (composit-cloud)        |
+| Open Source (composit-core)     | Commercial (self-hosted or cloud)  |
 |---------------------------------|------------------------------------|
-| CLI: parse, validate, diff      | Multi-creator workspaces           |
-| Local provider integrations     | Managed manifest registry          |
-| Self-hosted, single-creator     | Contract management                |
+| CLI: scan, status, report gen   | Multi-creator workspaces           |
+| `composit serve` (local dash)   | Managed manifest registry          |
+| Local provider integrations     | Contract management                |
 | Manifest Discovery (static)     | Cost aggregation + alerting        |
 |                                 | Audit trail + compliance           |
-|                                 | Hosted manifests with SLA          |
+|                                 | SSO, SLA, hosted manifests         |
+
+**Deployment options:** Teams choose self-hosted (Docker/Helm) or composit-cloud.
+The product is the same — cloud just adds managed infrastructure and SLA.
+This mirrors the Backstage/GitLab model: open-core, self-hosted first.
 
 croniq, hookaido, powerbrain remain independent OS projects.
 They are composit providers, not composit dependencies.
