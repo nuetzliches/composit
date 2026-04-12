@@ -129,6 +129,7 @@
     .inline-group .question { margin-bottom: 0; }
     .btn-bar {
       display: flex;
+      justify-content: flex-end;
       gap: 0.75rem;
       margin-top: 1.5rem;
       flex-wrap: wrap;
@@ -440,7 +441,6 @@
 
   <div class="btn-bar">
     <button class="btn btn-primary" onclick="copyResults()">Copy answers</button>
-    <button class="btn btn-secondary" onclick="resetForm()">Reset form</button>
   </div>
 
 </div>
@@ -558,17 +558,6 @@ function copyResults() {
     document.body.removeChild(ta);
     showToast('Answers copied to clipboard!');
   });
-}
-
-function resetForm() {
-  if (confirm('Reset all answers?')) {
-    document.querySelectorAll('input, textarea, select').forEach(el => {
-      if (el.type === 'checkbox' || el.type === 'radio') el.checked = false;
-      else if (el.tagName === 'SELECT') el.selectedIndex = 0;
-      else el.value = '';
-    });
-    showToast('Form reset');
-  }
 }
 
 function showToast(msg) {

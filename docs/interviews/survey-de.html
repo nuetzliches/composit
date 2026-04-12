@@ -129,6 +129,7 @@
     .inline-group .question { margin-bottom: 0; }
     .btn-bar {
       display: flex;
+      justify-content: flex-end;
       gap: 0.75rem;
       margin-top: 1.5rem;
       flex-wrap: wrap;
@@ -442,7 +443,6 @@
 
   <div class="btn-bar">
     <button class="btn btn-primary" onclick="copyResults()">Antworten kopieren</button>
-    <button class="btn btn-secondary" onclick="resetForm()">Formular zuruecksetzen</button>
   </div>
 
 </div>
@@ -561,17 +561,6 @@ function copyResults() {
     document.body.removeChild(ta);
     showToast('Antworten in die Zwischenablage kopiert!');
   });
-}
-
-function resetForm() {
-  if (confirm('Alle Antworten zuruecksetzen?')) {
-    document.querySelectorAll('input, textarea, select').forEach(el => {
-      if (el.type === 'checkbox' || el.type === 'radio') el.checked = false;
-      else if (el.tagName === 'SELECT') el.selectedIndex = 0;
-      else el.value = '';
-    });
-    showToast('Formular zurueckgesetzt');
-  }
 }
 
 function showToast(msg) {
