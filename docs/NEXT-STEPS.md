@@ -43,30 +43,70 @@ zeitgebundene Sprints mit klarem ICP-Fokus: Platform Engineers + CTOs.
 
 - [x] **`composit scan`** — Rust CLI mit Plugin-ready Scanner-Architektur:
   - 6 Built-in Scanner: docker, env_files, terraform, cron, mcp_config, mcp_provider
-  - Git-blame Attribution (agent vs. human, mit bekannten Agent-Patterns)
+  - Deep Docker Scan: Einzelne Services mit Image, Ports, Volumes, Networks
+  - Git-blame Attribution mit Co-Authored-By-Erkennung (agent vs. human)
+  - Last-Modified Attribution: Wer hat zuletzt geändert (erkennt Agent-Modifikationen)
   - 2-Phasen-Orchestrierung (Filesystem → Network)
   - Deklarative Config (composit.config.yaml): extra_patterns, Scanner toggle, Provider
-  - Report-Deduplizierung, YAML/JSON Output, farbige Terminal-Ausgabe
-  - Getestet gegen powerbrain (9 Resources), nuts-infra (23 Resources, 3 Autoren)
+  - Report-Deduplizierung, YAML/JSON/HTML Output, farbige Terminal-Ausgabe
+  - Getestet gegen powerbrain (28 Resources), nuts-infra (61 Resources, 42 agent-modified)
+
+- [x] **`composit status`** — Aggregierter View aus letztem Scan-Report:
+  - Liest composit-report.yaml, zeigt Resources/Attribution/Provider-Übersicht
+  - `--live` Flag für Live-Provider-Erreichbarkeit
 
 ### Tech-Entscheidung
 
 - [x] **Rust für v0.1** — Single-Binary ohne Runtime-Dependencies.
   croniq-Expertise vorhanden. Bessere Distribution (cargo install, brew).
 
-### Offen — composit scan Verbesserungen
+### Offen — Neue Scanner (priorisiert)
 
-- [ ] **Tieferer Docker-Scan** — Services einzeln als Resources (image, ports, volumes)
-- [ ] **Last-Modified Attribution** — Wer hat zuletzt geändert, wie oft
-- [ ] **HTML Report** — `composit scan --output html` für Demos und HN-Launch
+Scanner-Versioning: Version wird aus Docker-Image abgeleitet wenn verfügbar
+(z.B. `caddy:2.8` → Caddy v2). Scanner meldet Fehler wenn Format nicht parsbar.
+Keine eigene Versionserkennung im Scanner nötig.
 
-### Offen — composit status
+**Tier 1 — Nächste Umsetzung** (hoher Wert, in unseren Stacks vorhanden):
 
-- [ ] **`composit status`** — Aggregierter Live-Zustand via MCP-Provider:
-  - Liest composit-report.yaml als Baseline
-  - Verbindet sich mit croniq, hookaido, powerbrain (wenn vorhanden)
-  - Zeigt: X Jobs, Y Channels, Z Knowledge Sources, geschätzte Kosten
-  - Drift-Detection: Compositfile (Governance) vs. composit-report (Realität)
+- [ ] **Caddyfile** (8 Instanzen in nuts-infra, powerbrain, neurawerk, matrix-test)
+  Routing-Topologie: welcher Service hängt an welcher Domain, TLS-Config.
+  Domains und Upstream-Backends als Resources extrahieren.
+
+- [ ] **CI/CD Workflows** (42 Instanzen: .forgejo/ + .github/)
+  Build/Deploy-Pipelines: was wird automatisch deployed, Trigger, Ziel-Server.
+  Jeder Workflow als Resource mit Trigger-Events und Steps.
+
+- [ ] **Prometheus + Alerting** (3 Instanzen in powerbrain, hookaido-test)
+  Monitoring-Targets, Scrape-Intervalle, Alert-Regeln mit Schwellwerten.
+  Jedes Scrape-Target und jede Alert-Rule als Resource.
+
+**Tier 2 — Danach:**
+
+- [ ] **OPA/Rego Policies** (23 Instanzen in powerbrain)
+  Security-Policies, Zugriffsregeln, EU AI Act Compliance.
+  Jedes Policy-File als Resource mit Policy-Namen.
+
+- [ ] **Grafana Config** (7 Instanzen in powerbrain)
+  Datasources, Dashboard-Definitionen — Observability-Stack-Übersicht.
+
+- [ ] **Deploy Scripts** (17 Instanzen in nuts-infra)
+  Deployment-Automation: Bootstrap, Deploy, Sync — wer deployed wohin.
+
+- [ ] **DB Migrations** (22 Instanzen in powerbrain)
+  Schema-Zustand: Anzahl Migrationen, letzte Migration, Versionierung.
+
+**Tier 3 — Bei Bedarf:**
+
+- [ ] nginx.conf (3 Instanzen, nur Frontends)
+- [ ] Hookaidofile (2 Instanzen, eigenes Format)
+- [ ] Protobuf/gRPC Definitionen (3 Instanzen)
+- [ ] Tempo Tracing Config (1 Instanz)
+
+### Offen — composit status Erweiterungen
+
+- [ ] **Live-Provider-Abfrage** — Nicht nur Report lesen, sondern aktive
+  Ressourcen von croniq/hookaido/powerbrain via API abfragen
+- [ ] **Drift-Detection** — Compositfile (Governance) vs. composit-report (Realität)
 
 ---
 
