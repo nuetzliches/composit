@@ -226,32 +226,67 @@ fn group_by_type(resources: &[Resource]) -> Vec<(&str, Vec<&Resource>)> {
     result
 }
 
-fn attribution_stats(resources: &[Resource]) -> Vec<(String, usize)> {
-    let mut map: HashMap<String, usize> = HashMap::new();
+fn attribution_stats(resources: &[Resource]) -> Vec<(String, String, usize)> {
+    // (label, tag_class, count)
+    let mut created_by: HashMap<String, usize> = HashMap::new();
+    let mut modified_by: HashMap<String, usize> = HashMap::new();
     let mut untracked = 0usize;
+
     for r in resources {
         match &r.created_by {
-            Some(a) => *map.entry(a.clone()).or_insert(0) += 1,
+            Some(a) => *created_by.entry(a.clone()).or_insert(0) += 1,
             None => untracked += 1,
         }
+        if let Some(lm) = r.extra.get("last_modified_by").and_then(|v| v.as_str()) {
+            if lm.starts_with("agent:") {
+                *modified_by.entry(lm.to_string()).or_insert(0) += 1;
+            }
+        }
     }
-    let mut result: Vec<_> = map.into_iter().collect();
-    result.sort_by(|a, b| b.1.cmp(&a.1));
+
+    let mut result: Vec<(String, String, usize)> = Vec::new();
+
+    // Agent modifiers first (most important signal)
+    let mut mods: Vec<_> = modified_by.into_iter().collect();
+    mods.sort_by(|a, b| b.1.cmp(&a.1));
+    for (author, count) in mods {
+        result.push((format!("{} (last modified)", author), "tag-agent".to_string(), count));
+    }
+
+    // Then creators
+    let mut creators: Vec<_> = created_by.into_iter().collect();
+    creators.sort_by(|a, b| b.1.cmp(&a.1));
+    for (author, count) in creators {
+        let tag = if author.starts_with("agent:") {
+            "tag-agent"
+        } else {
+            "tag-human"
+        };
+        result.push((format!("{} (created)", author), tag.to_string(), count));
+    }
+
     if untracked > 0 {
-        result.push(("untracked".to_string(), untracked));
+        result.push(("untracked".to_string(), "tag-untracked".to_string(), untracked));
     }
     result
 }
 
 fn render_summary_cards(report: &Report) -> String {
+    let agent_modified = report
+        .resources
+        .iter()
+        .filter(|r| {
+            r.extra
+                .get("last_modified_by")
+                .and_then(|v| v.as_str())
+                .map_or(false, |lm| lm.starts_with("agent:"))
+        })
+        .count();
+
     let mut cards = vec![
         format!(
             r#"<div class="card"><div class="label">Resources</div><div class="value accent">{}</div></div>"#,
             report.summary.total_resources
-        ),
-        format!(
-            r#"<div class="card"><div class="label">Providers</div><div class="value">{}</div></div>"#,
-            report.summary.providers
         ),
     ];
 
@@ -259,6 +294,13 @@ fn render_summary_cards(report: &Report) -> String {
         cards.push(format!(
             r#"<div class="card"><div class="label">Agent-created</div><div class="value yellow">{}</div></div>"#,
             report.summary.agent_created
+        ));
+    }
+
+    if agent_modified > 0 {
+        cards.push(format!(
+            r#"<div class="card"><div class="label">Agent-modified</div><div class="value yellow">{}</div></div>"#,
+            agent_modified
         ));
     }
 
@@ -271,6 +313,13 @@ fn render_summary_cards(report: &Report) -> String {
         cards.push(format!(
             r#"<div class="card"><div class="label">Untracked</div><div class="value">{}</div></div>"#,
             report.summary.auto_detected
+        ));
+    }
+
+    if report.summary.providers > 0 {
+        cards.push(format!(
+            r#"<div class="card"><div class="label">Providers</div><div class="value">{}</div></div>"#,
+            report.summary.providers
         ));
     }
 
@@ -308,17 +357,32 @@ fn render_resource_sections(groups: &[(&str, Vec<&Resource>)]) -> String {
                 };
 
                 let date = r.created.as_deref().unwrap_or("");
+
+                // Last modified by
+                let last_mod = r.extra.get("last_modified_by").and_then(|v| v.as_str());
+                let last_mod_html = match last_mod {
+                    Some(lm) if lm.starts_with("agent:") => {
+                        format!(r#"<span class="tag tag-agent">{}</span>"#, html_escape(lm))
+                    }
+                    Some(lm) if lm.starts_with("human:") => {
+                        format!(r#"<span class="tag tag-human">{}</span>"#, html_escape(lm))
+                    }
+                    _ => String::new(),
+                };
+
                 let details = format_details(r);
 
                 format!(
                     r#"<tr>
   <td class="mono">{}</td>
   <td>{}</td>
+  <td>{}</td>
   <td class="muted">{}</td>
   <td class="detail">{}</td>
 </tr>"#,
                     html_escape(name_or_path),
                     attribution,
+                    last_mod_html,
                     date,
                     details
                 )
@@ -329,7 +393,7 @@ fn render_resource_sections(groups: &[(&str, Vec<&Resource>)]) -> String {
             r#"<section>
 <h2>{} <span class="count">({})</span></h2>
 <table>
-<thead><tr><th>Name / Path</th><th>Created by</th><th>Date</th><th>Details</th></tr></thead>
+<thead><tr><th>Name / Path</th><th>Created by</th><th>Last modified</th><th>Date</th><th>Details</th></tr></thead>
 <tbody>
 {}
 </tbody>
@@ -344,21 +408,14 @@ fn render_resource_sections(groups: &[(&str, Vec<&Resource>)]) -> String {
     sections.join("\n")
 }
 
-fn render_attribution_rows(stats: &[(String, usize)]) -> String {
+fn render_attribution_rows(stats: &[(String, String, usize)]) -> String {
     stats
         .iter()
-        .map(|(author, count)| {
-            let tag_class = if author.starts_with("agent:") {
-                "tag-agent"
-            } else if author.starts_with("human:") {
-                "tag-human"
-            } else {
-                "tag-untracked"
-            };
+        .map(|(label, tag_class, count)| {
             format!(
                 r#"<tr><td><span class="tag {}">{}</span></td><td>{}</td></tr>"#,
                 tag_class,
-                html_escape(author),
+                html_escape(label),
                 count
             )
         })
