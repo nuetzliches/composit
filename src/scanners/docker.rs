@@ -99,12 +99,56 @@ fn scan_compose_file(path: &Path, base_dir: &Path) -> Result<(Resource, Vec<Reso
 
     let services_count = services.len();
 
+    // Extract top-level networks
+    let networks: Vec<String> = yaml
+        .get("networks")
+        .and_then(|n| n.as_mapping())
+        .map(|m| {
+            m.keys()
+                .filter_map(|k| k.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    // Extract top-level volumes
+    let volumes: Vec<String> = yaml
+        .get("volumes")
+        .and_then(|v| v.as_mapping())
+        .map(|m| {
+            m.keys()
+                .filter_map(|k| k.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+
     // Compose file resource
     let mut compose_extra = HashMap::new();
     compose_extra.insert(
         "services".to_string(),
         serde_json::Value::Number(serde_json::Number::from(services_count)),
     );
+    if !networks.is_empty() {
+        compose_extra.insert(
+            "networks".to_string(),
+            serde_json::Value::Array(
+                networks
+                    .iter()
+                    .map(|n| serde_json::Value::String(n.clone()))
+                    .collect(),
+            ),
+        );
+    }
+    if !volumes.is_empty() {
+        compose_extra.insert(
+            "volumes".to_string(),
+            serde_json::Value::Array(
+                volumes
+                    .iter()
+                    .map(|v| serde_json::Value::String(v.clone()))
+                    .collect(),
+            ),
+        );
+    }
 
     let compose_resource = Resource {
         resource_type: "docker_compose".to_string(),
@@ -166,6 +210,28 @@ fn scan_compose_file(path: &Path, base_dir: &Path) -> Result<(Resource, Vec<Reso
                 .collect();
             if !vol_strs.is_empty() {
                 extra.insert("volumes".to_string(), serde_json::Value::Array(vol_strs));
+            }
+        }
+
+        // Service networks
+        if let Some(nets) = value.get("networks") {
+            let net_list: Vec<String> = if let Some(seq) = nets.as_sequence() {
+                seq.iter()
+                    .filter_map(|n| n.as_str().map(|s| s.to_string()))
+                    .collect()
+            } else if let Some(map) = nets.as_mapping() {
+                map.keys()
+                    .filter_map(|k| k.as_str().map(|s| s.to_string()))
+                    .collect()
+            } else {
+                vec![]
+            };
+            if !net_list.is_empty() {
+                let net_vals: Vec<serde_json::Value> = net_list
+                    .into_iter()
+                    .map(serde_json::Value::String)
+                    .collect();
+                extra.insert("networks".to_string(), serde_json::Value::Array(net_vals));
             }
         }
 

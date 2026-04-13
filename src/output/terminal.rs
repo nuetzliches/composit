@@ -118,6 +118,18 @@ fn format_extra(r: &crate::core::types::Resource) -> String {
             parts.push(format!("ports:{}", port_strs.join(",")));
         }
     }
+    if let Some(networks) = r.extra.get("networks").and_then(|v| v.as_array()) {
+        let net_strs: Vec<&str> = networks.iter().filter_map(|n| n.as_str()).collect();
+        if !net_strs.is_empty() {
+            parts.push(format!("nets:{}", net_strs.join(",")));
+        }
+    }
+    if let Some(volumes) = r.extra.get("volumes").and_then(|v| v.as_array()) {
+        let vol_strs: Vec<&str> = volumes.iter().filter_map(|v| v.as_str()).collect();
+        if !vol_strs.is_empty() && r.resource_type == "docker_compose" {
+            parts.push(format!("{} volumes", vol_strs.len()));
+        }
+    }
     if let Some(vars) = r.extra.get("variables").and_then(|v| v.as_u64()) {
         parts.push(format!("{} vars", vars));
     }
