@@ -53,4 +53,5 @@ pub enum Commands {
 pub enum OutputFormat {
     Yaml,
     Json,
+    Html,
 }

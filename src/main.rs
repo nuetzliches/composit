@@ -108,6 +108,7 @@ async fn run_scan(
     let (content, filename) = match format {
         OutputFormat::Yaml => (output::yaml::to_yaml(&report)?, "composit-report.yaml"),
         OutputFormat::Json => (output::json::to_json(&report)?, "composit-report.json"),
+        OutputFormat::Html => (output::html::to_html(&report)?, "composit-report.html"),
     };
 
     let report_path = dir.join(filename);
