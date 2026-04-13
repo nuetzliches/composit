@@ -1,0 +1,12 @@
+workspace: my-saas-project
+
+providers:
+  - url: https://croniq.nuetzliche.it
+
+extra_patterns:
+  - type: k8s_service
+    glob: "**/service.yaml"
+    description: "Kubernetes service definitions"
+
+scanners:
+  cron: false

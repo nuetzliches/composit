@@ -8,12 +8,17 @@ Thumbs.db
 *.swp
 *.swo
 
-# Build artifacts (when we get there)
+# Build artifacts
 /target/
 /dist/
 /node_modules/
 
+# Generated reports
+composit-report.yaml
+composit-report.json
+
 # Environment
 .env
 .env.local
+!tests/fixtures/**/.env
 VALIDATION.md

@@ -1,0 +1,13 @@
+services:
+  web:
+    image: nginx:latest
+    ports:
+      - "80:80"
+  api:
+    build: ./api
+    ports:
+      - "3000:3000"
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: secret
