@@ -44,6 +44,22 @@ pub fn print_summary(report: &Report) {
                     .dimmed()
                     .to_string();
 
+                // Show last_modified_by if different from created_by
+                let last_mod = r
+                    .extra
+                    .get("last_modified_by")
+                    .and_then(|v| v.as_str());
+                let last_mod_str = match last_mod {
+                    Some(lm) if Some(lm) != r.created_by.as_deref() => {
+                        if lm.starts_with("agent:") {
+                            format!(" -> {}", lm.yellow())
+                        } else {
+                            format!(" -> {}", lm.dimmed())
+                        }
+                    }
+                    _ => String::new(),
+                };
+
                 // Show extra info inline
                 let extra_info = format_extra(r);
                 let extra_str = if extra_info.is_empty() {
@@ -53,8 +69,8 @@ pub fn print_summary(report: &Report) {
                 };
 
                 println!(
-                    "    {:<40} {:>20}  {}{}",
-                    path, attribution, date, extra_str
+                    "    {:<40} {:>20}{}  {}{}",
+                    path, attribution, last_mod_str, date, extra_str
                 );
             }
         }
@@ -77,11 +93,36 @@ pub fn print_summary(report: &Report) {
     // Summary
     println!();
     println!("{}", "-".repeat(60));
+
+    // Count agent-modified (last_modified_by is agent, but created_by is not)
+    let agent_modified = report
+        .resources
+        .iter()
+        .filter(|r| {
+            r.extra
+                .get("last_modified_by")
+                .and_then(|v| v.as_str())
+                .map_or(false, |lm| {
+                    lm.starts_with("agent:")
+                        && !r
+                            .created_by
+                            .as_deref()
+                            .map_or(false, |c| c.starts_with("agent:"))
+                })
+        })
+        .count();
+
     let mut parts = vec![format!("{} resources", report.summary.total_resources)];
     if report.summary.agent_created > 0 {
         parts.push(format!(
             "{} agent-created",
             report.summary.agent_created.to_string().yellow()
+        ));
+    }
+    if agent_modified > 0 {
+        parts.push(format!(
+            "{} agent-modified",
+            agent_modified.to_string().yellow()
         ));
     }
     if report.summary.human_created > 0 {

@@ -57,34 +57,52 @@ pub fn enrich_attribution(resources: &mut [Resource], base_dir: &Path) {
         }
 
         // Get the first commit that introduced this file
-        if let Some(info) = git_file_creator(base_dir, rel_path) {
+        if let Some(info) = git_file_info(base_dir, rel_path, true) {
             let (attribution, extra) = classify_commit(&info);
             resource.created_by = Some(attribution);
             if resource.created.is_none() {
                 resource.created = Some(info.date);
             }
-            // Add co-author info to extra fields
             for (key, value) in extra {
                 resource.extra.entry(key).or_insert(value);
             }
         }
+
+        // Get the most recent commit that modified this file
+        if let Some(info) = git_file_info(base_dir, rel_path, false) {
+            let (attribution, _) = classify_commit(&info);
+            resource.extra.insert(
+                "last_modified_by".to_string(),
+                serde_json::Value::String(attribution),
+            );
+            resource.extra.insert(
+                "last_modified".to_string(),
+                serde_json::Value::String(info.date),
+            );
+        }
     }
 }
 
-/// Run git log to find who first created a file, including commit body for Co-Authored-By
-fn git_file_creator(repo_dir: &Path, file_path: &str) -> Option<GitFileInfo> {
-    // Use %x00 as record separator so multi-line commit bodies don't break parsing.
-    // --reverse gives oldest first; we take the first record (the initial add).
+/// Run git log to find who created or last modified a file.
+/// If `first` is true, finds the commit that first added the file.
+/// If `first` is false, finds the most recent commit that touched the file.
+fn git_file_info(repo_dir: &Path, file_path: &str, first: bool) -> Option<GitFileInfo> {
+    let mut args = vec![
+        "log".to_string(),
+        "--format=%an <%ae>%x00%aI%x00%b%x00".to_string(),
+    ];
+    if first {
+        args.push("--diff-filter=A".to_string());
+        args.push("--follow".to_string());
+        args.push("--reverse".to_string());
+    } else {
+        args.push("-1".to_string());
+    }
+    args.push("--".to_string());
+    args.push(file_path.to_string());
+
     let output = Command::new("git")
-        .args([
-            "log",
-            "--diff-filter=A",
-            "--follow",
-            "--format=%an <%ae>%x00%aI%x00%b%x00",
-            "--reverse",
-            "--",
-            file_path,
-        ])
+        .args(&args)
         .current_dir(repo_dir)
         .output()
         .ok()?;
