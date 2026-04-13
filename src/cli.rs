@@ -37,6 +37,16 @@ pub enum Commands {
         #[arg(long)]
         quiet: bool,
     },
+    /// Show aggregated status from the last scan report
+    Status {
+        /// Directory containing composit-report.yaml
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
+
+        /// Check live provider reachability
+        #[arg(long)]
+        live: bool,
+    },
 }
 
 #[derive(Clone, ValueEnum)]

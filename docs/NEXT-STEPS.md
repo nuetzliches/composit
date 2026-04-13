@@ -39,25 +39,34 @@ zeitgebundene Sprints mit klarem ICP-Fokus: Platform Engineers + CTOs.
 
 ## Sprint 2: `composit status` CLI (Woche 3-4)
 
-### MVP-Scope
+### Implementiert
 
-- [ ] **`composit scan`** — Zero-Config Scanner für Agent-generierte Artefakte:
-  - Lokale MCP-Configs lesen (claude_desktop_config.json, .cursor/, etc.)
-  - Terraform State Files erkennen
-  - docker-compose.yml / Dockerfile erkennen
-  - Cron-Einträge, Webhook-Configs, .env Files
-  - Output: Single-Page Inventory (Terminal + optional HTML)
-
-- [ ] **`composit status`** — Aggregierter Zustand via MCP-Provider:
-  - Verbindet sich mit croniq, hookaido, powerbrain (wenn vorhanden)
-  - Zeigt: X Jobs, Y Channels, Z Knowledge Sources, geschätzte Kosten
-  - Drift-Detection: Compositfile (Governance) vs. composit-report (Realität)
+- [x] **`composit scan`** — Rust CLI mit Plugin-ready Scanner-Architektur:
+  - 6 Built-in Scanner: docker, env_files, terraform, cron, mcp_config, mcp_provider
+  - Git-blame Attribution (agent vs. human, mit bekannten Agent-Patterns)
+  - 2-Phasen-Orchestrierung (Filesystem → Network)
+  - Deklarative Config (composit.config.yaml): extra_patterns, Scanner toggle, Provider
+  - Report-Deduplizierung, YAML/JSON Output, farbige Terminal-Ausgabe
+  - Getestet gegen powerbrain (9 Resources), nuts-infra (23 Resources, 3 Autoren)
 
 ### Tech-Entscheidung
 
-- [ ] **TypeScript für v0.1** — MCP SDK ist TypeScript-native, schnellste Iteration.
-  Performance-Optimierung (Rust/Go Rewrite) nur wenn nötig.
-  Rationale: Geschwindigkeit ist kritischer als Performance im 6-12 Monate Window.
+- [x] **Rust für v0.1** — Single-Binary ohne Runtime-Dependencies.
+  croniq-Expertise vorhanden. Bessere Distribution (cargo install, brew).
+
+### Offen — composit scan Verbesserungen
+
+- [ ] **Tieferer Docker-Scan** — Services einzeln als Resources (image, ports, volumes)
+- [ ] **Last-Modified Attribution** — Wer hat zuletzt geändert, wie oft
+- [ ] **HTML Report** — `composit scan --output html` für Demos und HN-Launch
+
+### Offen — composit status
+
+- [ ] **`composit status`** — Aggregierter Live-Zustand via MCP-Provider:
+  - Liest composit-report.yaml als Baseline
+  - Verbindet sich mit croniq, hookaido, powerbrain (wenn vorhanden)
+  - Zeigt: X Jobs, Y Channels, Z Knowledge Sources, geschätzte Kosten
+  - Drift-Detection: Compositfile (Governance) vs. composit-report (Realität)
 
 ---
 

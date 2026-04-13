@@ -1,4 +1,5 @@
 mod cli;
+mod commands;
 mod core;
 mod output;
 mod scanners;
@@ -32,6 +33,10 @@ async fn main() -> Result<()> {
         } => {
             let dir = fs::canonicalize(&dir)?;
             run_scan(&dir, output, providers, no_providers, config.as_deref(), quiet).await?;
+        }
+        Commands::Status { dir, live } => {
+            let dir = fs::canonicalize(&dir)?;
+            commands::status::run_status(&dir, live).await?;
         }
     }
 
