@@ -29,12 +29,15 @@ pub fn dedup_resources(resources: Vec<Resource>) -> Vec<Resource> {
     let mut result = Vec::new();
 
     for r in resources {
-        let key = if let Some(path) = &r.path {
-            format!("{}:{}", r.resource_type, path)
+        // Build dedup key: prefer (type, name, path) > (type, name) > (type, path)
+        let key = if let (Some(name), Some(path)) = (&r.name, &r.path) {
+            format!("{}:{}:{}", r.resource_type, name, path)
         } else if let (Some(name), Some(provider)) = (&r.name, &r.provider) {
             format!("{}:{}:{}", r.resource_type, name, provider)
         } else if let Some(name) = &r.name {
             format!("{}:{}", r.resource_type, name)
+        } else if let Some(path) = &r.path {
+            format!("{}:{}", r.resource_type, path)
         } else {
             // No dedup key possible, keep it
             result.push(r);

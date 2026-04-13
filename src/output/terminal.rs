@@ -106,6 +106,18 @@ fn format_extra(r: &crate::core::types::Resource) -> String {
     if let Some(services) = r.extra.get("services").and_then(|v| v.as_u64()) {
         parts.push(format!("{} services", services));
     }
+    if let Some(image) = r.extra.get("image").and_then(|v| v.as_str()) {
+        parts.push(image.to_string());
+    }
+    if let Some(build) = r.extra.get("build").and_then(|v| v.as_str()) {
+        parts.push(format!("build:{}", build));
+    }
+    if let Some(ports) = r.extra.get("ports").and_then(|v| v.as_array()) {
+        let port_strs: Vec<&str> = ports.iter().filter_map(|p| p.as_str()).collect();
+        if !port_strs.is_empty() {
+            parts.push(format!("ports:{}", port_strs.join(",")));
+        }
+    }
     if let Some(vars) = r.extra.get("variables").and_then(|v| v.as_u64()) {
         parts.push(format!("{} vars", vars));
     }
