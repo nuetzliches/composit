@@ -42,14 +42,18 @@ zeitgebundene Sprints mit klarem ICP-Fokus: Platform Engineers + CTOs.
 ### Implementiert
 
 - [x] **`composit scan`** — Rust CLI mit Plugin-ready Scanner-Architektur:
-  - 6 Built-in Scanner: docker, env_files, terraform, cron, mcp_config, mcp_provider
+  - 9 Built-in Scanner: docker, env_files, terraform, caddyfile, workflows, prometheus, cron, mcp_config, mcp_provider
   - Deep Docker Scan: Einzelne Services mit Image, Ports, Volumes, Networks
-  - Git-blame Attribution mit Co-Authored-By-Erkennung (agent vs. human)
+  - Terraform HCL-Parsing: Deklarierte Resources, Module, Provider aus .tf Dateien (via hcl-rs)
+  - Caddyfile-Parsing: Site-Blöcke, reverse_proxy, file_server, TLS-Directives
+  - CI/CD Workflows: GitHub Actions, Forgejo, Gitea, GitLab CI — Triggers, Jobs, Runner
+  - Prometheus: Scrape-Configs, Job-Namen, Alerting-Rules, Rule-Groups
+  - Multi-Author Attribution: Co-Authored-By bewahrt menschlichen Autor, Agents als Flag (agent_assisted)
   - Last-Modified Attribution: Wer hat zuletzt geändert (erkennt Agent-Modifikationen)
   - 2-Phasen-Orchestrierung (Filesystem → Network)
   - Deklarative Config (composit.config.yaml): extra_patterns, Scanner toggle, Provider
   - Report-Deduplizierung, YAML/JSON/HTML Output, farbige Terminal-Ausgabe
-  - Getestet gegen powerbrain (28 Resources), nuts-infra (61 Resources, 42 agent-modified)
+  - Getestet gegen 17 Repos (5 bis 3399 Resources pro Repo), validiert via composit-scanner-tests
 
 - [x] **`composit status`** — Aggregierter View aus letztem Scan-Report:
   - Liest composit-report.yaml, zeigt Resources/Attribution/Provider-Übersicht
@@ -60,47 +64,80 @@ zeitgebundene Sprints mit klarem ICP-Fokus: Platform Engineers + CTOs.
 - [x] **Rust für v0.1** — Single-Binary ohne Runtime-Dependencies.
   croniq-Expertise vorhanden. Bessere Distribution (cargo install, brew).
 
-### Offen — Neue Scanner (priorisiert)
+### Scanner Status
 
-Scanner-Versioning: Version wird aus Docker-Image abgeleitet wenn verfügbar
-(z.B. `caddy:2.8` → Caddy v2). Scanner meldet Fehler wenn Format nicht parsbar.
-Keine eigene Versionserkennung im Scanner nötig.
+**Implementiert (9 Scanner):**
 
-**Tier 1 — Nächste Umsetzung** (hoher Wert, in unseren Stacks vorhanden):
+| Scanner | Resource-Typen | Status |
+|---------|---------------|--------|
+| docker | docker_compose, docker_service, dockerfile | ✅ Services, Images, Ports, Volumes, Networks |
+| env_files | env_file | ✅ Variable-Count |
+| terraform | terraform_config, terraform_resource, terraform_module, terraform_state | ✅ HCL-Parsing via hcl-rs |
+| caddyfile | caddyfile, caddy_site | ✅ Site-Blöcke, reverse_proxy, TLS |
+| workflows | workflow | ✅ GitHub Actions, Forgejo, Gitea, GitLab CI |
+| prometheus | prometheus_config, prometheus_rules | ✅ Scrape-Configs, Alert-Rules |
+| cron | cron_job | ✅ Crontab-Einträge |
+| mcp_config | mcp_server | ✅ Claude Desktop, Cursor MCP-Config |
+| mcp_provider | (via API) | ✅ Remote Provider Discovery |
 
-- [ ] **Caddyfile** (8 Instanzen in nuts-infra, powerbrain, neurawerk, matrix-test)
-  Routing-Topologie: welcher Service hängt an welcher Domain, TLS-Config.
-  Domains und Upstream-Backends als Resources extrahieren.
+### Scanner Gaps (ermittelt via composit-scanner-tests, 2026-04-14)
 
-- [ ] **CI/CD Workflows** (42 Instanzen: .forgejo/ + .github/)
-  Build/Deploy-Pipelines: was wird automatisch deployed, Trigger, Ziel-Server.
-  Jeder Workflow als Resource mit Trigger-Events und Steps.
+Validiert gegen 17 öffentliche + interne Repos. Gap-Analyse zeigt Dateien
+die in gescannten Repos existieren, aber von keinem Scanner erfasst werden.
 
-- [ ] **Prometheus + Alerting** (3 Instanzen in powerbrain, hookaido-test)
-  Monitoring-Targets, Scrape-Intervalle, Alert-Regeln mit Schwellwerten.
-  Jedes Scrape-Target und jede Alert-Rule als Resource.
+**Tier 1 — Höchste Priorität** (häufig, hohes Volumen):
 
-**Tier 2 — Danach:**
+- [ ] **Kubernetes Manifests** (~100 Dateien in Test-Repos)
+  YAML mit `apiVersion:` — Deployments, Services, ConfigMaps, Ingress.
+  Resource-Typ + Namespace + Name extrahieren.
+  Erkennungsmuster: `apiVersion:` in YAML (nicht Workflow/Compose/Prometheus).
 
-- [ ] **OPA/Rego Policies** (23 Instanzen in powerbrain)
-  Security-Policies, Zugriffsregeln, EU AI Act Compliance.
-  Jedes Policy-File als Resource mit Policy-Namen.
+- [ ] **Kustomize** (22 Dateien in Test-Repos)
+  `kustomization.yaml` — Overlay-Struktur, referenzierte Bases und Resources.
+  Oft zusammen mit Kubernetes Manifests.
 
-- [ ] **Grafana Config** (7 Instanzen in powerbrain)
-  Datasources, Dashboard-Definitionen — Observability-Stack-Übersicht.
+- [ ] **Helm Charts** (5 Dateien in Test-Repos)
+  `Chart.yaml` — Chart-Name, Version, Dependencies, Values.
+  Zusammen mit templates/ Verzeichnis.
 
-- [ ] **Deploy Scripts** (17 Instanzen in nuts-infra)
-  Deployment-Automation: Bootstrap, Deploy, Sync — wer deployed wohin.
+**Tier 2 — Mittel** (vorhanden, moderates Volumen):
 
-- [ ] **DB Migrations** (22 Instanzen in powerbrain)
-  Schema-Zustand: Anzahl Migrationen, letzte Migration, Versionierung.
+- [ ] **nginx** (10 Dateien in Test-Repos)
+  `nginx.conf` — Server-Blöcke, Upstreams, Locations.
+  Ähnlich wie Caddyfile: Reverse-Proxy-Topologie.
 
-**Tier 3 — Bei Bedarf:**
+- [ ] **OPA/Rego Policies** (in internen Stacks)
+  Security-Policies, Zugriffsregeln.
 
-- [ ] nginx.conf (3 Instanzen, nur Frontends)
-- [ ] Hookaidofile (2 Instanzen, eigenes Format)
-- [ ] Protobuf/gRPC Definitionen (3 Instanzen)
-- [ ] Tempo Tracing Config (1 Instanz)
+- [ ] **Grafana Config** (2 Dateien in Test-Repos + interne Stacks)
+  Dashboard-JSON, Datasource-Konfiguration.
+
+- [ ] **Deploy Scripts** (in internen Stacks)
+  Deployment-Automation: Bootstrap, Deploy, Sync.
+
+- [ ] **DB Migrations** (in internen Stacks)
+  Schema-Zustand: Anzahl Migrationen, Versionierung.
+
+**Tier 3 — Niedrig** (selten, spezifisch):
+
+- [ ] fly.toml (1 Datei — Fly.io Deployments)
+- [ ] render.yaml (1 Datei — Render.com)
+- [ ] vercel.json (2 Dateien — Vercel Deployments)
+- [ ] Skaffold (1 Datei — skaffold.yaml)
+- [ ] Hookaidofile (eigenes Format)
+- [ ] Protobuf/gRPC Definitionen
+- [ ] Tempo Tracing Config
+- [ ] Traefik (traefik.yml/traefik.toml)
+
+### Scanner-Prinzipien
+
+- **Deklarationen scannen, nicht Runtime** — Wir lesen was im Repo steht,
+  nicht was deployed ist. docker-compose.yml, nicht Docker API.
+- **Nur standalone Config-Dateien** — Keine in andere Tools eingebettete
+  Configs (z.B. Caddy-Labels in Docker-Compose, Caddy-Config in Ansible-Vars).
+  Für eingebettete Configs → separater Scanner für das Host-Tool (z.B. Ansible).
+- **Terraform als Scanner, nicht als Provider** — .tf Dateien sind das
+  Arbeitsergebnis des Agents. State/Cloud-APIs sind Terraforms Domäne.
 
 ### Offen — composit status Erweiterungen
 
