@@ -139,11 +139,26 @@ die in gescannten Repos existieren, aber von keinem Scanner erfasst werden.
 - **Terraform als Scanner, nicht als Provider** — .tf Dateien sind das
   Arbeitsergebnis des Agents. State/Cloud-APIs sind Terraforms Domäne.
 
-### Offen — composit status Erweiterungen
+### Offen — Critical Path (Governance-as-Code Kern)
 
-- [ ] **Live-Provider-Abfrage** — Nicht nur Report lesen, sondern aktive
-  Ressourcen von croniq/hookaido/powerbrain via API abfragen
-- [ ] **Drift-Detection** — Compositfile (Governance) vs. composit-report (Realität)
+Priorität: Compositfile + Drift Detection VOR weiteren Scannern.
+Der Scanner ist Mittel zum Zweck — der Wert steckt in IST vs. SOLL.
+
+- [ ] **Compositfile Parser** — HCL-Parsing des Governance-Dokuments (hcl-rs
+  bereits als Dependency vorhanden). Typisierte Governance-Struct: approved
+  providers, budget constraints, policy references.
+
+- [ ] **`composit diff`** — Vergleich composit-report.yaml (IST) gegen
+  Compositfile (SOLL). Output: unapproved providers, budget violations,
+  fehlende/unerwartete resources, governance drift. Terminal + YAML/JSON.
+
+- [ ] **Live-Demo** — `composit scan` + `composit diff` auf echtem Repo
+  mit echtem Compositfile. Das ist das HN-Demo-Artefakt.
+
+### Offen — Weitere Erweiterungen
+
+- [ ] **Live-Provider-Abfrage** — Aktive Ressourcen von Providern via API
+- [ ] **OPA Runtime-Integration** — Policy-Evaluation gegen Rego-Dateien
 
 ---
 

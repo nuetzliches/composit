@@ -1,58 +1,55 @@
 # HN Launch Draft
 
-Stand: 2026-04-12 (post-Validation, retargeted to Platform Engineers)
+Stand: 2026-04-14 (post-Positioning: Governance-as-Code)
 
 ---
 
 ## Title Options
 
-Pragmatisch (Platform Eng Audience):
-- **Show HN: `composit scan` — see every service your AI agents created**
-- **Show HN: Your agents built 47 services last month. Here's the inventory**
-- **Show HN: An open spec for tracking what AI agents build in your infrastructure**
+Governance-Angle:
+- **Show HN: Governance-as-code for AI-generated infrastructure**
+- **Show HN: `composit diff` — does your infrastructure match your governance?**
+- **Show HN: AI agents are building your infra. Here's what doesn't match your contracts.**
 
-Philosophisch (breitere Audience):
-- **The human context window problem**
-- **Your context window is smaller than your LLM's — here's the fix**
+Pragmatisch:
+- **Show HN: `composit scan` + `composit diff` — inventory your infra, detect governance drift**
 
 ---
 
 ## Post
 
-AI agents write code fast. But they also provision infrastructure fast — cron
-jobs, webhooks, databases, API integrations. And nobody keeps track.
+Infrastructure governance was broken before AI. Most teams can't answer:
+"What services do we run, and do they match what we declared?"
 
-If you're a platform engineer running drift audits, comparing AWS resources to
-Terraform state, wondering who created that service on port 8443 — you know
-this pain. If you're a CTO who found out about a $22K/month bill from forgotten
-test databases your agents spun up — you know it too.
+AI makes this urgent. Agents provision cron jobs, webhooks, databases, API
+integrations — in minutes. The solutions work. But they accumulate outside
+any governance framework.
 
-The numbers back it up: only 25% of CIOs have full visibility into agents
-operating in their org. The average enterprise sees 223 shadow-AI incidents
-per month. One AI agent ran `terraform destroy` on production because of a
-missing state file — wiping 2.5 years of data.
+The numbers: only 25% of CIOs report full visibility into agents in their org.
+223 shadow-AI incidents per month at the average enterprise. 78% of IT leaders
+report unexpected costs from AI agent usage.
 
-**Context engines exist for the AI.** RAG, vector databases, policy engines —
-all designed to give agents the right information. That problem is solved.
-
-Nobody is solving it for the human. Humans have the smaller context window.
+Every company will use AI. The question is how they keep control.
 
 ---
 
-**Composit** is an open spec and open-core CLI for visibility over
-agent-generated infrastructure.
+**Composit** is governance-as-code for infrastructure.
 
-`composit scan` is the entry point. Zero config. Point it at a project and it
-inventories agent-created artifacts: MCP configs, Terraform state, Docker files,
-cron entries, webhook configs. Output: a **composit-report.yaml** — a machine-
-readable inventory of what exists, who created it, and what it costs. Not a
-deployment tool (that's Terraform). Not a monitoring tool (that's Datadog).
-A **visibility tool** — the missing layer between "agents build things" and
-"the platform team understands what exists."
+Two artifacts, one comparison:
 
-Later, a **Compositfile** lets teams declare governance rules: approved providers,
-budget constraints, data residency policies. Drift detection compares the report
-(what exists) against the Compositfile (what should be true).
+1. **`composit scan`** → the IS-state. Point it at a repo, get a machine-readable
+   inventory: Docker services, Terraform resources, Caddyfiles, CI/CD workflows,
+   Prometheus configs — plus who created what (AI agent vs. human, via git-blame).
+
+2. **`Compositfile`** → the SHOULD-state. Declare your governance: approved
+   providers, budget constraints, policies. Version it. Review it in PRs.
+
+3. **`composit diff`** → the gap. Unapproved providers, budget violations,
+   missing resources, governance drift.
+
+Not a deployment tool (that's Terraform). Not a monitoring tool (that's Datadog).
+A **governance tool** — the missing layer between "infrastructure exists" and
+"it matches what we declared."
 
 Three protocols (the spec):
 
@@ -75,7 +72,7 @@ slow agents down. It gives the platform team a map of what they've built.
 
 **What exists today:**
 
-- `composit scan` CLI (TypeScript, zero-config)
+- `composit scan` CLI (Rust, zero-config, 9 built-in scanners)
 - composit-report.yaml format (v0.1) + Compositfile governance spec (draft)
 - Public manifest schema (JSON, well-known URL discovery)
 - OPA policy examples (agent limits, provider approval)
@@ -97,9 +94,9 @@ they created — this is for you. Solo devs are welcome too (the CLI is free),
 but the product is built for teams.
 
 **"How is this different from Backstage / Port?"**
-Backstage catalogs services humans built. Composit tracks what agents build
-on your behalf — including things you didn't explicitly ask for. Backstage is
-a developer portal. Composit is an agent-infrastructure inventory.
+Backstage catalogs services. Composit governs infrastructure. Backstage answers
+"what do we have?" Composit answers "does what we have match what we declared?"
+The Compositfile is governance-as-code — version-controlled, reviewable, diffable.
 
 **"How is this different from Terraform?"**
 Terraform provisions infrastructure. Composit observes it. The `composit-report.yaml`

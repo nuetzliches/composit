@@ -2,19 +2,27 @@
 
 ## Red Thread
 
-The core problem is not infrastructure composition — it's **visibility and control
-over what agents build**.
+The core problem is **governance over infrastructure — IS-state vs. SHOULD-state.**
 
-Agents generate solutions faster than humans can track them. Platform teams and
-engineering leaders need a way to maintain oversight: what exists, why, what it
-costs, and what needs attention. Everything else (spec, CLI, registry) serves
-this purpose.
+Infrastructure governance was broken before AI. Most teams don't have a
+machine-readable answer to "what do we run, and does it match what we declared?"
+AI agents make this urgent: they provision infrastructure faster than humans can
+track, outside any governance framework.
+
+Composit is Governance-as-Code:
+- `composit scan` → **IS-state** (what exists)
+- `Compositfile` → **SHOULD-state** (what's declared: providers, budgets, policies)
+- `composit diff` → **drift** (the gap between reality and governance)
+
+AI-attribution (who created what: agent vs. human) is a **reporting feature**,
+not the core. The IS-vs-SHOULD comparison works regardless of who created what.
+But the AI angle makes governance urgent and marketable — "every company will
+use AI; the question is how they keep control."
 
 The word "creator" remains in the spec context (the person who owns the
-Compositfile governance rules and reviews composit reports). But the business
-narrative leads with
-**platform teams and CTOs** — the people who feel this pain most acutely
-and have budget to solve it.
+Compositfile governance rules and reviews composit reports). The business
+narrative leads with **platform teams and CTOs** — the people who feel
+governance pain most acutely and have budget to solve it.
 
 ---
 

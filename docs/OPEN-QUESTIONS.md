@@ -73,13 +73,14 @@ TypeScript (openclaw).
 - Team expertise → all four are in play
 - Composit is primarily a spec/metadata tool, not a high-throughput system
 
-**Validation Update (2026-04-12):** Validation zeigt Geschwindigkeit ist
-kritischer als Performance. Das 6-12 Monate Window vor Hyperscaler-Lock-in
-erfordert schnellste Iteration. TypeScript ist: MCP SDK native, schnellste
-Prototyping-Geschwindigkeit, npm-Ecosystem für CLI-Tooling (commander, ora, etc.).
-Rust/Go Rewrite später wenn Performance-Bottleneck wird.
+**Validation Update (2026-04-14):** Ursprünglich TypeScript geplant (MCP SDK,
+schnelle Iteration). Tatsächlich in Rust implementiert — Single-Binary ohne
+Runtime-Dependencies, hcl-rs für Terraform/Compositfile-Parsing, serde für
+YAML/JSON, clap für CLI. Performance und Distribution (cargo install, brew,
+npx via Platform-Packages) sprechen für Rust. Kein Rewrite nötig.
 
-**Status:** Decided — TypeScript für v0.1. Revisit nach MVP wenn nötig.
+**Status:** Decided — Rust für v0.1 (implementiert). Distribution via cargo
+install, brew, und npx-Wrapper (Platform-specific npm packages).
 
 ---
 
