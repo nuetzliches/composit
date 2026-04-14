@@ -162,6 +162,51 @@ Nach Sprint 4 die Frage beantworten:
 
 ---
 
+## Ecosystem-Strategie: Badge System + Scanner Hub
+
+### Provider-Badge "Composit-Compatible"
+
+Ein Badge-System ermöglicht Providern, ihre Composit-Kompatibilität sichtbar zu machen —
+ähnlich einem OpenAPI-Badge oder "Works with Homebrew" Label.
+
+**Mechanismus:**
+1. Provider implementiert `/.well-known/composit.json` (Manifest-Spec, bereits definiert)
+2. Composit stellt öffentlichen Validator bereit: `composit validate <url>`
+3. Bei Erfolg: SVG-Badge (shields.io-Stil oder eigener Endpoint)
+
+**Wert für Provider:** Sichtbarkeit im Ecosystem, Vertrauen bei Platform Engineers
+("dieser Provider ist auditierbar"), spätere Premium-Badge-Tier möglich.
+
+**Wert für Composit:** Netzwerkeffekt — jeder neue Provider stärkt die Spec als Standard.
+
+**Wichtig:** Badge-System erst wenn Spec stabil ist (nach Sprint 4). Sonst badgen
+Provider gegen ein sich änderndes Target.
+
+### Scanner Hub — Post-MVP
+
+Ein zentraler Hub der eigenständig Scanner updated (à la GitHub Actions Marketplace)
+macht erst Sinn wenn 10+ externe Scanner existieren die wir nicht selbst pflegen.
+
+**Jetzt:** Scanner bleiben built-in (Qualitätskontrolle), Erweiterung via
+`extra_patterns` in `composit.config.yaml` reicht für Early Adopters.
+
+### MCP für Composit Docs
+
+Ein MCP der Spec, Schema-Definitionen und Beispiele als Tools exposed:
+- Agents die Provider bauen können direkt fragen "wie implementiere ich composit.json?"
+- Niedrige Hürde, hoher Signal-Wert für Spec-Adoption
+
+### Zeitplan
+
+| Zeitpunkt | Was |
+|-----------|-----|
+| Sprint 3 | Spec + Schema als RFC auf GitHub |
+| Nach Reference Customer (Sprint 4) | Badge-System + `composit validate` CLI |
+| Nach 5+ externen Providern | MCP für Composit Docs |
+| Nach Community-Wachstum | Scanner Hub evaluieren |
+
+---
+
 ## Kill Criteria
 
 Composit stoppen wenn EINS davon eintritt:
