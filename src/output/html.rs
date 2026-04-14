@@ -128,6 +128,7 @@ tr:hover {{ background: rgba(88, 166, 255, 0.04); }}
 }}
 .tag-human {{ background: rgba(63, 185, 80, 0.15); color: var(--green); }}
 .tag-agent {{ background: rgba(210, 153, 34, 0.15); color: var(--yellow); }}
+.tag-assisted {{ background: rgba(219, 109, 40, 0.15); color: var(--orange); }}
 .tag-untracked {{ background: rgba(125, 133, 144, 0.15); color: var(--text-muted); }}
 .tag-reachable {{ background: rgba(63, 185, 80, 0.15); color: var(--green); }}
 .tag-unreachable {{ background: rgba(248, 81, 73, 0.15); color: var(--red); }}
@@ -229,6 +230,7 @@ fn group_by_type(resources: &[Resource]) -> Vec<(&str, Vec<&Resource>)> {
 fn attribution_stats(resources: &[Resource]) -> Vec<(String, String, usize)> {
     // (label, tag_class, count)
     let mut created_by: HashMap<String, usize> = HashMap::new();
+    let mut assisted_by: HashMap<String, usize> = HashMap::new();
     let mut modified_by: HashMap<String, usize> = HashMap::new();
     let mut untracked = 0usize;
 
@@ -236,6 +238,9 @@ fn attribution_stats(resources: &[Resource]) -> Vec<(String, String, usize)> {
         match &r.created_by {
             Some(a) => *created_by.entry(a.clone()).or_insert(0) += 1,
             None => untracked += 1,
+        }
+        if let Some(agent) = r.extra.get("assisted_by").and_then(|v| v.as_str()) {
+            *assisted_by.entry(agent.to_string()).or_insert(0) += 1;
         }
         if let Some(lm) = r.extra.get("last_modified_by").and_then(|v| v.as_str()) {
             if lm.starts_with("agent:") {
@@ -251,6 +256,13 @@ fn attribution_stats(resources: &[Resource]) -> Vec<(String, String, usize)> {
     mods.sort_by(|a, b| b.1.cmp(&a.1));
     for (author, count) in mods {
         result.push((format!("{} (last modified)", author), "tag-agent".to_string(), count));
+    }
+
+    // Agent assistants
+    let mut assists: Vec<_> = assisted_by.into_iter().collect();
+    assists.sort_by(|a, b| b.1.cmp(&a.1));
+    for (agent, count) in assists {
+        result.push((format!("{} (co-authored)", agent), "tag-assisted".to_string(), count));
     }
 
     // Then creators
@@ -294,6 +306,13 @@ fn render_summary_cards(report: &Report) -> String {
         cards.push(format!(
             r#"<div class="card"><div class="label">Agent-created</div><div class="value yellow">{}</div></div>"#,
             report.summary.agent_created
+        ));
+    }
+
+    if report.summary.agent_assisted > 0 {
+        cards.push(format!(
+            r#"<div class="card"><div class="label">Agent-assisted</div><div class="value" style="color: var(--orange)">{}</div></div>"#,
+            report.summary.agent_assisted
         ));
     }
 
@@ -346,9 +365,27 @@ fn render_resource_sections(groups: &[(&str, Vec<&Resource>)]) -> String {
                     .or(r.path.as_deref())
                     .unwrap_or("-");
 
+                let is_assisted = r
+                    .extra
+                    .get("agent_assisted")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                let assisted_by = r
+                    .extra
+                    .get("assisted_by")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+
                 let attribution = match &r.created_by {
                     Some(a) if a.starts_with("agent:") => {
                         format!(r#"<span class="tag tag-agent">{}</span>"#, html_escape(a))
+                    }
+                    Some(a) if a.starts_with("human:") && is_assisted => {
+                        format!(
+                            r#"<span class="tag tag-human">{}</span> <span class="tag tag-assisted">{}</span>"#,
+                            html_escape(a),
+                            html_escape(assisted_by)
+                        )
                     }
                     Some(a) if a.starts_with("human:") => {
                         format!(r#"<span class="tag tag-human">{}</span>"#, html_escape(a))
@@ -484,6 +521,94 @@ fn format_details(r: &Resource) -> String {
         if r.resource_type == "docker_service" {
             parts.push(format!("in <code>{}</code>", html_escape(compose)));
         }
+    }
+    // Terraform config summary
+    if let Some(res) = r.extra.get("resources").and_then(|v| v.as_u64()) {
+        if res > 0 {
+            parts.push(format!("{} resources", res));
+        }
+    }
+    if let Some(mods) = r.extra.get("modules").and_then(|v| v.as_u64()) {
+        if mods > 0 {
+            parts.push(format!("{} modules", mods));
+        }
+    }
+    if let Some(outputs) = r.extra.get("outputs").and_then(|v| v.as_u64()) {
+        if outputs > 0 {
+            parts.push(format!("{} outputs", outputs));
+        }
+    }
+    if let Some(providers) = r.extra.get("provider_list").and_then(|v| v.as_array()) {
+        let prov_strs: Vec<&str> = providers.iter().filter_map(|p| p.as_str()).collect();
+        if !prov_strs.is_empty() {
+            parts.push(format!("providers: {}", prov_strs.join(", ")));
+        }
+    }
+    // Terraform resource type
+    if let Some(rt) = r.extra.get("resource_type").and_then(|v| v.as_str()) {
+        parts.push(format!("<code>{}</code>", html_escape(rt)));
+    }
+    // Terraform module source
+    if let Some(source) = r.extra.get("source").and_then(|v| v.as_str()) {
+        parts.push(format!("<code>{}</code>", html_escape(source)));
+    }
+    if let Some(version) = r.extra.get("version").and_then(|v| v.as_str()) {
+        parts.push(format!("v{}", html_escape(version)));
+    }
+    // Caddyfile
+    if let Some(sites) = r.extra.get("sites").and_then(|v| v.as_u64()) {
+        parts.push(format!("{} sites", sites));
+    }
+    if let Some(domains) = r.extra.get("domains").and_then(|v| v.as_array()) {
+        let dom_strs: Vec<&str> = domains.iter().filter_map(|d| d.as_str()).collect();
+        if !dom_strs.is_empty() {
+            parts.push(dom_strs.iter().map(|d| html_escape(d)).collect::<Vec<_>>().join(", "));
+        }
+    }
+    if let Some(rp) = r.extra.get("reverse_proxy").and_then(|v| v.as_str()) {
+        parts.push(format!("&rarr; <code>{}</code>", html_escape(rp)));
+    }
+    if r.extra.get("file_server").and_then(|v| v.as_bool()).unwrap_or(false) {
+        parts.push("file_server".to_string());
+    }
+    // Workflows
+    if let Some(platform) = r.extra.get("platform").and_then(|v| v.as_str()) {
+        parts.push(html_escape(platform));
+    }
+    if let Some(triggers) = r.extra.get("triggers").and_then(|v| v.as_array()) {
+        let trig_strs: Vec<&str> = triggers.iter().filter_map(|t| t.as_str()).collect();
+        if !trig_strs.is_empty() {
+            parts.push(format!("on: {}", trig_strs.join(", ")));
+        }
+    }
+    if let Some(jobs) = r.extra.get("jobs").and_then(|v| v.as_u64()) {
+        if jobs > 0 && r.resource_type == "workflow" {
+            parts.push(format!("{} jobs", jobs));
+        }
+    }
+    if let Some(runner) = r.extra.get("runs_on").and_then(|v| v.as_str()) {
+        parts.push(format!("runner: <code>{}</code>", html_escape(runner)));
+    }
+    // Prometheus
+    if let Some(sc) = r.extra.get("scrape_configs").and_then(|v| v.as_u64()) {
+        parts.push(format!("{} scrape configs", sc));
+    }
+    if let Some(job_names) = r.extra.get("job_names").and_then(|v| v.as_array()) {
+        let names: Vec<&str> = job_names.iter().filter_map(|j| j.as_str()).collect();
+        if !names.is_empty() {
+            parts.push(format!("jobs: {}", names.join(", ")));
+        }
+    }
+    if let Some(rules) = r.extra.get("rules").and_then(|v| v.as_u64()) {
+        parts.push(format!("{} rules", rules));
+    }
+    if let Some(groups) = r.extra.get("groups").and_then(|v| v.as_u64()) {
+        if groups > 0 && r.resource_type == "prometheus_rules" {
+            parts.push(format!("{} groups", groups));
+        }
+    }
+    if r.extra.get("alerting").and_then(|v| v.as_bool()).unwrap_or(false) {
+        parts.push("alerting".to_string());
     }
 
     parts.join(" &middot; ")

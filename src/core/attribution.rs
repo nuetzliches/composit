@@ -17,17 +17,6 @@ const AGENT_PATTERNS: &[(&str, &str)] = &[
     ("[bot]", "agent:bot"),
 ];
 
-/// Known Co-Authored-By patterns that indicate agent involvement
-const CO_AUTHOR_AGENT_PATTERNS: &[(&str, &str)] = &[
-    ("claude", "agent:claude"),
-    ("anthropic.com", "agent:claude"),
-    ("cursor", "agent:cursor"),
-    ("devin", "agent:devin"),
-    ("copilot", "agent:copilot"),
-    ("openai.com", "agent:copilot"),
-    ("[bot]", "agent:bot"),
-];
-
 struct GitFileInfo {
     author: String,
     date: String,
@@ -161,35 +150,54 @@ fn git_file_info(repo_dir: &Path, file_path: &str, first: bool) -> Option<GitFil
     })
 }
 
-/// Classify a commit as agent, human, or agent-assisted.
+/// Classify a commit: extract all authors, flag agent involvement.
 /// Returns (attribution_string, extra_fields).
+/// The attribution always reflects the actual git commit author.
+/// Agent co-authors are flagged via `agent_assisted` and `assisted_by`.
 fn classify_commit(info: &GitFileInfo) -> (String, HashMap<String, serde_json::Value>) {
     let mut extra = HashMap::new();
 
-    // Check if the author itself is an agent
     let author_classification = classify_author(&info.author);
-    if author_classification.starts_with("agent:") {
-        return (author_classification, extra);
+
+    // Classify all co-authors
+    let co_author_labels: Vec<String> = info
+        .co_authors
+        .iter()
+        .map(|ca| classify_author(ca))
+        .collect();
+
+    if !co_author_labels.is_empty() {
+        extra.insert(
+            "co_authors".to_string(),
+            serde_json::Value::Array(
+                co_author_labels
+                    .iter()
+                    .map(|l| serde_json::Value::String(l.clone()))
+                    .collect(),
+            ),
+        );
     }
 
-    // Check Co-Authored-By for agent involvement
-    for co_author in &info.co_authors {
-        let lower = co_author.to_lowercase();
-        for (pattern, label) in CO_AUTHOR_AGENT_PATTERNS {
-            if lower.contains(pattern) {
-                // Human committed, but agent co-authored
-                extra.insert(
-                    "assisted_by".to_string(),
-                    serde_json::Value::String(label.to_string()),
-                );
-                // Attribution goes to the agent — the human was the vehicle,
-                // the agent was the creator
-                return (label.to_string(), extra);
-            }
+    // Check co-authors for agent involvement
+    for (i, label) in co_author_labels.iter().enumerate() {
+        if label.starts_with("agent:") {
+            extra.insert(
+                "agent_assisted".to_string(),
+                serde_json::Value::Bool(true),
+            );
+            extra.insert(
+                "assisted_by".to_string(),
+                serde_json::Value::String(label.clone()),
+            );
+            // Also store the raw co-author string for the first agent match
+            extra.entry("assisted_by_raw".to_string()).or_insert_with(|| {
+                serde_json::Value::String(info.co_authors[i].clone())
+            });
+            break; // Use first agent match for assisted_by
         }
     }
 
-    // Pure human commit
+    // Attribution is always the actual commit author
     (author_classification, extra)
 }
 
@@ -246,11 +254,20 @@ mod tests {
             ],
         };
         let (attribution, extra) = classify_commit(&info);
-        assert_eq!(attribution, "agent:claude");
+        // Human stays as created_by, agent is only flagged
+        assert_eq!(attribution, "human:7schmiede");
+        assert_eq!(
+            extra.get("agent_assisted").and_then(|v| v.as_bool()),
+            Some(true)
+        );
         assert_eq!(
             extra.get("assisted_by").and_then(|v| v.as_str()),
             Some("agent:claude")
         );
+        // Co-authors list is populated
+        let co_authors = extra.get("co_authors").and_then(|v| v.as_array()).unwrap();
+        assert_eq!(co_authors.len(), 1);
+        assert_eq!(co_authors[0].as_str(), Some("agent:claude"));
     }
 
     #[test]
@@ -272,7 +289,37 @@ mod tests {
             date: "2026-04-13".to_string(),
             co_authors: vec!["Tobi <tobi@example.com>".to_string()],
         };
-        let (attribution, _) = classify_commit(&info);
+        let (attribution, extra) = classify_commit(&info);
         assert_eq!(attribution, "human:sebastian");
+        // No agent_assisted flag
+        assert!(extra.get("agent_assisted").is_none());
+        // But co_authors list is populated
+        let co_authors = extra.get("co_authors").and_then(|v| v.as_array()).unwrap();
+        assert_eq!(co_authors.len(), 1);
+        assert_eq!(co_authors[0].as_str(), Some("human:tobi"));
+    }
+
+    #[test]
+    fn test_multiple_coauthors_mixed() {
+        let info = GitFileInfo {
+            author: "Sebastian <seb@example.com>".to_string(),
+            date: "2026-04-13".to_string(),
+            co_authors: vec![
+                "Tobi <tobi@example.com>".to_string(),
+                "Claude Opus 4.6 (1M context) <noreply@anthropic.com>".to_string(),
+            ],
+        };
+        let (attribution, extra) = classify_commit(&info);
+        assert_eq!(attribution, "human:sebastian");
+        assert_eq!(
+            extra.get("agent_assisted").and_then(|v| v.as_bool()),
+            Some(true)
+        );
+        assert_eq!(
+            extra.get("assisted_by").and_then(|v| v.as_str()),
+            Some("agent:claude")
+        );
+        let co_authors = extra.get("co_authors").and_then(|v| v.as_array()).unwrap();
+        assert_eq!(co_authors.len(), 2);
     }
 }

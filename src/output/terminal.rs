@@ -119,6 +119,12 @@ pub fn print_summary(report: &Report) {
             report.summary.agent_created.to_string().yellow()
         ));
     }
+    if report.summary.agent_assisted > 0 {
+        parts.push(format!(
+            "{} agent-assisted",
+            report.summary.agent_assisted.to_string().yellow()
+        ));
+    }
     if agent_modified > 0 {
         parts.push(format!(
             "{} agent-modified",
@@ -177,10 +183,81 @@ fn format_extra(r: &crate::core::types::Resource) -> String {
     if let Some(schedule) = r.extra.get("schedule").and_then(|v| v.as_str()) {
         parts.push(schedule.to_string());
     }
+    // Terraform config summary
+    if let Some(res) = r.extra.get("resources").and_then(|v| v.as_u64()) {
+        if res > 0 {
+            parts.push(format!("{} resources", res));
+        }
+    }
+    if let Some(mods) = r.extra.get("modules").and_then(|v| v.as_u64()) {
+        if mods > 0 {
+            parts.push(format!("{} modules", mods));
+        }
+    }
+    if let Some(providers) = r.extra.get("provider_list").and_then(|v| v.as_array()) {
+        let prov_strs: Vec<&str> = providers.iter().filter_map(|p| p.as_str()).collect();
+        if !prov_strs.is_empty() {
+            parts.push(format!("providers:{}", prov_strs.join(",")));
+        }
+    }
+    // Terraform resource type
+    if let Some(rt) = r.extra.get("resource_type").and_then(|v| v.as_str()) {
+        parts.push(rt.to_string());
+    }
+    // Terraform module source
+    if let Some(source) = r.extra.get("source").and_then(|v| v.as_str()) {
+        parts.push(source.to_string());
+    }
+    if let Some(version) = r.extra.get("version").and_then(|v| v.as_str()) {
+        parts.push(format!("v{}", version));
+    }
     if let Some(managed) = r.extra.get("managed_resources").and_then(|v| v.as_u64()) {
         if managed > 0 {
             parts.push(format!("{} managed", managed));
         }
+    }
+    // Caddyfile
+    if let Some(sites) = r.extra.get("sites").and_then(|v| v.as_u64()) {
+        parts.push(format!("{} sites", sites));
+    }
+    if let Some(rp) = r.extra.get("reverse_proxy").and_then(|v| v.as_str()) {
+        parts.push(format!("-> {}", rp));
+    }
+    if r.extra.get("file_server").and_then(|v| v.as_bool()).unwrap_or(false) {
+        parts.push("file_server".to_string());
+    }
+    // Workflows
+    if let Some(platform) = r.extra.get("platform").and_then(|v| v.as_str()) {
+        parts.push(platform.to_string());
+    }
+    if let Some(triggers) = r.extra.get("triggers").and_then(|v| v.as_array()) {
+        let trig_strs: Vec<&str> = triggers.iter().filter_map(|t| t.as_str()).collect();
+        if !trig_strs.is_empty() {
+            parts.push(format!("on:{}", trig_strs.join(",")));
+        }
+    }
+    if let Some(jobs) = r.extra.get("jobs").and_then(|v| v.as_u64()) {
+        if jobs > 0 && r.resource_type == "workflow" {
+            parts.push(format!("{} jobs", jobs));
+        }
+    }
+    if let Some(runner) = r.extra.get("runs_on").and_then(|v| v.as_str()) {
+        parts.push(format!("runner:{}", runner));
+    }
+    // Prometheus
+    if let Some(sc) = r.extra.get("scrape_configs").and_then(|v| v.as_u64()) {
+        parts.push(format!("{} scrape configs", sc));
+    }
+    if let Some(rules) = r.extra.get("rules").and_then(|v| v.as_u64()) {
+        parts.push(format!("{} rules", rules));
+    }
+    if let Some(groups) = r.extra.get("groups").and_then(|v| v.as_u64()) {
+        if groups > 0 && r.resource_type == "prometheus_rules" {
+            parts.push(format!("{} groups", groups));
+        }
+    }
+    if r.extra.get("alerting").and_then(|v| v.as_bool()).unwrap_or(false) {
+        parts.push("alerting".to_string());
     }
 
     parts.join(", ")

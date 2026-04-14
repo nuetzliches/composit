@@ -56,6 +56,7 @@ pub struct Summary {
     pub total_resources: usize,
     pub providers: usize,
     pub agent_created: usize,
+    pub agent_assisted: usize,
     pub human_created: usize,
     pub auto_detected: usize,
     pub estimated_monthly_cost: String,
@@ -78,12 +79,26 @@ impl Report {
                         .map_or(false, |c| c.starts_with("agent:"))
                 })
                 .count(),
+            agent_assisted: resources
+                .iter()
+                .filter(|r| {
+                    r.extra
+                        .get("agent_assisted")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false)
+                })
+                .count(),
             human_created: resources
                 .iter()
                 .filter(|r| {
                     r.created_by
                         .as_ref()
                         .map_or(false, |c| c.starts_with("human:"))
+                        && !r
+                            .extra
+                            .get("agent_assisted")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false)
                 })
                 .count(),
             auto_detected: resources
