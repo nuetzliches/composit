@@ -28,7 +28,8 @@ governance pain most acutely and have budget to solve it.
 
 ## ICP — Wer zahlt?
 
-Validation (7.0/10, BUILD — April 2026) hat die Zielgruppen-Hierarchie geklärt:
+Validation (7.5/10, BUILD — April 2026, re-validated 2026-04-14) hat die
+Zielgruppen-Hierarchie geklärt:
 
 ### Primary Paying ICP: Platform Engineers / DevOps
 
@@ -66,28 +67,33 @@ Solo Devs finden composit über die Open-Source-CLI und Community-Channels.
 
 ## Validation Findings (Kurzfassung)
 
-**Score: 7.0/10 — BUILD** (April 2026)
+**Score: 7.5/10 — BUILD** (April 2026, re-validated 2026-04-14)
 
-| Dimension           | Score | Signal  |
-|---------------------|-------|---------|
-| Problem Severity    | 7     | Stark   |
-| Existing Spending   | 5     | Mittel  |
-| Market Momentum     | 8     | Stark   |
-| Competitive Gap     | 8     | Stark   |
-| Monetization Clarity| 5     | Mittel  |
+| Dimension           | Score | Signal  | Notiz |
+|---------------------|-------|---------|-------|
+| Problem Severity    | 8     | Stark   | 78% Shadow AI, Drift #1 Pain (HashiCorp Survey), 35 CVEs aus AI-Code (März 2026) |
+| Existing Spending   | 7     | Stark   | $900M+ in adjacent Tools 2025. Spacelift $250/mo, Backstage TCO $375-750K/yr |
+| Market Momentum     | 9     | Stark   | IaC 28% CAGR, Platform Eng Budgets verdoppeln sich 2026, FinOps #1 = Governance |
+| Competitive Gap     | 8     | Stark   | Kein Tool kombiniert Cross-Tool Scanning + Governance Spec + AI Attribution |
+| Monetization Clarity| 5     | Mittel  | Klares Freemium-Modell, aber CLI-Monetarisierung unbewiesen. Keine zahlenden Kunden |
 
-**Stärken:** Problem dokumentiert (Prod-Datenverlust, 13h-Outages, $400M+
-Tech-Debt-Kosten). Kein Produkt besetzt composit's Position. Market Momentum
-explosiv (6.100% Anstieg agentic AI Interest).
+Score-Änderung vs. Erstvalidierung (7.0 → 7.5): Problem Severity und Existing
+Spending höher bewertet basierend auf aktualisierter Marktforschung (IBM 2025
+Breach Report, FinOps 2026 Report, Spacelift/Firefly Traction). Monetization
+Clarity bleibt konservativ bei 5 — keine reale Zahlungsbereitschaft validiert.
 
-**Schwächen:** Grassroots-Demand dünn (Evidenz von Enterprise-Analysten, nicht
-Dev-Communities). Budget existiert in adjacent Categories (IDP, IaC), nicht
-spezifisch für "agent-built infra visibility". Solo-Devs zahlen nicht.
+**Stärken:** Problem dokumentiert und quantifiziert. $900M+ Funding in adjacent
+Space bestätigt Kategorie. Kein Produkt besetzt composit's Position (Cross-Tool
+Governance-as-Code). Market Momentum explosiv.
 
-**Zeitfenster:** 6-12 Monate bevor Hyperscaler (AWS Agent Registry, Microsoft
-Agent Governance Toolkit) proprietary Standards setzen.
+**Schwächen:** Grassroots-Demand dünn. Budget existiert in adjacent Categories,
+nicht spezifisch für Governance-as-Code. Keine realen User-Interviews durchgeführt.
+Solo-Founder-Execution-Risk bei ambitioniertem 8-Wochen-Plan.
 
-→ Vollständiger Report: `.claude/reports/business-validation/2026-04-12_composit-creator-control-for-agent-ecosystems.html`
+**Zeitfenster:** 6-12 Monate bevor Port ($800M) oder Hyperscaler die Position
+mit proprietary Lösungen besetzen.
+
+→ Vollständiger Report: `nuts-skills/results/composit/validation/2026-04-14_composit-governance-as-code.html`
 
 ---
 
@@ -135,7 +141,7 @@ for shortest path to solution, not best infrastructure.
 
 The problem emerges through **accumulation**: 40 throwaway solutions, each in
 its own container, each with its own retry logic (or none), each invisible to
-the creator. This is an entropy problem, not an infrastructure problem.
+the team. This is an entropy problem, not an infrastructure problem.
 
 The answer is not teaching agents to prefer heavyweight tools. The answer is
 that agents build **into** an ecosystem that composit provides — registering a
@@ -160,7 +166,7 @@ Agent needs capability → Who offers this? → On what terms?
 ```
 
 This is a marketplace problem without a marketplace UI. The agent IS the UI.
-It queries the composit manifest, matches against creator policies, and
+It queries the composit manifest, matches against team policies, and
 suggests — or provisions directly.
 
 The composit manifest is like a `package.json` for infrastructure relationships.
@@ -171,7 +177,7 @@ my ecosystem, and under what terms."
 
 ## Capability Categories
 
-Framed from the creator's perspective — "what do I need control over?":
+Framed from the platform team's perspective — "what do I need control over?":
 
 ### Herleitung
 
@@ -189,7 +195,7 @@ Category hinzugefügt (Observability), drei bewusst ausgeschlossen.
 - **State** — inventory of where data lives across the ecosystem.
   Not a storage layer. Metadata + topology tracking.
   Knowledge (powerbrain) is a subset: curated read-access for agents.
-  State is the creator's view of ALL data, including agent-generated DBs,
+  State is the team's view of ALL data, including agent-generated DBs,
   files, caches that powerbrain doesn't manage.
 - **Cost** — metering across providers. The feature that makes composit
   a business tool, not a nerd tool. "Your agents provisioned 47 services
@@ -234,7 +240,7 @@ Category hinzugefügt (Observability), drei bewusst ausgeschlossen.
 
 | Open Source (composit-core)     | Commercial (self-hosted or cloud)  |
 |---------------------------------|------------------------------------|
-| CLI: scan, status, report gen   | Multi-creator workspaces           |
+| CLI: scan, status, report gen   | Multi-team workspaces           |
 | `composit serve` (local dash)   | Managed manifest registry          |
 | Local provider integrations     | Contract management                |
 | Manifest Discovery (static)     | Cost aggregation + alerting        |
@@ -260,8 +266,8 @@ Three things a third party needs to build a composit provider:
 2. **Trust Handshake** — "I trust you, you trust me, here are the terms."
    API key, mTLS, or token exchange. The contract protocol.
 
-3. **Policy Interface** — "The creator has rules you must respect."
-   Not the rules themselves (those stay with the creator), but the interface
+3. **Policy Interface** — "The team has rules you must respect."
+   Not the rules themselves (those stay with the team), but the interface
    through which a provider says "I accept policy checks" or "I deliver
    these audit data points."
 
@@ -309,7 +315,7 @@ a capability slot, not just ours.
 ### What's in place:
 - Manifest Discovery: providers publish capabilities at a well-known URL
 - Contract Trust Protocol: standardized handshake for trust establishment
-- Policy Engine: creator controls which providers are approved (provider-approval.rego)
+- Policy Engine: team controls which providers are approved (provider-approval.rego)
 
 ### What's missing for real interchangeability:
 
@@ -321,7 +327,7 @@ a capability slot, not just ours.
    A test suite that a third-party scheduling provider can run against itself.
    Like Kubernetes conformance tests.
 
-3. **Migration Path** — how does a creator switch from provider A to provider B?
+3. **Migration Path** — how does a team switch from provider A to provider B?
    State export, contract transfer, zero-downtime cutover. Without this,
    interchangeability is theoretical.
 
