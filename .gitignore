@@ -16,6 +16,11 @@ Thumbs.db
 # Generated reports
 composit-report.yaml
 composit-report.json
+composit-report.html
+composit-diff.html
+
+# Local artifacts (untracked)
+.artifacts/
 
 # Environment
 .env

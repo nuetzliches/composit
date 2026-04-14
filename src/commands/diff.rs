@@ -91,6 +91,12 @@ pub fn run_diff(
         DiffOutputFormat::Yaml => {
             println!("{}", serde_yaml::to_string(&diff)?);
         }
+        DiffOutputFormat::Html => {
+            let html = render_diff_html(&diff);
+            let out_path = dir.join("composit-diff.html");
+            std::fs::write(&out_path, &html)?;
+            println!("  Diff report written to: {}", out_path.display());
+        }
     }
 
     if strict && diff.summary.errors > 0 {
@@ -421,6 +427,173 @@ fn matches_any_pattern(value: &str, patterns: &[String]) -> bool {
         glob::Pattern::new(p)
             .map_or(false, |pat| pat.matches(value))
     })
+}
+
+// ─────────────────────────────────────────────────────────
+// HTML output
+// ─────────────────────────────────────────────────────────
+
+fn render_diff_html(diff: &DiffReport) -> String {
+    let status_class = if diff.summary.errors > 0 {
+        "fail"
+    } else if diff.summary.warnings > 0 {
+        "warn"
+    } else {
+        "pass"
+    };
+    let status_label = if diff.summary.errors > 0 {
+        "VIOLATIONS FOUND"
+    } else if diff.summary.warnings > 0 {
+        "WARNINGS"
+    } else {
+        "ALL CHECKS PASSED"
+    };
+
+    let mut categories_html = String::new();
+    for cat in &diff.categories {
+        let error_count = cat.violations.iter().filter(|v| v.severity == Severity::Error).count();
+        let warn_count = cat.violations.iter().filter(|v| v.severity == Severity::Warning).count();
+        let info_count = cat.violations.iter().filter(|v| v.severity == Severity::Info).count();
+
+        let mut badge_parts = Vec::new();
+        if error_count > 0 { badge_parts.push(format!(r#"<span class="badge badge-error">{} errors</span>"#, error_count)); }
+        if warn_count > 0 { badge_parts.push(format!(r#"<span class="badge badge-warn">{} warnings</span>"#, warn_count)); }
+        if info_count > 0 { badge_parts.push(format!(r#"<span class="badge badge-info">{} info</span>"#, info_count)); }
+        if cat.violations.is_empty() && cat.passed > 0 {
+            badge_parts.push(format!(r#"<span class="badge badge-pass">{} passed</span>"#, cat.passed));
+        }
+
+        let mut rows = String::new();
+        if cat.violations.is_empty() && cat.passed > 0 {
+            rows.push_str(&format!(
+                r#"<tr class="row-pass"><td><span class="sev sev-pass">PASS</span></td><td colspan="2">All {} checks passed</td></tr>"#,
+                cat.passed
+            ));
+        }
+        for v in &cat.violations {
+            let (sev_class, sev_label) = match v.severity {
+                Severity::Error => ("sev-error", "ERROR"),
+                Severity::Warning => ("sev-warn", "WARN"),
+                Severity::Info => ("sev-info", "INFO"),
+            };
+            let detail = v.details.as_deref().unwrap_or("");
+            rows.push_str(&format!(
+                r#"<tr><td><span class="sev {}">{}</span></td><td class="rule">{}</td><td>{}{}</td></tr>"#,
+                sev_class, sev_label,
+                html_escape(&v.rule),
+                html_escape(&v.message),
+                if detail.is_empty() { String::new() } else { format!(r#"<br><span class="detail">{}</span>"#, html_escape(detail)) }
+            ));
+        }
+
+        categories_html.push_str(&format!(
+            r#"
+    <div class="category">
+      <div class="cat-header">
+        <h2>{}</h2>
+        <div class="badges">{}</div>
+      </div>
+      <table>{}</table>
+    </div>"#,
+            html_escape(&cat.name.to_uppercase()),
+            badge_parts.join(" "),
+            rows
+        ));
+    }
+
+    format!(
+        r##"<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>composit diff — {workspace}</title>
+<style>
+:root {{
+  --bg: #0d1117; --surface: #161b22; --border: #30363d;
+  --text: #e6edf3; --muted: #7d8590; --accent: #58a6ff;
+  --green: #3fb950; --yellow: #d29922; --red: #f85149; --cyan: #79c0ff;
+}}
+* {{ margin:0; padding:0; box-sizing:border-box; }}
+body {{ font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; background:var(--bg); color:var(--text); line-height:1.5; padding:2rem; max-width:960px; margin:0 auto; }}
+header {{ border-bottom:1px solid var(--border); padding-bottom:1.5rem; margin-bottom:2rem; }}
+header h1 {{ font-size:1.5rem; font-weight:600; color:var(--accent); }}
+header h1 span {{ color:var(--muted); font-weight:400; }}
+.meta {{ color:var(--muted); font-size:.85rem; margin-top:.5rem; }}
+.status {{ display:inline-block; padding:.4rem 1rem; border-radius:8px; font-weight:700; font-size:1rem; margin-top:1rem; letter-spacing:.05em; }}
+.status.pass {{ background:rgba(63,185,80,.15); color:var(--green); }}
+.status.warn {{ background:rgba(210,153,34,.15); color:var(--yellow); }}
+.status.fail {{ background:rgba(248,81,73,.15); color:var(--red); }}
+.summary {{ display:flex; gap:1.5rem; margin:1.5rem 0; flex-wrap:wrap; }}
+.summary-card {{ background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:1rem 1.5rem; text-align:center; flex:1; min-width:120px; }}
+.summary-card .num {{ font-size:2rem; font-weight:700; }}
+.summary-card .num.errors {{ color:var(--red); }}
+.summary-card .num.warnings {{ color:var(--yellow); }}
+.summary-card .num.info {{ color:var(--cyan); }}
+.summary-card .num.passed {{ color:var(--green); }}
+.summary-card .label {{ font-size:.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }}
+.category {{ background:var(--surface); border:1px solid var(--border); border-radius:8px; margin-bottom:1rem; overflow:hidden; }}
+.cat-header {{ display:flex; justify-content:space-between; align-items:center; padding:.75rem 1rem; border-bottom:1px solid var(--border); background:rgba(13,17,23,.5); }}
+.cat-header h2 {{ font-size:.85rem; font-weight:600; letter-spacing:.05em; color:var(--muted); }}
+.badges {{ display:flex; gap:.4rem; }}
+.badge {{ font-size:.7rem; font-weight:600; padding:.2rem .6rem; border-radius:12px; }}
+.badge-error {{ background:rgba(248,81,73,.15); color:var(--red); }}
+.badge-warn {{ background:rgba(210,153,34,.15); color:var(--yellow); }}
+.badge-info {{ background:rgba(121,192,255,.15); color:var(--cyan); }}
+.badge-pass {{ background:rgba(63,185,80,.15); color:var(--green); }}
+table {{ width:100%; border-collapse:collapse; font-size:.85rem; }}
+td {{ padding:.6rem 1rem; border-bottom:1px solid var(--border); vertical-align:top; }}
+tr:last-child td {{ border-bottom:none; }}
+.sev {{ display:inline-block; font-weight:700; font-size:.75rem; padding:.15rem .5rem; border-radius:4px; min-width:50px; text-align:center; }}
+.sev-error {{ background:rgba(248,81,73,.15); color:var(--red); }}
+.sev-warn {{ background:rgba(210,153,34,.15); color:var(--yellow); }}
+.sev-info {{ background:rgba(121,192,255,.15); color:var(--cyan); }}
+.sev-pass {{ background:rgba(63,185,80,.15); color:var(--green); }}
+.rule {{ font-family:'SF Mono',Consolas,monospace; font-size:.8rem; color:var(--muted); white-space:nowrap; }}
+.detail {{ color:var(--muted); font-size:.8rem; }}
+.row-pass td {{ color:var(--green); }}
+footer {{ margin-top:2rem; padding-top:1rem; border-top:1px solid var(--border); color:var(--muted); font-size:.8rem; text-align:center; }}
+footer a {{ color:var(--accent); text-decoration:none; }}
+</style>
+</head>
+<body>
+<header>
+  <h1>composit <span>diff</span></h1>
+  <div class="meta">Workspace: <strong>{workspace}</strong> &middot; Generated: {generated}</div>
+  <div class="status {status_class}">{status_label}</div>
+</header>
+
+<div class="summary">
+  <div class="summary-card"><div class="num errors">{errors}</div><div class="label">Errors</div></div>
+  <div class="summary-card"><div class="num warnings">{warnings}</div><div class="label">Warnings</div></div>
+  <div class="summary-card"><div class="num info">{info}</div><div class="label">Info</div></div>
+  <div class="summary-card"><div class="num passed">{passed}</div><div class="label">Passed</div></div>
+</div>
+
+{categories}
+
+<footer>
+  Generated by <a href="https://github.com/nuetzliches/composit">composit</a> diff
+</footer>
+</body>
+</html>"##,
+        workspace = html_escape(&diff.workspace),
+        generated = html_escape(&diff.generated),
+        status_class = status_class,
+        status_label = status_label,
+        errors = diff.summary.errors,
+        warnings = diff.summary.warnings,
+        info = diff.summary.info,
+        passed = diff.summary.passed_checks,
+        categories = categories_html,
+    )
+}
+
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 // ─────────────────────────────────────────────────────────

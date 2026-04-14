@@ -83,4 +83,5 @@ pub enum DiffOutputFormat {
     Terminal,
     Json,
     Yaml,
+    Html,
 }
