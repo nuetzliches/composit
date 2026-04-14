@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
-#[command(name = "composit", version, about = "Visibility into agent-created infrastructure")]
+#[command(name = "composit", version, about = "Governance-as-Code for AI-generated infrastructure")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
@@ -47,6 +47,28 @@ pub enum Commands {
         #[arg(long)]
         live: bool,
     },
+    /// Compare Compositfile governance against scan report
+    Diff {
+        /// Directory containing Compositfile and composit-report.yaml
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
+
+        /// Path to Compositfile
+        #[arg(long)]
+        compositfile: Option<PathBuf>,
+
+        /// Path to composit-report.yaml
+        #[arg(long)]
+        report: Option<PathBuf>,
+
+        /// Output format
+        #[arg(long, default_value = "terminal")]
+        output: DiffOutputFormat,
+
+        /// Exit with code 1 if any errors found
+        #[arg(long)]
+        strict: bool,
+    },
 }
 
 #[derive(Clone, ValueEnum)]
@@ -54,4 +76,11 @@ pub enum OutputFormat {
     Yaml,
     Json,
     Html,
+}
+
+#[derive(Clone, ValueEnum)]
+pub enum DiffOutputFormat {
+    Terminal,
+    Json,
+    Yaml,
 }

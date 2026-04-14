@@ -1,0 +1,703 @@
+use std::collections::HashMap;
+use std::path::Path;
+
+use anyhow::{Context, Result};
+use chrono::Utc;
+use colored::Colorize;
+use serde::{Deserialize, Serialize};
+
+use crate::cli::DiffOutputFormat;
+use crate::core::compositfile::parse_compositfile;
+use crate::core::governance::Governance;
+use crate::core::types::Report;
+
+// ─────────────────────────────────────────────────────────
+// Violation model
+// ─────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiffReport {
+    pub workspace: String,
+    pub generated: String,
+    pub categories: Vec<ViolationCategory>,
+    pub summary: DiffSummary,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ViolationCategory {
+    pub name: String,
+    pub violations: Vec<Violation>,
+    pub passed: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Violation {
+    pub severity: Severity,
+    pub rule: String,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum Severity {
+    Error,
+    Warning,
+    Info,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiffSummary {
+    pub total_violations: usize,
+    pub errors: usize,
+    pub warnings: usize,
+    pub info: usize,
+    pub passed_checks: usize,
+}
+
+// ─────────────────────────────────────────────────────────
+// CLI handler
+// ─────────────────────────────────────────────────────────
+
+pub fn run_diff(
+    dir: &Path,
+    compositfile: Option<&Path>,
+    report_path: Option<&Path>,
+    output: DiffOutputFormat,
+    strict: bool,
+) -> Result<i32> {
+    let cf_path = compositfile
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| dir.join("Compositfile"));
+    let rp_path = report_path
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| dir.join("composit-report.yaml"));
+
+    let governance = parse_compositfile(&cf_path)?;
+
+    let report_content = std::fs::read_to_string(&rp_path)
+        .with_context(|| format!("Failed to read report: {}", rp_path.display()))?;
+    let report: Report = serde_yaml::from_str(&report_content)
+        .with_context(|| format!("Failed to parse report YAML: {}", rp_path.display()))?;
+
+    let diff = compute_diff(&governance, &report, dir);
+
+    match output {
+        DiffOutputFormat::Terminal => print_diff_terminal(&diff),
+        DiffOutputFormat::Json => {
+            println!("{}", serde_json::to_string_pretty(&diff)?);
+        }
+        DiffOutputFormat::Yaml => {
+            println!("{}", serde_yaml::to_string(&diff)?);
+        }
+    }
+
+    if strict && diff.summary.errors > 0 {
+        Ok(1)
+    } else {
+        Ok(0)
+    }
+}
+
+// ─────────────────────────────────────────────────────────
+// Diff engine
+// ─────────────────────────────────────────────────────────
+
+pub fn compute_diff(governance: &Governance, report: &Report, base_dir: &Path) -> DiffReport {
+    let mut categories = Vec::new();
+
+    categories.push(check_providers(governance, report));
+    categories.push(check_budgets(governance, report));
+    categories.push(check_resources(governance, report));
+    categories.push(check_policies(governance, base_dir));
+
+    let errors: usize = categories.iter().flat_map(|c| &c.violations).filter(|v| v.severity == Severity::Error).count();
+    let warnings: usize = categories.iter().flat_map(|c| &c.violations).filter(|v| v.severity == Severity::Warning).count();
+    let info: usize = categories.iter().flat_map(|c| &c.violations).filter(|v| v.severity == Severity::Info).count();
+    let passed: usize = categories.iter().map(|c| c.passed).sum();
+
+    DiffReport {
+        workspace: governance.workspace.clone(),
+        generated: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+        categories,
+        summary: DiffSummary {
+            total_violations: errors + warnings + info,
+            errors,
+            warnings,
+            info,
+            passed_checks: passed,
+        },
+    }
+}
+
+fn check_providers(governance: &Governance, report: &Report) -> ViolationCategory {
+    let mut violations = Vec::new();
+    let mut passed = 0;
+
+    let approved_names: Vec<&str> = governance.providers.iter().map(|p| p.name.as_str()).collect();
+
+    // Check report providers against approved list
+    for rp in &report.providers {
+        if approved_names.contains(&rp.name.as_str()) {
+            passed += 1;
+        } else {
+            violations.push(Violation {
+                severity: Severity::Error,
+                rule: "unapproved_provider".to_string(),
+                message: format!("Provider \"{}\" found in report but not approved in Compositfile", rp.name),
+                details: Some(format!("Endpoint: {}", rp.endpoint)),
+            });
+        }
+    }
+
+    // Check approved providers not in report
+    let report_names: Vec<&str> = report.providers.iter().map(|p| p.name.as_str()).collect();
+    for gp in &governance.providers {
+        if !report_names.contains(&gp.name.as_str()) {
+            violations.push(Violation {
+                severity: Severity::Info,
+                rule: "unused_provider".to_string(),
+                message: format!("Approved provider \"{}\" not found in scan report", gp.name),
+                details: None,
+            });
+        }
+    }
+
+    ViolationCategory {
+        name: "providers".to_string(),
+        violations,
+        passed,
+    }
+}
+
+fn check_budgets(governance: &Governance, report: &Report) -> ViolationCategory {
+    let mut violations = Vec::new();
+    let mut passed = 0;
+
+    let report_cost = parse_cost(&report.summary.estimated_monthly_cost);
+
+    for budget in &governance.budgets {
+        if budget.scope != "workspace" {
+            continue; // Only workspace budget is checkable against report summary
+        }
+
+        if let (Some(actual), Some(max)) = (report_cost, parse_cost(&budget.max_monthly)) {
+            if actual > max {
+                violations.push(Violation {
+                    severity: Severity::Error,
+                    rule: "budget_exceeded".to_string(),
+                    message: format!(
+                        "Workspace cost {} exceeds budget {}",
+                        report.summary.estimated_monthly_cost, budget.max_monthly
+                    ),
+                    details: None,
+                });
+            } else if let Some(alert_str) = &budget.alert_at {
+                if let Some(threshold) = parse_percentage(alert_str) {
+                    let alert_amount = max * threshold;
+                    if actual > alert_amount {
+                        violations.push(Violation {
+                            severity: Severity::Warning,
+                            rule: "budget_alert".to_string(),
+                            message: format!(
+                                "Workspace cost {} exceeds {}% alert threshold ({:.0} EUR)",
+                                report.summary.estimated_monthly_cost, (threshold * 100.0) as usize, alert_amount
+                            ),
+                            details: None,
+                        });
+                    } else {
+                        passed += 1;
+                    }
+                } else {
+                    passed += 1;
+                }
+            } else {
+                passed += 1;
+            }
+        }
+    }
+
+    ViolationCategory {
+        name: "budgets".to_string(),
+        violations,
+        passed,
+    }
+}
+
+fn check_resources(governance: &Governance, report: &Report) -> ViolationCategory {
+    let mut violations = Vec::new();
+    let mut passed = 0;
+
+    let constraints = match &governance.resources {
+        Some(c) => c,
+        None => {
+            return ViolationCategory {
+                name: "resources".to_string(),
+                violations,
+                passed: 1, // No constraints = pass
+            };
+        }
+    };
+
+    // Check max_total
+    if let Some(max_total) = constraints.max_total {
+        if report.summary.total_resources > max_total {
+            violations.push(Violation {
+                severity: Severity::Error,
+                rule: "resource_count_exceeded".to_string(),
+                message: format!(
+                    "Total resources {} exceeds max_total {}",
+                    report.summary.total_resources, max_total
+                ),
+                details: None,
+            });
+        } else {
+            passed += 1;
+        }
+    }
+
+    // Group report resources by type
+    let mut by_type: HashMap<&str, Vec<&crate::core::types::Resource>> = HashMap::new();
+    for r in &report.resources {
+        by_type.entry(&r.resource_type).or_default().push(r);
+    }
+
+    // Allowlist mode: if at least one allow rule exists, unlisted types are violations
+    let allowlist_mode = !constraints.allow.is_empty();
+    let allowed_types: Vec<&str> = constraints.allow.iter().map(|a| a.resource_type.as_str()).collect();
+
+    if allowlist_mode {
+        for resource_type in by_type.keys() {
+            if !allowed_types.contains(resource_type) {
+                let count = by_type[resource_type].len();
+                violations.push(Violation {
+                    severity: Severity::Error,
+                    rule: "resource_type_not_allowed".to_string(),
+                    message: format!(
+                        "Resource type \"{}\" ({} found) not in allow list",
+                        resource_type, count
+                    ),
+                    details: None,
+                });
+            }
+        }
+    }
+
+    // Check allow rules: max counts
+    for rule in &constraints.allow {
+        let count = by_type
+            .get(rule.resource_type.as_str())
+            .map(|v| v.len())
+            .unwrap_or(0);
+
+        if let Some(max) = rule.max {
+            if count > max {
+                violations.push(Violation {
+                    severity: Severity::Error,
+                    rule: "resource_type_max_exceeded".to_string(),
+                    message: format!(
+                        "{}: {} found, max allowed is {}",
+                        rule.resource_type, count, max
+                    ),
+                    details: None,
+                });
+            } else {
+                passed += 1;
+            }
+        }
+
+        // Check allowed_images for docker_service
+        if !rule.allowed_images.is_empty() {
+            if let Some(resources) = by_type.get(rule.resource_type.as_str()) {
+                for r in resources {
+                    if let Some(image) = r.extra.get("image").and_then(|v| v.as_str()) {
+                        if !matches_any_pattern(image, &rule.allowed_images) {
+                            violations.push(Violation {
+                                severity: Severity::Error,
+                                rule: "image_not_allowed".to_string(),
+                                message: format!(
+                                    "Image \"{}\" not in allowed list for {}",
+                                    image, rule.resource_type
+                                ),
+                                details: r.path.clone(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check allowed_types for terraform_resource
+        if !rule.allowed_types.is_empty() {
+            if let Some(resources) = by_type.get(rule.resource_type.as_str()) {
+                for r in resources {
+                    if let Some(rt) = r.extra.get("resource_type").and_then(|v| v.as_str()) {
+                        if !matches_any_pattern(rt, &rule.allowed_types) {
+                            violations.push(Violation {
+                                severity: Severity::Error,
+                                rule: "resource_subtype_not_allowed".to_string(),
+                                message: format!(
+                                    "Resource type \"{}\" not in allowed types for {}",
+                                    rt, rule.resource_type
+                                ),
+                                details: r.path.clone(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Check require rules
+    for rule in &constraints.require {
+        let count = by_type
+            .get(rule.resource_type.as_str())
+            .map(|v| v.len())
+            .unwrap_or(0);
+
+        if count < rule.min {
+            violations.push(Violation {
+                severity: Severity::Error,
+                rule: "required_resource_missing".to_string(),
+                message: format!(
+                    "Required resource type \"{}\": {} found, minimum is {}",
+                    rule.resource_type, count, rule.min
+                ),
+                details: None,
+            });
+        } else {
+            passed += 1;
+        }
+    }
+
+    ViolationCategory {
+        name: "resources".to_string(),
+        violations,
+        passed,
+    }
+}
+
+fn check_policies(governance: &Governance, base_dir: &Path) -> ViolationCategory {
+    let mut violations = Vec::new();
+    let mut passed = 0;
+
+    for policy in &governance.policies {
+        let policy_path = base_dir.join(&policy.source);
+        if policy_path.exists() {
+            passed += 1;
+        } else {
+            violations.push(Violation {
+                severity: Severity::Warning,
+                rule: "policy_file_missing".to_string(),
+                message: format!("Policy \"{}\" references missing file: {}", policy.name, policy.source),
+                details: None,
+            });
+        }
+    }
+
+    ViolationCategory {
+        name: "policies".to_string(),
+        violations,
+        passed,
+    }
+}
+
+// ─────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────
+
+fn parse_cost(s: &str) -> Option<f64> {
+    s.split_whitespace().next()?.parse::<f64>().ok()
+}
+
+fn parse_percentage(s: &str) -> Option<f64> {
+    s.trim_end_matches('%').parse::<f64>().ok().map(|v| v / 100.0)
+}
+
+fn matches_any_pattern(value: &str, patterns: &[String]) -> bool {
+    patterns.iter().any(|p| {
+        glob::Pattern::new(p)
+            .map_or(false, |pat| pat.matches(value))
+    })
+}
+
+// ─────────────────────────────────────────────────────────
+// Terminal output
+// ─────────────────────────────────────────────────────────
+
+fn print_diff_terminal(diff: &DiffReport) {
+    println!();
+    println!("{}", "composit diff".bold());
+    println!("{}", "=".repeat(60));
+    println!("Workspace: {}", diff.workspace);
+
+    for cat in &diff.categories {
+        println!();
+        let error_count = cat.violations.iter().filter(|v| v.severity == Severity::Error).count();
+        let warn_count = cat.violations.iter().filter(|v| v.severity == Severity::Warning).count();
+        let info_count = cat.violations.iter().filter(|v| v.severity == Severity::Info).count();
+
+        let mut parts = Vec::new();
+        if error_count > 0 {
+            parts.push(format!("{} error{}", error_count, if error_count != 1 { "s" } else { "" }));
+        }
+        if warn_count > 0 {
+            parts.push(format!("{} warning{}", warn_count, if warn_count != 1 { "s" } else { "" }));
+        }
+        if info_count > 0 {
+            parts.push(format!("{} info", info_count));
+        }
+        if cat.passed > 0 && cat.violations.is_empty() {
+            parts.push("pass".to_string());
+        }
+
+        println!(
+            "{} ({})",
+            cat.name.to_uppercase().bold(),
+            if parts.is_empty() { "no checks".to_string() } else { parts.join(", ") }
+        );
+
+        if cat.violations.is_empty() && cat.passed > 0 {
+            println!("  {}  All {} checks passed", "PASS".green().bold(), cat.passed);
+        }
+
+        for v in &cat.violations {
+            let severity_str = match v.severity {
+                Severity::Error => "ERROR".red().bold().to_string(),
+                Severity::Warning => "WARN ".yellow().bold().to_string(),
+                Severity::Info => "INFO ".cyan().bold().to_string(),
+            };
+            println!("  {}  {} — {}", severity_str, v.rule.dimmed(), v.message);
+            if let Some(detail) = &v.details {
+                println!("         {}", detail.dimmed());
+            }
+        }
+    }
+
+    println!();
+    println!("{}", "-".repeat(60));
+    println!(
+        "  {} | {} | {} | {} passed",
+        if diff.summary.errors > 0 {
+            format!("{} errors", diff.summary.errors).red().to_string()
+        } else {
+            "0 errors".to_string()
+        },
+        if diff.summary.warnings > 0 {
+            format!("{} warnings", diff.summary.warnings).yellow().to_string()
+        } else {
+            "0 warnings".to_string()
+        },
+        format!("{} info", diff.summary.info),
+        diff.summary.passed_checks
+    );
+    println!();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::governance::*;
+    use crate::core::types::*;
+
+    fn make_report(providers: Vec<Provider>, resources: Vec<Resource>, cost: &str) -> Report {
+        let prov_count = providers.len();
+        let res_count = resources.len();
+        Report {
+            workspace: "test".to_string(),
+            generated: "2026-04-14".to_string(),
+            scanner_version: "0.1.0".to_string(),
+            providers,
+            resources,
+            summary: Summary {
+                total_resources: res_count,
+                providers: prov_count,
+                agent_created: 0,
+                agent_assisted: 0,
+                human_created: res_count,
+                auto_detected: 0,
+                estimated_monthly_cost: cost.to_string(),
+            },
+        }
+    }
+
+    fn make_provider(name: &str) -> Provider {
+        Provider {
+            name: name.to_string(),
+            endpoint: format!("https://{}.example.com", name),
+            protocol: "mcp".to_string(),
+            capabilities: vec![],
+            status: ProviderStatus::Unknown,
+        }
+    }
+
+    fn make_resource(resource_type: &str) -> Resource {
+        Resource {
+            resource_type: resource_type.to_string(),
+            name: None,
+            path: Some("./test".to_string()),
+            provider: None,
+            created: None,
+            created_by: None,
+            detected_by: "test".to_string(),
+            estimated_cost: None,
+            extra: std::collections::HashMap::new(),
+        }
+    }
+
+    fn make_governance(providers: Vec<&str>, max_monthly: &str) -> Governance {
+        Governance {
+            workspace: "test".to_string(),
+            providers: providers
+                .into_iter()
+                .map(|n| ProviderRule {
+                    name: n.to_string(),
+                    manifest: format!("https://{}.example.com", n),
+                    trust: "contract".to_string(),
+                    compliance: vec![],
+                })
+                .collect(),
+            budgets: vec![BudgetRule {
+                scope: "workspace".to_string(),
+                max_monthly: max_monthly.to_string(),
+                alert_at: Some("80%".to_string()),
+            }],
+            policies: vec![],
+            resources: None,
+        }
+    }
+
+    #[test]
+    fn test_unapproved_provider() {
+        let report = make_report(vec![make_provider("croniq"), make_provider("rogue")], vec![], "0 EUR");
+        let gov = make_governance(vec!["croniq"], "500 EUR");
+        let diff = compute_diff(&gov, &report, Path::new("."));
+
+        let prov_cat = &diff.categories[0];
+        assert_eq!(prov_cat.name, "providers");
+        let errors: Vec<_> = prov_cat.violations.iter().filter(|v| v.severity == Severity::Error).collect();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].rule, "unapproved_provider");
+        assert!(errors[0].message.contains("rogue"));
+    }
+
+    #[test]
+    fn test_budget_exceeded() {
+        let report = make_report(vec![], vec![], "600 EUR");
+        let gov = make_governance(vec![], "500 EUR");
+        let diff = compute_diff(&gov, &report, Path::new("."));
+
+        let budget_cat = &diff.categories[1];
+        let errors: Vec<_> = budget_cat.violations.iter().filter(|v| v.severity == Severity::Error).collect();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].rule, "budget_exceeded");
+    }
+
+    #[test]
+    fn test_budget_alert() {
+        let report = make_report(vec![], vec![], "420 EUR");
+        let gov = make_governance(vec![], "500 EUR");
+        let diff = compute_diff(&gov, &report, Path::new("."));
+
+        let budget_cat = &diff.categories[1];
+        let warnings: Vec<_> = budget_cat.violations.iter().filter(|v| v.severity == Severity::Warning).collect();
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(warnings[0].rule, "budget_alert");
+    }
+
+    #[test]
+    fn test_resource_max_total_exceeded() {
+        let resources: Vec<Resource> = (0..15).map(|_| make_resource("docker_service")).collect();
+        let report = make_report(vec![], resources, "0 EUR");
+        let mut gov = make_governance(vec![], "500 EUR");
+        gov.resources = Some(ResourceConstraints {
+            max_total: Some(10),
+            allow: vec![],
+            require: vec![],
+        });
+
+        let diff = compute_diff(&gov, &report, Path::new("."));
+        let res_cat = &diff.categories[2];
+        let errors: Vec<_> = res_cat.violations.iter().filter(|v| v.rule == "resource_count_exceeded").collect();
+        assert_eq!(errors.len(), 1);
+    }
+
+    #[test]
+    fn test_resource_type_not_allowed() {
+        let report = make_report(vec![], vec![make_resource("mcp_server")], "0 EUR");
+        let mut gov = make_governance(vec![], "500 EUR");
+        gov.resources = Some(ResourceConstraints {
+            max_total: None,
+            allow: vec![AllowRule {
+                resource_type: "docker_service".to_string(),
+                max: Some(20),
+                allowed_images: vec![],
+                allowed_types: vec![],
+            }],
+            require: vec![],
+        });
+
+        let diff = compute_diff(&gov, &report, Path::new("."));
+        let res_cat = &diff.categories[2];
+        let errors: Vec<_> = res_cat.violations.iter().filter(|v| v.rule == "resource_type_not_allowed").collect();
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].message.contains("mcp_server"));
+    }
+
+    #[test]
+    fn test_required_resource_missing() {
+        let report = make_report(vec![], vec![], "0 EUR");
+        let mut gov = make_governance(vec![], "500 EUR");
+        gov.resources = Some(ResourceConstraints {
+            max_total: None,
+            allow: vec![],
+            require: vec![RequireRule {
+                resource_type: "docker_compose".to_string(),
+                min: 1,
+            }],
+        });
+
+        let diff = compute_diff(&gov, &report, Path::new("."));
+        let res_cat = &diff.categories[2];
+        let errors: Vec<_> = res_cat.violations.iter().filter(|v| v.rule == "required_resource_missing").collect();
+        assert_eq!(errors.len(), 1);
+    }
+
+    #[test]
+    fn test_all_checks_pass() {
+        let report = make_report(
+            vec![make_provider("croniq")],
+            vec![make_resource("docker_service"), make_resource("docker_compose")],
+            "100 EUR",
+        );
+        let mut gov = make_governance(vec!["croniq"], "500 EUR");
+        gov.resources = Some(ResourceConstraints {
+            max_total: Some(100),
+            allow: vec![
+                AllowRule {
+                    resource_type: "docker_service".to_string(),
+                    max: Some(20),
+                    allowed_images: vec![],
+                    allowed_types: vec![],
+                },
+                AllowRule {
+                    resource_type: "docker_compose".to_string(),
+                    max: Some(10),
+                    allowed_images: vec![],
+                    allowed_types: vec![],
+                },
+            ],
+            require: vec![RequireRule {
+                resource_type: "docker_compose".to_string(),
+                min: 1,
+            }],
+        });
+
+        let diff = compute_diff(&gov, &report, Path::new("."));
+        assert_eq!(diff.summary.errors, 0);
+        assert_eq!(diff.summary.warnings, 0);
+        assert!(diff.summary.passed_checks > 0);
+    }
+}

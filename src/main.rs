@@ -38,6 +38,25 @@ async fn main() -> Result<()> {
             let dir = fs::canonicalize(&dir)?;
             commands::status::run_status(&dir, live).await?;
         }
+        Commands::Diff {
+            dir,
+            compositfile,
+            report,
+            output,
+            strict,
+        } => {
+            let dir = fs::canonicalize(&dir)?;
+            let exit_code = commands::diff::run_diff(
+                &dir,
+                compositfile.as_deref(),
+                report.as_deref(),
+                output,
+                strict,
+            )?;
+            if exit_code != 0 {
+                std::process::exit(exit_code);
+            }
+        }
     }
 
     Ok(())
