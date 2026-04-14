@@ -149,6 +149,31 @@ die in gescannten Repos existieren, aber von keinem Scanner erfasst werden.
 
 ## Sprint 3: Community Launch (Woche 5-6)
 
+### Distribution: npx-Wrapper (Zero-Install)
+
+- [ ] **npm-Distribution** — Rust-Binary via `npx composit scan` aufrufbar,
+  ohne vorherige Installation. Cross-Platform (Windows/macOS/Linux).
+
+  **Architektur** (Pattern von biome, esbuild, turbo):
+  ```
+  composit                          ← Haupt-Package (JS wrapper, bin-Entry)
+  ├── @composit/cli-win32-x64       ← optionalDependency (composit.exe)
+  ├── @composit/cli-darwin-arm64    ← optionalDependency (macOS ARM)
+  ├── @composit/cli-darwin-x64      ← optionalDependency (macOS Intel)
+  ├── @composit/cli-linux-x64       ← optionalDependency (Linux x64)
+  └── @composit/cli-linux-arm64     ← optionalDependency (Linux ARM)
+  ```
+  npm installiert nur das Platform-Package für die aktuelle Architektur.
+  Das Haupt-Package enthält ein JS-Script das die richtige Binary findet
+  und mit `execFileSync` durchreicht.
+
+  **Voraussetzungen:**
+  - CI-Pipeline mit Cross-Compilation (GitHub Actions Matrix oder `cross`-Crate)
+  - npm-Publish in der Release-Pipeline (5-6 Packages pro Release)
+  - Rust-Code ändert sich nicht — nur Packaging/Distribution
+
+  **Parallel weiterhin:** `cargo install composit`, GitHub Releases, brew.
+
 ### HN Launch
 
 - [ ] **Show HN Post** — Zielgruppe: DevOps / Platform Engineers.
