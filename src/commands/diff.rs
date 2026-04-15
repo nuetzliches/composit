@@ -162,9 +162,9 @@ fn check_providers(governance: &Governance, report: &Report) -> ViolationCategor
     for gp in &governance.providers {
         if !report_names.contains(&gp.name.as_str()) {
             violations.push(Violation {
-                severity: Severity::Info,
+                severity: Severity::Warning,
                 rule: "unused_provider".to_string(),
-                message: format!("Approved provider \"{}\" not found in scan report", gp.name),
+                message: format!("Approved provider \"{}\" not found in scan report — governance may be outdated", gp.name),
                 details: None,
             });
         }
