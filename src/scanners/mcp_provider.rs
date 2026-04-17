@@ -79,7 +79,13 @@ async fn fetch_provider(
     }
 
     let manifest: serde_json::Value = resp.json().await?;
+    Ok(parse_manifest(&manifest, base_url))
+}
 
+/// Pure function: given a parsed manifest and the base URL, return the
+/// derived Provider + capability-level Resources. Separated from the HTTP
+/// fetch so it can be unit-tested.
+fn parse_manifest(manifest: &serde_json::Value, base_url: &str) -> (Provider, Vec<Resource>) {
     let provider_name = manifest
         .get("provider")
         .and_then(|p| p.get("name"))
@@ -96,7 +102,6 @@ async fn fetch_provider(
                 capabilities.push(cap_type.to_string());
             }
 
-            // Extract capability details as resources
             if let Some(product) = cap.get("product").and_then(|p| p.as_str()) {
                 let mut extra = HashMap::new();
                 if let Some(tools) = cap.get("tools").and_then(|t| t.as_u64()) {
@@ -135,5 +140,65 @@ async fn fetch_provider(
         status: ProviderStatus::Reachable,
     };
 
-    Ok((provider, resources))
+    (provider, resources)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_parse_manifest_full_capabilities() {
+        let manifest = json!({
+            "provider": { "name": "croniq" },
+            "capabilities": [
+                {
+                    "type": "scheduling",
+                    "product": "croniq",
+                    "tools": 12,
+                    "description": "Cron-as-a-service"
+                },
+                {
+                    "type": "events"
+                }
+            ]
+        });
+
+        let (provider, resources) = parse_manifest(&manifest, "https://composit.example.com/");
+        assert_eq!(provider.name, "croniq");
+        assert_eq!(provider.protocol, "mcp");
+        assert_eq!(provider.capabilities, vec!["scheduling", "events"]);
+
+        assert_eq!(resources.len(), 1);
+        let r = &resources[0];
+        assert_eq!(r.resource_type, "mcp_capability");
+        assert_eq!(r.name.as_deref(), Some("croniq"));
+        assert_eq!(r.provider.as_deref(), Some("croniq"));
+        assert_eq!(
+            r.extra.get("tools").and_then(|v| v.as_u64()),
+            Some(12)
+        );
+        assert_eq!(
+            r.extra.get("description").and_then(|v| v.as_str()),
+            Some("Cron-as-a-service")
+        );
+    }
+
+    #[test]
+    fn test_parse_manifest_unknown_provider_name() {
+        let manifest = json!({ "capabilities": [] });
+        let (provider, resources) = parse_manifest(&manifest, "https://example.com");
+        assert_eq!(provider.name, "unknown");
+        assert!(resources.is_empty());
+        assert!(provider.capabilities.is_empty());
+    }
+
+    #[test]
+    fn test_parse_manifest_empty() {
+        let manifest = json!({});
+        let (provider, resources) = parse_manifest(&manifest, "https://example.com");
+        assert_eq!(provider.name, "unknown");
+        assert!(resources.is_empty());
+    }
 }

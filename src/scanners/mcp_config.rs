@@ -127,3 +127,73 @@ fn parse_mcp_config(
 
     Ok((resources, providers))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_parse_mcp_config_extracts_servers_and_providers() {
+        let dir = tempdir().unwrap();
+        let config_path = dir.path().join("mcp.json");
+        let config_json = r#"{
+            "mcpServers": {
+                "stdio-server": {
+                    "command": "npx",
+                    "args": ["-y", "@acme/mcp"]
+                },
+                "remote-server": {
+                    "url": "https://example.com/mcp"
+                }
+            }
+        }"#;
+        std::fs::write(&config_path, config_json).unwrap();
+
+        let (resources, providers) = parse_mcp_config(&config_path, "cursor").unwrap();
+        assert_eq!(resources.len(), 2);
+
+        // Resource-level assertions
+        let stdio = resources
+            .iter()
+            .find(|r| r.name.as_deref() == Some("stdio-server"))
+            .unwrap();
+        assert_eq!(stdio.resource_type, "mcp_server");
+        assert_eq!(
+            stdio.extra.get("command").and_then(|v| v.as_str()),
+            Some("npx")
+        );
+        assert_eq!(
+            stdio.extra.get("source").and_then(|v| v.as_str()),
+            Some("cursor")
+        );
+        assert!(stdio.extra.get("args").is_some());
+
+        // Only the URL-based server should appear as a provider
+        assert_eq!(providers.len(), 1);
+        assert_eq!(providers[0].name, "remote-server");
+        assert_eq!(providers[0].endpoint, "https://example.com/mcp");
+        assert_eq!(providers[0].protocol, "mcp");
+    }
+
+    #[test]
+    fn test_parse_mcp_config_missing_servers_section() {
+        let dir = tempdir().unwrap();
+        let config_path = dir.path().join("mcp.json");
+        std::fs::write(&config_path, r#"{"other": {}}"#).unwrap();
+
+        let (resources, providers) = parse_mcp_config(&config_path, "claude_desktop").unwrap();
+        assert!(resources.is_empty());
+        assert!(providers.is_empty());
+    }
+
+    #[test]
+    fn test_parse_mcp_config_invalid_json_errors() {
+        let dir = tempdir().unwrap();
+        let config_path = dir.path().join("mcp.json");
+        std::fs::write(&config_path, "not json").unwrap();
+
+        let result = parse_mcp_config(&config_path, "cursor");
+        assert!(result.is_err());
+    }
+}
