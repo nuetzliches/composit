@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>composit — governance-as-code for AI-generated infrastructure</title>
+<meta name="description" content="See what your AI agents built — before it breaks. Open-source CLI for platform teams: scan, declare intent, detect drift.">
+<meta name="color-scheme" content="dark light">
+
+<meta property="og:title" content="composit — see what your AI agents built">
+<meta property="og:description" content="Open-source CLI. Scan the infra your agents touched, declare intent in a Compositfile, and surface every drift before it ships.">
+<meta property="og:type" content="website">
+
+<style>
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface-2: #1c2128;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --green: #3fb950;
+  --yellow: #d29922;
+  --red: #f85149;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+.container { max-width: 960px; margin: 0 auto; padding: 0 1.5rem; }
+
+/* Hero */
+header.hero {
+  padding: 5rem 0 4rem;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+.logo { font-size: 1rem; font-weight: 700; color: var(--accent); letter-spacing: 0.05em; margin-bottom: 2rem; }
+h1 { font-size: clamp(2rem, 5vw, 3.25rem); font-weight: 700; line-height: 1.15; margin-bottom: 1.25rem; }
+.tagline { font-size: 1.15rem; color: var(--muted); max-width: 640px; margin: 0 auto 2.5rem; }
+.cta { display: inline-flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center; }
+.btn {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 0.95rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn-primary { background: var(--accent); color: #0d1117; }
+.btn-primary:hover { background: #79c0ff; }
+.btn-ghost { border-color: var(--border); color: var(--text); background: transparent; }
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Sections */
+section { padding: 4rem 0; border-bottom: 1px solid var(--border); }
+section h2 { font-size: 1.75rem; font-weight: 600; margin-bottom: 0.75rem; }
+section .sub { color: var(--muted); margin-bottom: 2.5rem; max-width: 640px; }
+
+/* Three-step */
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.25rem; }
+.step {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+.step .n {
+  display: inline-block;
+  width: 28px; height: 28px;
+  background: rgba(88,166,255,0.15);
+  color: var(--accent);
+  border-radius: 50%;
+  text-align: center;
+  line-height: 28px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+.step h3 { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.4rem; }
+.step p { color: var(--muted); font-size: 0.9rem; }
+.step code {
+  display: block;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  border-radius: 4px;
+  font-family: 'SF Mono', Consolas, monospace;
+  font-size: 0.82rem;
+  color: var(--accent);
+}
+
+/* Who it's for */
+.who {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+.who-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+}
+.who-card strong { display: block; margin-bottom: 0.25rem; }
+.who-card span { color: var(--muted); font-size: 0.9rem; }
+
+/* Features (with click tracking) */
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+.feature-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.95rem;
+  transition: border-color 0.15s, background 0.15s;
+  width: 100%;
+}
+.feature-btn:hover { border-color: var(--accent); background: var(--surface-2); }
+.feature-btn.voted { border-color: var(--green); background: rgba(63,185,80,0.08); }
+.feature-btn strong { display: block; margin-bottom: 0.25rem; }
+.feature-btn span { color: var(--muted); font-size: 0.85rem; }
+.feature-note { color: var(--muted); font-size: 0.85rem; margin-top: 1rem; }
+
+/* Waitlist */
+.waitlist {
+  display: flex;
+  gap: 0.5rem;
+  max-width: 480px;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+.waitlist input {
+  flex: 1;
+  min-width: 220px;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+.waitlist input:focus { outline: none; border-color: var(--accent); }
+.waitlist .btn-primary { white-space: nowrap; }
+.waitlist-msg { margin-top: 0.75rem; font-size: 0.9rem; min-height: 1.2em; }
+.waitlist-msg.ok { color: var(--green); }
+.waitlist-msg.err { color: var(--yellow); }
+
+/* Code sample */
+pre.sample {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  overflow-x: auto;
+  font-family: 'SF Mono', Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--text);
+}
+pre.sample .err { color: var(--red); }
+pre.sample .warn { color: var(--yellow); }
+pre.sample .ok { color: var(--green); }
+pre.sample .dim { color: var(--muted); }
+
+footer {
+  padding: 2rem 0 3rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+footer a { color: var(--accent); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="container">
+    <div class="logo">COMPOSIT</div>
+    <h1>See what your AI agents built —<br>before it breaks.</h1>
+    <p class="tagline">
+      Governance-as-code for AI-generated infrastructure.
+      Scan your repo, declare intent in a <code>Compositfile</code>,
+      surface every drift. Open-source CLI for platform teams.
+    </p>
+    <div class="cta">
+      <a class="btn btn-primary" href="#waitlist">Join the waitlist</a>
+      <a class="btn btn-ghost" href="https://github.com/nuetzliches/composit" target="_blank" rel="noopener">View on GitHub →</a>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="container">
+    <h2>How it works</h2>
+    <p class="sub">Three commands. IS-state vs. SHOULD-state. No SaaS required.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="n">1</div>
+        <h3>Scan</h3>
+        <p>Nine built-in scanners detect Docker, Terraform, Caddy, workflows, Prometheus, cron, env files, and MCP configs. Zero setup.</p>
+        <code>composit scan</code>
+      </div>
+      <div class="step">
+        <div class="n">2</div>
+        <h3>Declare</h3>
+        <p>Write a <code>Compositfile</code> in HCL. Approved providers, budgets, resource constraints, policy references.</p>
+        <code>vim Compositfile</code>
+      </div>
+      <div class="step">
+        <div class="n">3</div>
+        <h3>Diff</h3>
+        <p>Compare reality against intent. Get errors and warnings with severity and rule IDs. Terminal, JSON, YAML, or HTML output.</p>
+        <code>composit diff</code>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <h2>Who it's for</h2>
+    <p class="sub">Teams where 3+ developers use AI coding agents (Claude Code, Cursor, Devin) and nobody owns the inventory of what agents touched.</p>
+    <div class="who">
+      <div class="who-card">
+        <strong>Platform engineers</strong>
+        <span>Running ~4h/week on drift audits. Need cross-agent visibility.</span>
+      </div>
+      <div class="who-card">
+        <strong>CTOs at AI-native teams</strong>
+        <span>Compliance pressure coming. Need auditable governance.</span>
+      </div>
+      <div class="who-card">
+        <strong>Solo devs</strong>
+        <span>Free CLI, same value. You build the adoption funnel.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <h2>composit diff — sample output</h2>
+    <p class="sub">Real diff against a non-trivial production stack. The Compositfile is deliberately tight to surface every violation category.</p>
+    <pre class="sample">composit diff
+============================================================
+Workspace: nuts-infra
+
+PROVIDERS (3 warnings)
+  <span class="warn">WARN</span>   unused_provider — Approved provider "croniq" not found in scan report
+  <span class="warn">WARN</span>   unused_provider — Approved provider "hookaido" not found in scan report
+  <span class="warn">WARN</span>   unused_provider — Approved provider "powerbrain" not found in scan report
+
+BUDGETS (pass)
+  <span class="ok">PASS</span>  All 1 checks passed
+
+RESOURCES (6 errors)
+  <span class="err">ERROR</span>  resource_count_exceeded — Total resources 96 exceeds max_total 60
+  <span class="err">ERROR</span>  resource_type_not_allowed — "caddy_site" (24 found) not in allow list
+  <span class="err">ERROR</span>  resource_type_not_allowed — "dockerfile" (2 found) not in allow list
+  <span class="err">ERROR</span>  resource_type_not_allowed — "env_file" (10 found) not in allow list
+  <span class="err">ERROR</span>  resource_type_max_exceeded — docker_service: 38 found, max allowed is 20
+  <span class="err">ERROR</span>  required_resource_missing — "prometheus_config": 0 found, minimum is 1
+
+POLICIES (1 warning)
+  <span class="warn">WARN</span>   policy_file_missing — references missing file: policies/no-experimental-images.rego
+
+<span class="dim">------------------------------------------------------------</span>
+  <span class="err">6 errors</span> | <span class="warn">4 warnings</span> | 0 info | <span class="ok">4 passed</span>
+</pre>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <h2>What would you pay for?</h2>
+    <p class="sub">Free CLI stays free. We're figuring out what the team-tier product should include. Click the capabilities you'd pay for — anonymous, one tap each.</p>
+    <div class="features" id="features">
+      <button type="button" class="feature-btn" data-feature="drift-alerts">
+        <strong>Drift alerts</strong>
+        <span>Slack / email when CI finds new violations.</span>
+      </button>
+      <button type="button" class="feature-btn" data-feature="cost-attribution">
+        <strong>Cost attribution</strong>
+        <span>Who (human or agent) is racking up the bill.</span>
+      </button>
+      <button type="button" class="feature-btn" data-feature="compliance">
+        <strong>Compliance reports</strong>
+        <span>SOC2 / GDPR exports. Audit trail.</span>
+      </button>
+      <button type="button" class="feature-btn" data-feature="multi-agent">
+        <strong>Multi-agent visibility</strong>
+        <span>Track what each agent platform created.</span>
+      </button>
+      <button type="button" class="feature-btn" data-feature="dashboard">
+        <strong>Team dashboard</strong>
+        <span>Cross-repo view for platform leads.</span>
+      </button>
+      <button type="button" class="feature-btn" data-feature="policy-runtime">
+        <strong>OPA at commit time</strong>
+        <span>Block PRs that break governance.</span>
+      </button>
+    </div>
+    <p class="feature-note">Votes are counted client-side and sent anonymously to shape the roadmap. No email required to vote.</p>
+  </div>
+</section>
+
+<section id="waitlist">
+  <div class="container">
+    <h2>Get notified</h2>
+    <p class="sub">Early-access updates only. No drip sequence, no spam. When we ship the team tier you'll hear about it first.</p>
+    <form class="waitlist" id="waitlist-form">
+      <input type="email" name="email" placeholder="you@team.dev" required autocomplete="email">
+      <button type="submit" class="btn btn-primary">Notify me</button>
+    </form>
+    <div class="waitlist-msg" id="waitlist-msg" role="status" aria-live="polite"></div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    Built by <a href="https://github.com/nuetzliches" target="_blank" rel="noopener">nuetzliches</a>
+    · MIT-licensed CLI on <a href="https://github.com/nuetzliches/composit" target="_blank" rel="noopener">GitHub</a>
+    · <a href="https://github.com/nuetzliches/composit/blob/main/docs/rfcs/001-composit-report-format.md" target="_blank" rel="noopener">RFC 001</a>
+  </div>
+</footer>
+
+<script>
+// ---- Feature interest tracking --------------------------------------------
+// Anonymous local tally. Replace ANALYTICS_ENDPOINT with a real endpoint
+// (Plausible/Umami custom events, or a minimal /api/vote) before going live.
+const ANALYTICS_ENDPOINT = null; // e.g. "/api/vote"
+const STORAGE_KEY = "composit-voted-features";
+
+function getVoted() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function saveVoted(list) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  } catch {
+    /* storage may be disabled — non-fatal */
+  }
+}
+
+function markVoted(btn) {
+  btn.classList.add("voted");
+  btn.disabled = true;
+}
+
+document.querySelectorAll(".feature-btn").forEach((btn) => {
+  const feature = btn.dataset.feature;
+  const voted = getVoted();
+  if (voted.includes(feature)) {
+    markVoted(btn);
+  }
+  btn.addEventListener("click", () => {
+    const current = getVoted();
+    if (current.includes(feature)) return;
+    current.push(feature);
+    saveVoted(current);
+    markVoted(btn);
+
+    if (ANALYTICS_ENDPOINT) {
+      fetch(ANALYTICS_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ feature }),
+        keepalive: true,
+      }).catch(() => { /* swallow — votes are best-effort */ });
+    }
+    // Plausible / Umami hooks (safe if absent).
+    if (typeof window.plausible === "function") {
+      window.plausible("feature-vote", { props: { feature } });
+    }
+    if (typeof window.umami === "object" && typeof window.umami.track === "function") {
+      window.umami.track("feature-vote", { feature });
+    }
+  });
+});
+
+// ---- Waitlist form --------------------------------------------------------
+// Replace WAITLIST_ENDPOINT with a real form handler (e.g. Formspree, Plunk,
+// Buttondown, or a self-hosted endpoint) before going live. Fallback: mailto.
+const WAITLIST_ENDPOINT = null;
+const FALLBACK_EMAIL = "composit@nuetzliche.it";
+
+const form = document.getElementById("waitlist-form");
+const msg = document.getElementById("waitlist-msg");
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = new FormData(form).get("email");
+  if (!email) return;
+
+  msg.textContent = "Submitting…";
+  msg.className = "waitlist-msg";
+
+  if (WAITLIST_ENDPOINT) {
+    try {
+      const resp = await fetch(WAITLIST_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, features: getVoted() }),
+      });
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      msg.textContent = "Thanks! You're on the list.";
+      msg.className = "waitlist-msg ok";
+      form.reset();
+    } catch (err) {
+      msg.textContent = "Submission failed. Email us directly: " + FALLBACK_EMAIL;
+      msg.className = "waitlist-msg err";
+    }
+  } else {
+    // No backend wired yet — fallback to mailto.
+    const features = getVoted();
+    const subject = encodeURIComponent("composit waitlist");
+    const body = encodeURIComponent(
+      "Count me in.\n\nFeatures I'd pay for: " +
+        (features.length ? features.join(", ") : "(none clicked)")
+    );
+    window.location.href =
+      `mailto:${FALLBACK_EMAIL}?subject=${subject}&body=${body}`;
+    msg.textContent = "Opening your mail client…";
+    msg.className = "waitlist-msg ok";
+  }
+});
+</script>
+</body>
+</html>
