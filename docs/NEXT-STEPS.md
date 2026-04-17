@@ -178,8 +178,10 @@ die in gescannten Repos existieren, aber von keinem Scanner erfasst werden.
   mcp_config, mcp_provider**. Priorität: docker (größtes Volumen).
   Dazu mindestens ein End-to-End-Test (`composit scan` auf Fixture-Repo).
 
-- [ ] **Live-Provider-Abfrage** — Aktive Ressourcen von Providern via API
-  (`composit status --live` ist angelegt, aber noch kein echter Call).
+- [x] **Live-Provider-Abfrage** — `composit status --live` fetcht
+  `/.well-known/composit.json`, parst das Manifest und merged
+  Capabilities/Protocol auf die Provider-Liste. Description, Region
+  und Compliance-Tags werden im Terminal angezeigt.
 
 - [ ] **OPA Runtime-Integration** — Policy-Evaluation gegen Rego-Dateien
   die im Compositfile referenziert werden. Aktuell nur deklariert, nicht evaluiert.
