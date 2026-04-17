@@ -161,11 +161,15 @@ whitelists, region restrictions, resource limits.
 
 ## Business Model
 
-| Tier | Target | Features |
-|------|--------|----------|
-| **Free CLI** | Solo devs, small teams | `composit scan`, `composit status`, `composit diff`, report generator, local provider integrations |
-| **Team** ($29-99/mo) | Platform engineers, 5-50 dev teams | Multi-team dashboard, drift alerts, cost attribution, Slack/Teams integration |
-| **Enterprise** ($199+/mo) | Compliance-driven orgs | Audit trail, SOC2/GDPR reporting, managed manifest registry, SSO, SLA |
+Primary ICP is **platform engineers and CTOs** at teams using AI coding
+agents (5-50 devs). Solo devs get the free CLI and drive adoption — they
+are not the paying segment.
+
+| Tier | Target (adoption / paying) | Features |
+|------|----------------------------|----------|
+| **Free CLI** | All users — adoption funnel | `composit scan`, `composit status`, `composit diff`, report generator, local provider integrations |
+| **Team** ($29-99/mo) | **Paying:** platform engineers, 5-50 dev teams | Multi-team dashboard, drift alerts, cost attribution, Slack/Teams integration |
+| **Enterprise** ($199+/mo) | **Paying:** compliance-driven orgs | Audit trail, SOC2/GDPR reporting, managed manifest registry, SSO, SLA |
 
 The reference providers (croniq, hookaido, powerbrain) remain independent
 open-source projects. They are composit providers, not composit dependencies.
@@ -188,9 +192,18 @@ open-source projects. They are composit providers, not composit dependencies.
 
 **Phase: CLI + Spec Draft.**
 
-9 scanners implemented (Docker, Terraform, Caddy, CI/CD Workflows, Prometheus,
-Env, Cron, MCP Config, MCP Provider). Compositfile parser and `composit diff`
-are next.
+Implemented: `composit scan` (9 scanners), `composit status`, `composit diff`
+(Compositfile parser, drift detection, HTML/YAML/JSON reports).
+
+### Known Scanner Gaps
+
+Validated against 17 public + internal repos. Not yet scanned:
+
+**Tier 1 (high volume):** Kubernetes manifests, Kustomize, Helm charts.
+**Tier 2:** nginx, OPA/Rego, Grafana, deploy scripts, DB migrations.
+**Tier 3:** fly.toml, render.yaml, vercel.json, Skaffold, Traefik, protobuf.
+
+See [NEXT-STEPS.md](docs/NEXT-STEPS.md) for prioritization.
 
 → [Next Steps](docs/NEXT-STEPS.md) | [Strategy](docs/STRATEGY.md) | [Open Questions](docs/OPEN-QUESTIONS.md)
 

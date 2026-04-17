@@ -1,39 +1,56 @@
 # Composit — Next Steps
 
-Stand: 2026-04-12 (post-Validation)
+Stand: 2026-04-18 (post-Validation, post-Compositfile)
 
-Basiert auf Business Validation Report (7.0/10, BUILD).
-Alte 4-Phasen-Roadmap (Konzept > Spec > PoC > Validieren) ersetzt durch
-zeitgebundene Sprints mit klarem ICP-Fokus: Platform Engineers + CTOs.
+Basiert auf Business Validation Report (7.5/10, BUILD — re-assessment 2026-04-14).
+Zeitgebundene Sprints mit klarem ICP-Fokus: Platform Engineers + CTOs.
+
+**Arbeitsmodus (explizit):** Wir validieren nicht über Interviews, sondern
+über **Dogfooding + Launch-Signale**. Annahmen werden als solche markiert
+und durch öffentliche Artefakte (Spec, Demo, Landing) überprüft.
 
 ---
 
-## Sprint 1: Validate + Spec Draft (Woche 1-2)
+## Sprint 1 (revidiert): Spec + Dogfooding statt Interviews (Woche 1-2)
 
 ### ICP locked
 
 - [x] **ICP-Entscheidung:** Platform Engineers + CTOs als zahlende Zielgruppe.
   Solo Devs = Community/Adoption Funnel, nicht Produkt-Fokus.
-- [ ] **Narrative schärfen** — README, HN-LAUNCH, STRATEGY auf Platform-Eng-Audience
-  umschreiben. Weg von "Creator Control", hin zu "Agent Infrastructure Visibility."
+- [x] **Narrative schärfen** — README, STRATEGY, HN-LAUNCH auf Governance-as-Code
+  umgeschrieben (Commits 7ab3c72, c05c493).
 
-### Interviews
+### Dogfooding statt Interviews
 
-- [ ] **10-15 Interviews planen** — Zielgruppe: Platform Engineers und CTOs bei
-  Teams die Claude Code, Cursor, oder Devin nutzen (5-50 Devs).
-  - Kernfragen: Trackt ihr was Agents erstellen? Würdet ihr für Visibility zahlen?
-    Was ist der aktuelle Workaround? Wie viel Zeit geht für Drift-Audits drauf?
-  - Kanäle: LinkedIn (DevOps/Platform Eng), CNCF Slack, lokale Meetups, eigenes Netzwerk
-- [ ] **Interview-Leitfaden erstellen** — Mom-Test-kompatibel. Keine Leading Questions.
-  Fokus auf bestehendes Verhalten, nicht hypothetische Zahlungsbereitschaft.
+Anstelle von 10-15 Interviews validieren wir über eigene Stacks:
+
+- [ ] **Dogfood-Runs auf eigenen Repos** — `composit scan` + `composit diff`
+  auf nuts-infra, croniq, hookaido, powerbrain. Jeder Run muss ein
+  Artefakt (Report + Diff) erzeugen, das als Demo-Material taugt.
+  Gefundene echte Drifts = stärkstes internes Signal.
+- [ ] **Scanner-Benchmark etablieren** — `composit-scanner-tests` (17 Repos)
+  als laufende Quality-Signal-Quelle. Coverage-Metrik: Anteil erkannter
+  Ressourcen pro Repo. Regression-Schutz vor jedem Release.
 
 ### Spec
 
-- [ ] **composit-report.yaml Spec v0.1 als RFC** — Formales Schema (JSON Schema),
-  nicht nur Beispiele. Auf GitHub als Discussion oder PR veröffentlichen.
-  Compositfile (Governance-Spec) separat als Post-MVP Draft.
+- [ ] **composit-report.yaml Spec v0.1 als RFC** — Formales JSON Schema,
+  nicht nur Beispiele. Auf GitHub als Discussion veröffentlichen.
+  Signal = Kommentare/Reaktionen von Platform-Eng-Community.
+- [ ] **Compositfile Spec v0.1 als RFC** — HCL-Schema dokumentieren
+  (workspace, provider, budget, policy, require). Abgeleitet aus
+  tatsächlicher Parser-Implementierung.
 - [ ] **Manifest Schema finalisieren** — composit.json v0.1 mit konkreten Feldern,
   Versionierung, Discovery-Mechanismus (.well-known URL, align mit MCP).
+
+### Annahmen (explizit, zu widerlegen durch Signale)
+
+| # | Annahme | Widerlegung durch |
+|---|---------|-------------------|
+| A1 | Platform Engineers erkennen den Pain aus Report/Blogpost | HN + Reddit Reaktionen |
+| A2 | Drift-Detection ist wichtiger als Cost-Attribution | Feature-Interest-Click-Tracking auf Landing |
+| A3 | Open-Spec wird als Standard gesehen, nicht als Vendor-Grab | GitHub Discussion Engagement |
+| A4 | Compositfile-Syntax (HCL) ist ergonomisch genug | Dogfooding-Erfahrung + Early-Adopter-Feedback |
 
 ---
 
@@ -139,26 +156,36 @@ die in gescannten Repos existieren, aber von keinem Scanner erfasst werden.
 - **Terraform als Scanner, nicht als Provider** — .tf Dateien sind das
   Arbeitsergebnis des Agents. State/Cloud-APIs sind Terraforms Domäne.
 
-### Offen — Critical Path (Governance-as-Code Kern)
+### Critical Path (Governance-as-Code Kern) — erledigt
 
-Priorität: Compositfile + Drift Detection VOR weiteren Scannern.
-Der Scanner ist Mittel zum Zweck — der Wert steckt in IST vs. SOLL.
+- [x] **Compositfile Parser** (Commit d96ae0f) — HCL-Parsing via `hcl-rs`.
+  Typisierte Governance-Struct: workspace, approved providers, budget,
+  policies, require-blocks. 5 Unit-Tests.
 
-- [ ] **Compositfile Parser** — HCL-Parsing des Governance-Dokuments (hcl-rs
-  bereits als Dependency vorhanden). Typisierte Governance-Struct: approved
-  providers, budget constraints, policy references.
+- [x] **`composit diff`** (Commits d96ae0f, abe7e53, a5bfe91) — Vergleich
+  composit-report.yaml (IST) gegen Compositfile (SOLL). Terminal + YAML/JSON
+  + HTML-Output. Severity-Klassifizierung (Error/Warning/Info). 10 Unit-Tests.
+  unused_provider = Warning (a5bfe91).
 
-- [ ] **`composit diff`** — Vergleich composit-report.yaml (IST) gegen
-  Compositfile (SOLL). Output: unapproved providers, budget violations,
-  fehlende/unerwartete resources, governance drift. Terminal + YAML/JSON.
+### Offen — Sprint 2 Restposten
 
-- [ ] **Live-Demo** — `composit scan` + `composit diff` auf echtem Repo
-  mit echtem Compositfile. Das ist das HN-Demo-Artefakt.
+- [ ] **Live-Demo (public) bauen** — Public Repo mit realem Compositfile +
+  bewusst eingebauter Drift (z.B. unapproved provider, budget-Überschreitung).
+  Haupt-HN-Artefakt. asciinema-Recording für den Post.
 
-### Offen — Weitere Erweiterungen
+- [ ] **Scanner-Tests nachziehen** — Unit-Tests für caddyfile, terraform,
+  workflows, prometheus bestehen. Offen: **docker, env_files, cron,
+  mcp_config, mcp_provider**. Priorität: docker (größtes Volumen).
+  Dazu mindestens ein End-to-End-Test (`composit scan` auf Fixture-Repo).
 
 - [ ] **Live-Provider-Abfrage** — Aktive Ressourcen von Providern via API
+  (`composit status --live` ist angelegt, aber noch kein echter Call).
+
 - [ ] **OPA Runtime-Integration** — Policy-Evaluation gegen Rego-Dateien
+  die im Compositfile referenziert werden. Aktuell nur deklariert, nicht evaluiert.
+
+- [ ] **Percentage-Validierung in Compositfile-Parser** — `alert_at: "150%"`
+  wird aktuell akzeptiert. Range 0-100% prüfen.
 
 ---
 
@@ -197,21 +224,27 @@ Der Scanner ist Mittel zum Zweck — der Wert steckt in IST vs. SOLL.
 - [ ] **Live-Demo vorbereiten** — `composit scan` auf echtem Projekt (nuts-infra)
   laufen lassen. Screenshot / asciinema für den Post.
 
-### Landing Page
+### Landing Page (Signalquelle #1 ohne Interviews)
 
-- [ ] **Waitlist-Page** — "See everything your AI agents built — before it breaks."
-  Ziel: 200+ Signups in 30 Tagen.
-  Features: Multi-team dashboard, drift alerts, compliance reports, cost tracking.
-  CTA: Email-Signup für Early Access.
-- [ ] **Pricing-Signal testen** — Feature-Interest-Clicks tracken:
-  Was interessiert am meisten? (Multi-Creator, Compliance, Cost Tracking)
+Ohne Interviews ist die Landing-Page die wichtigste externe Signalquelle.
+
+- [ ] **Waitlist-Page online** (VOR HN, nicht parallel) — "See everything
+  your AI agents built — before it breaks." CTA: Email-Signup.
+  Tech: einfache statische Seite, Plausible/Umami für Analytics.
+- [ ] **Feature-Interest-Tracking** — Klicks auf "Drift Alerts",
+  "Cost Attribution", "Compliance Reports", "Multi-Agent Visibility" messen.
+  Das ersetzt die Interview-Frage "was ist euch wichtig?".
+- [ ] **Signal-Benchmarks definieren** (ersetzt Interview-Kill-Criteria):
+  - Grün: ≥150 Signups / 30 Tage, Top-Feature klar identifizierbar
+  - Gelb: 50-150 Signups, kein klarer Feature-Favorit → Message-Iteration
+  - Rot: <50 Signups → Positioning oder Zielgruppe falsch
 
 ### Community
 
 - [ ] **Posting-Plan** — r/devops, r/platformengineering, Platform Engineering Slack,
   CNCF Slack, DevOps-Meetups. Nicht nur HN.
 - [ ] **croniq/hookaido/powerbrain READMEs** — Composit-Referenz ergänzen
-  (nach positivem Signal aus Sprint 1 Interviews).
+  (nach positivem HN/Waitlist-Signal).
 
 ---
 
@@ -228,14 +261,17 @@ Der Scanner ist Mittel zum Zweck — der Wert steckt in IST vs. SOLL.
 
 ### Entscheidungspunkt
 
-Nach Sprint 4 die Frage beantworten:
+Nach Sprint 4 die Frage beantworten (ohne Interview-Signal, nur öffentliche Signale):
 
-- **Signal stark (Stars, Signups, Interview-Feedback, Reference Customer):**
+- **Signal stark** (≥150 Waitlist-Signups, ≥300 GitHub Stars, ≥1 externer
+  Provider implementiert Spec, HN/Reddit-Kommentare bestätigen Pain):
   → Full Build. Spec finalisieren, CLI erweitern, Cloud-Tier starten.
-- **Signal gemischt:** → Pivot-Kandidat prüfen. Ist composit besser als
-  Feature in croniq/hookaido? Oder als MCP-Plugin statt eigenständiges Produkt?
-- **Signal schwach:** → Spec open-sourcen, CLI maintenance-only, Fokus auf
-  die Reference Providers (croniq, hookaido, powerbrain).
+- **Signal gemischt** (50-150 Signups, Stars da, aber kein externer Provider):
+  → Pivot-Kandidat prüfen. Composit als Feature in croniq/hookaido? Oder
+  als MCP-Plugin statt eigenständiges Produkt?
+- **Signal schwach** (<50 Signups, keine externe Resonanz):
+  → Spec open-sourcen, CLI maintenance-only, Fokus auf die Reference
+  Providers (croniq, hookaido, powerbrain).
 
 ---
 
@@ -284,10 +320,20 @@ Ein MCP der Spec, Schema-Definitionen und Beispiele als Tools exposed:
 
 ---
 
-## Kill Criteria
+## Kill Criteria (ohne Interview-Pfad)
 
 Composit stoppen wenn EINS davon eintritt:
-- 0/15 Interviewees beschreiben den Pain als "must have" (Sprint 1)
-- <50 Signups nach 30 Tagen (Sprint 3)
-- Kein Team bereit als Reference Customer (Sprint 4)
-- Hyperscaler launcht Open-Source Agent Control Plane mit Community-Adoption
+- **Dogfooding negativ** (Sprint 1-2): `composit diff` findet auf eigenen
+  Stacks (nuts-infra, croniq, hookaido, powerbrain) keine echten Drifts,
+  die wir vorher übersehen hätten. Dann fehlt der Pain sogar bei uns.
+- **HN + Waitlist schwach** (Sprint 3): <50 Signups, <100 Stars nach 30 Tagen,
+  überwiegend "cool, aber wozu"-Kommentare statt "genau das brauche ich".
+- **Kein externer Provider** (Sprint 4): 8 Wochen post-Launch kein einziger
+  Third-Party-Provider implementiert `.well-known/composit.json`. Open-Spec-Story
+  trägt dann nicht.
+- **Hyperscaler Open-Source-Move**: AWS/Microsoft launcht Open-Source Agent
+  Control Plane mit echter Community-Adoption.
+
+**Wichtig:** "Gelb"-Signale (50-150 Signups, Stars da aber Engagement niedrig)
+führen zu Positioning-/Message-Iteration, nicht zu Kill. Kill nur bei klar
+negativem Signal aus mehreren Quellen.

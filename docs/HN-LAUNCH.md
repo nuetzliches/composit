@@ -73,6 +73,8 @@ slow agents down. It gives the platform team a map of what they've built.
 **What exists today:**
 
 - `composit scan` CLI (Rust, zero-config, 9 built-in scanners)
+- `composit status` (aggregated view of last scan)
+- `composit diff` (IS-vs-SHOULD, HTML/YAML/JSON output with severity)
 - composit-report.yaml format (v0.1) + Compositfile governance spec (draft)
 - Public manifest schema (JSON, well-known URL discovery)
 - OPA policy examples (agent limits, provider approval)
@@ -80,6 +82,10 @@ slow agents down. It gives the platform team a map of what they've built.
   [croniq](https://github.com/nuetzliches/croniq) (scheduling),
   [hookaido](https://github.com/nuetzliches/hookaido) (events),
   [powerbrain](https://github.com/nuetzliches/powerbrain) (knowledge)
+
+**Known gaps** (honest): No Kubernetes / Helm / nginx scanner yet.
+OPA rules can be referenced in the Compositfile but aren't evaluated at
+runtime yet. Live provider API queries are scaffolded, not wired.
 
 GitHub: https://github.com/nuetzliches/composit
 

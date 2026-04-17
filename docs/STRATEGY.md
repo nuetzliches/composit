@@ -125,11 +125,20 @@ proprietäre Ansätze, die den offenen Standard-Raum besetzen könnten.
    validieren selbst Competitors den Standard. Spec kann perspektivisch in
    eine Foundation wandern.
 
-2. **Cross-Agent Visibility** — composit trackt über ALLE Agents hinweg.
-   Kein Single-Vendor-Tool kann das. Das ist der Moat.
+2. **Heterogenität als Differentiator** — composit trackt über Agents,
+   Clouds und On-Prem-Stacks hinweg. Hyperscaler-Angebote werden strukturell
+   auf ihr Ökosystem optimiert (AWS + partners first). Der Fit für Teams
+   mit gemischten Stacks (lokal + mehrere Clouds + mehrere Agent-Plattformen)
+   ist Composits Pflicht-Terrain.
+
+   **Ehrliche Einordnung:** AWS/Microsoft können durchaus 60-70% des
+   Enterprise-Markts bedienen. Composits adressierbarer Markt ist
+   "heterogene Stacks + Platform-Eng-Teams, die Vendor-Neutralität wollen" —
+   nicht "alle".
 
 3. **Geschwindigkeit** — 6-12 Monate Window. Spec draft + Working CLI
-   vor den Hyperscalern veröffentlichen.
+   vor den Hyperscalern veröffentlichen. Solo-Founder-Tempo ist Risiko;
+   Scope-Disziplin und Dogfooding kompensieren, bis externe Beiträge skalieren.
 
 ---
 
