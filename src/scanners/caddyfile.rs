@@ -42,7 +42,14 @@ impl Scanner for CaddyfileScanner {
 
                 let content = match std::fs::read_to_string(&path) {
                     Ok(c) => c,
-                    Err(_) => continue,
+                    Err(e) => {
+                        eprintln!(
+                            "warning: caddyfile scanner could not read {}: {}",
+                            path.display(),
+                            e
+                        );
+                        continue;
+                    }
                 };
 
                 let sites = parse_site_blocks(&content);

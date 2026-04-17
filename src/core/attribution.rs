@@ -265,7 +265,10 @@ mod tests {
             Some("agent:claude")
         );
         // Co-authors list is populated
-        let co_authors = extra.get("co_authors").and_then(|v| v.as_array()).unwrap();
+        let co_authors = extra
+            .get("co_authors")
+            .and_then(|v| v.as_array())
+            .expect("co_authors must be populated as an array");
         assert_eq!(co_authors.len(), 1);
         assert_eq!(co_authors[0].as_str(), Some("agent:claude"));
     }
@@ -294,7 +297,10 @@ mod tests {
         // No agent_assisted flag
         assert!(extra.get("agent_assisted").is_none());
         // But co_authors list is populated
-        let co_authors = extra.get("co_authors").and_then(|v| v.as_array()).unwrap();
+        let co_authors = extra
+            .get("co_authors")
+            .and_then(|v| v.as_array())
+            .expect("co_authors must be populated as an array");
         assert_eq!(co_authors.len(), 1);
         assert_eq!(co_authors[0].as_str(), Some("human:tobi"));
     }
@@ -319,7 +325,10 @@ mod tests {
             extra.get("assisted_by").and_then(|v| v.as_str()),
             Some("agent:claude")
         );
-        let co_authors = extra.get("co_authors").and_then(|v| v.as_array()).unwrap();
+        let co_authors = extra
+            .get("co_authors")
+            .and_then(|v| v.as_array())
+            .expect("co_authors must be populated as an array");
         assert_eq!(co_authors.len(), 2);
     }
 }

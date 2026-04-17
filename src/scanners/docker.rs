@@ -41,11 +41,19 @@ impl Scanner for DockerScanner {
             let full_pattern = context.dir.join("**").join(pattern);
             let pattern_str = full_pattern.to_string_lossy().to_string();
             for entry in glob(&pattern_str)? {
-                if let Ok(path) = entry {
-                    let (compose_resource, service_resources) =
-                        scan_compose_file(&path, &context.dir)?;
-                    resources.push(compose_resource);
-                    resources.extend(service_resources);
+                let Ok(path) = entry else { continue };
+                match scan_compose_file(&path, &context.dir) {
+                    Ok((compose_resource, service_resources)) => {
+                        resources.push(compose_resource);
+                        resources.extend(service_resources);
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "warning: docker scanner failed on {}: {}",
+                            path.display(),
+                            e
+                        );
+                    }
                 }
             }
         }
@@ -277,4 +285,77 @@ fn scan_compose_file(path: &Path, base_dir: &Path) -> Result<(Resource, Vec<Reso
     }
 
     Ok((compose_resource, service_resources))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    fn write(dir: &Path, name: &str, content: &str) {
+        fs::write(dir.join(name), content).unwrap();
+    }
+
+    #[test]
+    fn test_scan_compose_file_extracts_services_networks_volumes() {
+        let dir = tempdir().unwrap();
+        let compose = r#"
+services:
+  api:
+    image: ghcr.io/acme/api:1.2.3
+    ports:
+      - "8080:80"
+    volumes:
+      - api_data:/var/lib/api
+    networks:
+      - internal
+  db:
+    image: postgres:16
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+networks:
+  internal:
+
+volumes:
+  api_data:
+  db_data:
+"#;
+        write(dir.path(), "docker-compose.yml", compose);
+
+        let (compose_res, services) =
+            scan_compose_file(&dir.path().join("docker-compose.yml"), dir.path()).unwrap();
+
+        assert_eq!(compose_res.resource_type, "docker_compose");
+        assert_eq!(services.len(), 2);
+
+        let api = services
+            .iter()
+            .find(|r| r.name.as_deref() == Some("api"))
+            .expect("api service present");
+        assert_eq!(
+            api.extra.get("image").and_then(|v| v.as_str()),
+            Some("ghcr.io/acme/api:1.2.3")
+        );
+    }
+
+    #[test]
+    fn test_malformed_compose_yields_error() {
+        let dir = tempdir().unwrap();
+        write(dir.path(), "docker-compose.yml", "services:\n  api:\n    image: [broken");
+        let result =
+            scan_compose_file(&dir.path().join("docker-compose.yml"), dir.path());
+        assert!(result.is_err(), "broken YAML must error so caller can warn");
+    }
+
+    #[test]
+    fn test_empty_services_block() {
+        let dir = tempdir().unwrap();
+        write(dir.path(), "docker-compose.yml", "version: \"3\"\nservices: {}\n");
+        let (compose_res, services) =
+            scan_compose_file(&dir.path().join("docker-compose.yml"), dir.path()).unwrap();
+        assert_eq!(compose_res.resource_type, "docker_compose");
+        assert!(services.is_empty());
+    }
 }

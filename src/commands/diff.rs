@@ -418,8 +418,14 @@ fn parse_cost(s: &str) -> Option<f64> {
     s.split_whitespace().next()?.parse::<f64>().ok()
 }
 
+/// Parse a percentage string like "80%" into a [0.0, 1.0] fraction.
+/// Rejects values outside 0-100%.
 fn parse_percentage(s: &str) -> Option<f64> {
-    s.trim_end_matches('%').parse::<f64>().ok().map(|v| v / 100.0)
+    let v = s.trim_end_matches('%').parse::<f64>().ok()?;
+    if !(0.0..=100.0).contains(&v) {
+        return None;
+    }
+    Some(v / 100.0)
 }
 
 fn matches_any_pattern(value: &str, patterns: &[String]) -> bool {
@@ -872,5 +878,15 @@ mod tests {
         assert_eq!(diff.summary.errors, 0);
         assert_eq!(diff.summary.warnings, 0);
         assert!(diff.summary.passed_checks > 0);
+    }
+
+    #[test]
+    fn test_parse_percentage_rejects_out_of_range() {
+        assert_eq!(parse_percentage("80%"), Some(0.8));
+        assert_eq!(parse_percentage("0%"), Some(0.0));
+        assert_eq!(parse_percentage("100%"), Some(1.0));
+        assert_eq!(parse_percentage("150%"), None);
+        assert_eq!(parse_percentage("-10%"), None);
+        assert_eq!(parse_percentage("abc"), None);
     }
 }

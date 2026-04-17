@@ -25,7 +25,7 @@ pub async fn run_status(dir: &Path, live: bool) -> Result<()> {
 
     // Live provider checks
     if live && !report.providers.is_empty() {
-        check_providers_live(&mut report.providers).await;
+        check_providers_live(&mut report.providers).await?;
     }
 
     print_status(&report);
@@ -33,11 +33,11 @@ pub async fn run_status(dir: &Path, live: bool) -> Result<()> {
     Ok(())
 }
 
-async fn check_providers_live(providers: &mut [Provider]) {
+async fn check_providers_live(providers: &mut [Provider]) -> Result<()> {
     let client = Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
-        .unwrap();
+        .context("Failed to build HTTP client for live provider checks")?;
 
     for provider in providers.iter_mut() {
         let url = format!(
@@ -53,6 +53,7 @@ async fn check_providers_live(providers: &mut [Provider]) {
             }
         }
     }
+    Ok(())
 }
 
 fn print_status(report: &Report) {

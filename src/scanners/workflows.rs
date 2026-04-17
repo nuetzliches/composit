@@ -53,12 +53,26 @@ impl Scanner for WorkflowScanner {
 
                     let content = match std::fs::read_to_string(&path) {
                         Ok(c) => c,
-                        Err(_) => continue,
+                        Err(e) => {
+                            eprintln!(
+                                "warning: workflows scanner could not read {}: {}",
+                                path.display(),
+                                e
+                            );
+                            continue;
+                        }
                     };
 
                     let yaml: serde_yaml::Value = match serde_yaml::from_str(&content) {
                         Ok(v) => v,
-                        Err(_) => continue,
+                        Err(e) => {
+                            eprintln!(
+                                "warning: workflows scanner could not parse {}: {}",
+                                path.display(),
+                                e
+                            );
+                            continue;
+                        }
                     };
 
                     let workflow_name = yaml

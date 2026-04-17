@@ -140,12 +140,26 @@ fn scan_tf_directory(
     for file_path in files {
         let content = match std::fs::read_to_string(file_path) {
             Ok(c) => c,
-            Err(_) => continue,
+            Err(e) => {
+                eprintln!(
+                    "warning: terraform scanner could not read {}: {}",
+                    file_path.display(),
+                    e
+                );
+                continue;
+            }
         };
 
         let body: Body = match hcl::from_str(&content) {
             Ok(b) => b,
-            Err(_) => continue, // Skip unparseable files gracefully
+            Err(e) => {
+                eprintln!(
+                    "warning: terraform scanner could not parse {}: {}",
+                    file_path.display(),
+                    e
+                );
+                continue;
+            }
         };
 
         let rel_path = file_path
