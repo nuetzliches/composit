@@ -13,11 +13,12 @@ Thumbs.db
 /dist/
 /node_modules/
 
-# Generated reports
+# Generated reports — ignore everywhere except the committed demo artifacts
 composit-report.yaml
 composit-report.json
 composit-report.html
 composit-diff.html
+!examples/demo/composit-diff.html
 
 # Local artifacts (untracked)
 .artifacts/
@@ -26,4 +27,6 @@ composit-diff.html
 .env
 .env.local
 !tests/fixtures/**/.env
+
+# Private working docs (not published)
 VALIDATION.md

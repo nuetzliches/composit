@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>composit diff — nuts-infra</title>
+<style>
+:root {
+  --bg: #0d1117; --surface: #161b22; --border: #30363d;
+  --text: #e6edf3; --muted: #7d8590; --accent: #58a6ff;
+  --green: #3fb950; --yellow: #d29922; --red: #f85149; --cyan: #79c0ff;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; background:var(--bg); color:var(--text); line-height:1.5; padding:2rem; max-width:960px; margin:0 auto; }
+header { border-bottom:1px solid var(--border); padding-bottom:1.5rem; margin-bottom:2rem; }
+header h1 { font-size:1.5rem; font-weight:600; color:var(--accent); }
+header h1 span { color:var(--muted); font-weight:400; }
+.meta { color:var(--muted); font-size:.85rem; margin-top:.5rem; }
+.status { display:inline-block; padding:.4rem 1rem; border-radius:8px; font-weight:700; font-size:1rem; margin-top:1rem; letter-spacing:.05em; }
+.status.pass { background:rgba(63,185,80,.15); color:var(--green); }
+.status.warn { background:rgba(210,153,34,.15); color:var(--yellow); }
+.status.fail { background:rgba(248,81,73,.15); color:var(--red); }
+.summary { display:flex; gap:1.5rem; margin:1.5rem 0; flex-wrap:wrap; }
+.summary-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:1rem 1.5rem; text-align:center; flex:1; min-width:120px; }
+.summary-card .num { font-size:2rem; font-weight:700; }
+.summary-card .num.errors { color:var(--red); }
+.summary-card .num.warnings { color:var(--yellow); }
+.summary-card .num.info { color:var(--cyan); }
+.summary-card .num.passed { color:var(--green); }
+.summary-card .label { font-size:.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+.category { background:var(--surface); border:1px solid var(--border); border-radius:8px; margin-bottom:1rem; overflow:hidden; }
+.cat-header { display:flex; justify-content:space-between; align-items:center; padding:.75rem 1rem; border-bottom:1px solid var(--border); background:rgba(13,17,23,.5); }
+.cat-header h2 { font-size:.85rem; font-weight:600; letter-spacing:.05em; color:var(--muted); }
+.badges { display:flex; gap:.4rem; }
+.badge { font-size:.7rem; font-weight:600; padding:.2rem .6rem; border-radius:12px; }
+.badge-error { background:rgba(248,81,73,.15); color:var(--red); }
+.badge-warn { background:rgba(210,153,34,.15); color:var(--yellow); }
+.badge-info { background:rgba(121,192,255,.15); color:var(--cyan); }
+.badge-pass { background:rgba(63,185,80,.15); color:var(--green); }
+table { width:100%; border-collapse:collapse; font-size:.85rem; }
+td { padding:.6rem 1rem; border-bottom:1px solid var(--border); vertical-align:top; }
+tr:last-child td { border-bottom:none; }
+.sev { display:inline-block; font-weight:700; font-size:.75rem; padding:.15rem .5rem; border-radius:4px; min-width:50px; text-align:center; }
+.sev-error { background:rgba(248,81,73,.15); color:var(--red); }
+.sev-warn { background:rgba(210,153,34,.15); color:var(--yellow); }
+.sev-info { background:rgba(121,192,255,.15); color:var(--cyan); }
+.sev-pass { background:rgba(63,185,80,.15); color:var(--green); }
+.rule { font-family:'SF Mono',Consolas,monospace; font-size:.8rem; color:var(--muted); white-space:nowrap; }
+.detail { color:var(--muted); font-size:.8rem; }
+.row-pass td { color:var(--green); }
+footer { margin-top:2rem; padding-top:1rem; border-top:1px solid var(--border); color:var(--muted); font-size:.8rem; text-align:center; }
+footer a { color:var(--accent); text-decoration:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>composit <span>diff</span></h1>
+  <div class="meta">Workspace: <strong>nuts-infra</strong> &middot; Generated: 2026-04-17T22:09:53Z</div>
+  <div class="status fail">VIOLATIONS FOUND</div>
+</header>
+
+<div class="summary">
+  <div class="summary-card"><div class="num errors">6</div><div class="label">Errors</div></div>
+  <div class="summary-card"><div class="num warnings">4</div><div class="label">Warnings</div></div>
+  <div class="summary-card"><div class="num info">0</div><div class="label">Info</div></div>
+  <div class="summary-card"><div class="num passed">4</div><div class="label">Passed</div></div>
+</div>
+
+
+    <div class="category">
+      <div class="cat-header">
+        <h2>PROVIDERS</h2>
+        <div class="badges"><span class="badge badge-warn">3 warnings</span></div>
+      </div>
+      <table><tr><td><span class="sev sev-warn">WARN</span></td><td class="rule">unused_provider</td><td>Approved provider &quot;croniq&quot; not found in scan report — governance may be outdated</td></tr><tr><td><span class="sev sev-warn">WARN</span></td><td class="rule">unused_provider</td><td>Approved provider &quot;hookaido&quot; not found in scan report — governance may be outdated</td></tr><tr><td><span class="sev sev-warn">WARN</span></td><td class="rule">unused_provider</td><td>Approved provider &quot;powerbrain&quot; not found in scan report — governance may be outdated</td></tr></table>
+    </div>
+    <div class="category">
+      <div class="cat-header">
+        <h2>BUDGETS</h2>
+        <div class="badges"><span class="badge badge-pass">1 passed</span></div>
+      </div>
+      <table><tr class="row-pass"><td><span class="sev sev-pass">PASS</span></td><td colspan="2">All 1 checks passed</td></tr></table>
+    </div>
+    <div class="category">
+      <div class="cat-header">
+        <h2>RESOURCES</h2>
+        <div class="badges"><span class="badge badge-error">6 errors</span></div>
+      </div>
+      <table><tr><td><span class="sev sev-error">ERROR</span></td><td class="rule">resource_count_exceeded</td><td>Total resources 96 exceeds max_total 60</td></tr><tr><td><span class="sev sev-error">ERROR</span></td><td class="rule">resource_type_not_allowed</td><td>Resource type &quot;dockerfile&quot; (2 found) not in allow list</td></tr><tr><td><span class="sev sev-error">ERROR</span></td><td class="rule">resource_type_not_allowed</td><td>Resource type &quot;env_file&quot; (10 found) not in allow list</td></tr><tr><td><span class="sev sev-error">ERROR</span></td><td class="rule">resource_type_not_allowed</td><td>Resource type &quot;caddy_site&quot; (24 found) not in allow list</td></tr><tr><td><span class="sev sev-error">ERROR</span></td><td class="rule">resource_type_max_exceeded</td><td>docker_service: 38 found, max allowed is 20</td></tr><tr><td><span class="sev sev-error">ERROR</span></td><td class="rule">required_resource_missing</td><td>Required resource type &quot;prometheus_config&quot;: 0 found, minimum is 1</td></tr></table>
+    </div>
+    <div class="category">
+      <div class="cat-header">
+        <h2>POLICIES</h2>
+        <div class="badges"><span class="badge badge-warn">1 warnings</span></div>
+      </div>
+      <table><tr><td><span class="sev sev-warn">WARN</span></td><td class="rule">policy_file_missing</td><td>Policy &quot;no-production-on-experimental-images&quot; references missing file: policies/no-experimental-images.rego</td></tr></table>
+    </div>
+
+<footer>
+  Generated by <a href="https://github.com/nuetzliches/composit">composit</a> diff
+</footer>
+</body>
+</html>

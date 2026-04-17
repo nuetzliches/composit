@@ -1,0 +1,87 @@
+# Demo Compositfile — nuts-infra workspace
+#
+# This is a **demo governance file** built intentionally with drift against
+# a real scan of the nuts-infra workspace. It serves two purposes:
+#
+#   1. Dogfooding:      shows composit running on a non-trivial real stack
+#   2. HN demo artifact: the `composit diff` output makes the IS-vs-SHOULD
+#                        story concrete in <30 seconds.
+#
+# How to reproduce:
+#
+#   composit scan --dir /path/to/nuts-infra --no-providers
+#   composit diff --report /path/to/nuts-infra/composit-report.yaml \
+#                 --compositfile examples/demo/Compositfile \
+#                 --output html > /home/sebastian/Downloads/demo-diff.html
+#
+# Expected findings (intentional):
+#   - unapproved_provider: caddy, watchtower (missing from provider list)
+#   - budget_exceeded:     nuts-infra cost exceeds 50 EUR workspace budget
+#   - missing_required:    at least 1 prometheus_config expected, 0 found
+#   - resource limit:      docker_service max=20, actual=38
+
+workspace "nuts-infra" {
+
+  # --- Approved Providers ---
+  # Intentionally narrow list — real stack uses more.
+  # Anything scanned but not listed here triggers unapproved_provider.
+
+  provider "croniq" {
+    manifest = "https://composit.nuetzliche.it/.well-known/composit.json"
+    trust    = "contract"
+  }
+
+  provider "hookaido" {
+    manifest = "https://hooks.nuetzliche.it/.well-known/composit.json"
+    trust    = "contract"
+  }
+
+  provider "powerbrain" {
+    manifest = "https://mcp.nuetzliche.it/.well-known/composit.json"
+    trust    = "contract"
+  }
+
+  # --- Budget Constraints ---
+  # Intentionally tight — demo purpose is to show the violation path.
+
+  budget "workspace" {
+    max_monthly = "50 EUR"
+    alert_at    = "80%"
+  }
+
+  # --- Resource Constraints ---
+  # max_total intentionally lower than the real docker_service count.
+
+  resources {
+    max_total = 60
+
+    allow "docker_service" {
+      max = 20
+    }
+
+    allow "docker_compose" {
+      max = 15
+    }
+
+    allow "caddyfile" {
+      max = 10
+    }
+
+    allow "workflow" {
+      max = 10
+    }
+
+    # Expect at least one prometheus_config — nuts-infra doesn't ship one yet.
+    require "prometheus_config" {
+      min = 1
+    }
+  }
+
+  # --- Policy References ---
+  # Informational for now — OPA evaluation is future work.
+
+  policy "no-production-on-experimental-images" {
+    source      = "policies/no-experimental-images.rego"
+    description = "Disallow :latest and :experimental tags on production workloads"
+  }
+}
