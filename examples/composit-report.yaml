@@ -72,6 +72,7 @@ summary:
   total_resources: 6
   providers: 3
   agent_created: 2
+  agent_assisted: 0
   human_created: 2
   auto_detected: 2
   estimated_monthly_cost: "47 EUR"
