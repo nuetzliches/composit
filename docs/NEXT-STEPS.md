@@ -169,9 +169,12 @@ die in gescannten Repos existieren, aber von keinem Scanner erfasst werden.
 
 ### Offen — Sprint 2 Restposten
 
-- [ ] **Live-Demo (public) bauen** — Public Repo mit realem Compositfile +
-  bewusst eingebauter Drift (z.B. unapproved provider, budget-Überschreitung).
-  Haupt-HN-Artefakt. asciinema-Recording für den Post.
+- [ ] **Live-Demo (public) bauen** — separates, synthetisches Beispiel-Repo
+  (oder Fixture im composit-Repo) mit Compositfile + bewusst eingebauter
+  Drift. Darf keine privaten Infrastruktur-Details enthalten —
+  der frühere `examples/demo/`-Ordner wurde entfernt, weil er auf
+  nuts-infra-Daten basierte. Haupt-HN-Artefakt, ergänzt durch
+  asciinema-Recording für den Post.
 
 - [ ] **Scanner-Tests nachziehen** — Unit-Tests für caddyfile, terraform,
   workflows, prometheus bestehen. Offen: **docker, env_files, cron,
@@ -229,8 +232,9 @@ die in gescannten Repos existieren, aber von keinem Scanner erfasst werden.
 - [ ] **Show HN Post** — Zielgruppe: DevOps / Platform Engineers.
   Pragmatischer Titel ("Show HN: `composit scan` — see every service your AI
   agents created"). Konkretes CLI-Output zeigen, nicht nur Konzept.
-- [ ] **Live-Demo vorbereiten** — `composit scan` auf echtem Projekt (nuts-infra)
-  laufen lassen. Screenshot / asciinema für den Post.
+- [ ] **Live-Demo vorbereiten** — `composit scan` + `diff` auf dem synthetischen
+  Public-Demo-Repo (siehe Sprint 2 Restposten). Keine Privat-Infrastruktur-
+  Screenshots. Asciinema-Recording für den Post.
 
 ### Landing Page (Signalquelle #1 ohne Interviews)
 
