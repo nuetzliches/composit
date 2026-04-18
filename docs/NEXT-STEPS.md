@@ -183,8 +183,14 @@ die in gescannten Repos existieren, aber von keinem Scanner erfasst werden.
   Capabilities/Protocol auf die Provider-Liste. Description, Region
   und Compliance-Tags werden im Terminal angezeigt.
 
-- [ ] **OPA Runtime-Integration** — Policy-Evaluation gegen Rego-Dateien
-  die im Compositfile referenziert werden. Aktuell nur deklariert, nicht evaluiert.
+- [ ] **OPA Runtime-Evaluation** — Tatsächliches Ausführen der Rego-Regeln
+  gegen report-abgeleitete Inputs. Aktueller Stand: `composit diff`
+  parst .rego Dateien textuell (Package, Rules, Entrypoints), meldet
+  Syntax-Issues, aber evaluiert noch nicht. Realistisches V1 braucht
+  composit-spezifische Rego-Policies (z.B. "deny if docker_service.image
+  endet auf :latest") — powerbrains eigene `.rego` Dateien erwarten
+  Request-shaped Inputs, nicht Scan-Reports, und wären für diff-time
+  Evaluation nicht sinnvoll.
 
 - [ ] **Percentage-Validierung in Compositfile-Parser** — `alert_at: "150%"`
   wird aktuell akzeptiert. Range 0-100% prüfen.

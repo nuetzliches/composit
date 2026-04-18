@@ -428,20 +428,100 @@ fn check_resources(governance: &Governance, report: &Report) -> ViolationCategor
 }
 
 fn check_policies(governance: &Governance, base_dir: &Path) -> ViolationCategory {
+    use crate::core::rego::{parse_rego, RegoIssue};
+
     let mut violations = Vec::new();
     let mut passed = 0;
 
     for policy in &governance.policies {
         let policy_path = base_dir.join(&policy.source);
-        if policy_path.exists() {
-            passed += 1;
-        } else {
+
+        // Only .rego files get parsed. Other source types (a .md file,
+        // a link to an external system) are checked for existence only.
+        let is_rego = policy_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map_or(false, |e| e.eq_ignore_ascii_case("rego"));
+
+        if !policy_path.exists() {
             violations.push(Violation {
                 severity: Severity::Warning,
                 rule: "policy_file_missing".to_string(),
-                message: format!("Policy \"{}\" references missing file: {}", policy.name, policy.source),
+                message: format!(
+                    "Policy \"{}\" references missing file: {}",
+                    policy.name, policy.source
+                ),
                 details: None,
             });
+            continue;
+        }
+
+        if !is_rego {
+            // Non-Rego reference (docs, external spec) — existence check
+            // is all we can do today.
+            passed += 1;
+            continue;
+        }
+
+        let content = match std::fs::read_to_string(&policy_path) {
+            Ok(c) => c,
+            Err(e) => {
+                violations.push(Violation {
+                    severity: Severity::Warning,
+                    rule: "policy_file_unreadable".to_string(),
+                    message: format!(
+                        "Policy \"{}\" could not be read: {}",
+                        policy.name, e
+                    ),
+                    details: Some(policy.source.clone()),
+                });
+                continue;
+            }
+        };
+
+        match parse_rego(&content) {
+            Ok(meta) => {
+                passed += 1;
+                let entrypoints = match (meta.has_default_allow, meta.has_deny) {
+                    (true, true) => "allow + deny",
+                    (true, false) => "allow",
+                    (false, true) => "deny",
+                    (false, false) => "none",
+                };
+                violations.push(Violation {
+                    severity: Severity::Info,
+                    rule: "policy_parsed".to_string(),
+                    message: format!(
+                        "Policy \"{}\" ({}): package `{}`, {} rule(s), entrypoints: {}",
+                        policy.name,
+                        policy.source,
+                        meta.package,
+                        meta.rules.len(),
+                        entrypoints
+                    ),
+                    details: if meta.rules.is_empty() {
+                        None
+                    } else {
+                        Some(format!("rules: {}", meta.rules.join(", ")))
+                    },
+                });
+            }
+            Err(issue) => {
+                let rule = match issue {
+                    RegoIssue::MissingPackage => "policy_missing_package",
+                    RegoIssue::UnbalancedBraces { .. } => "policy_syntax_error",
+                    RegoIssue::Empty => "policy_empty",
+                };
+                violations.push(Violation {
+                    severity: Severity::Warning,
+                    rule: rule.to_string(),
+                    message: format!(
+                        "Policy \"{}\" ({}) could not be parsed: {}",
+                        policy.name, policy.source, issue
+                    ),
+                    details: None,
+                });
+            }
         }
     }
 
