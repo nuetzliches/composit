@@ -44,7 +44,7 @@ header.hero {
 .logo { font-size: 1rem; font-weight: 700; color: var(--accent); letter-spacing: 0.05em; margin-bottom: 2rem; }
 h1 { font-size: clamp(2rem, 5vw, 3.25rem); font-weight: 700; line-height: 1.15; margin-bottom: 1.25rem; }
 .tagline { font-size: 1.15rem; color: var(--muted); max-width: 640px; margin: 0 auto 2.5rem; }
-.cta { display: inline-flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center; }
+.cta { display: inline-flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center; align-items: center; }
 .btn {
   display: inline-block;
   padding: 0.75rem 1.5rem;
@@ -60,6 +60,7 @@ h1 { font-size: clamp(2rem, 5vw, 3.25rem); font-weight: 700; line-height: 1.15; 
 .btn-primary:hover { background: #79c0ff; }
 .btn-ghost { border-color: var(--border); color: var(--text); background: transparent; }
 .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.star { display: inline-block; margin-right: .25rem; }
 
 /* Sections */
 section { padding: 4rem 0; border-bottom: 1px solid var(--border); }
@@ -114,6 +115,53 @@ section .sub { color: var(--muted); margin-bottom: 2.5rem; max-width: 640px; }
 .who-card strong { display: block; margin-bottom: 0.25rem; }
 .who-card span { color: var(--muted); font-size: 0.9rem; }
 
+/* Quick start */
+.quickstart {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+.qs-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.qs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: .6rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: rgba(13,17,23,.5);
+  font-size: .8rem;
+  color: var(--muted);
+}
+.qs-copy {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: .2rem .65rem;
+  border-radius: 4px;
+  font-size: .75rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.qs-copy:hover { border-color: var(--accent); color: var(--accent); }
+.qs-copy.copied { border-color: var(--green); color: var(--green); }
+.qs-block pre {
+  margin: 0;
+  padding: 1rem 1.25rem;
+  font-family: 'SF Mono', Consolas, monospace;
+  font-size: .85rem;
+  line-height: 1.55;
+  color: var(--text);
+  overflow-x: auto;
+}
+.qs-block pre .comment { color: var(--muted); }
+.qs-note { color: var(--muted); font-size: .85rem; margin-top: 1rem; }
+
 /* Features (with click tracking) */
 .features {
   display: grid;
@@ -138,31 +186,6 @@ section .sub { color: var(--muted); margin-bottom: 2.5rem; max-width: 640px; }
 .feature-btn strong { display: block; margin-bottom: 0.25rem; }
 .feature-btn span { color: var(--muted); font-size: 0.85rem; }
 .feature-note { color: var(--muted); font-size: 0.85rem; margin-top: 1rem; }
-
-/* Waitlist */
-.waitlist {
-  display: flex;
-  gap: 0.5rem;
-  max-width: 480px;
-  margin-top: 1.5rem;
-  flex-wrap: wrap;
-}
-.waitlist input {
-  flex: 1;
-  min-width: 220px;
-  padding: 0.75rem 1rem;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 0.95rem;
-  font-family: inherit;
-}
-.waitlist input:focus { outline: none; border-color: var(--accent); }
-.waitlist .btn-primary { white-space: nowrap; }
-.waitlist-msg { margin-top: 0.75rem; font-size: 0.9rem; min-height: 1.2em; }
-.waitlist-msg.ok { color: var(--green); }
-.waitlist-msg.err { color: var(--yellow); }
 
 /* Code sample */
 pre.sample {
@@ -189,6 +212,8 @@ footer {
 }
 footer a { color: var(--accent); text-decoration: none; }
 footer a:hover { text-decoration: underline; }
+footer .legal { margin-top: .5rem; }
+footer .legal a { margin: 0 .5rem; }
 </style>
 </head>
 <body>
@@ -203,8 +228,11 @@ footer a:hover { text-decoration: underline; }
       surface every drift. Open-source CLI for platform teams.
     </p>
     <div class="cta">
-      <a class="btn btn-primary" href="#waitlist">Join the waitlist</a>
-      <a class="btn btn-ghost" href="https://github.com/nuetzliches/composit" target="_blank" rel="noopener">View on GitHub →</a>
+      <a class="btn btn-primary" href="https://github.com/nuetzliches/composit"
+         target="_blank" rel="noopener" data-ph-event="github-star-click">
+        <span class="star">★</span>Star on GitHub
+      </a>
+      <a class="btn btn-ghost" href="#quickstart">Quick start →</a>
     </div>
   </div>
 </header>
@@ -236,6 +264,64 @@ footer a:hover { text-decoration: underline; }
   </div>
 </section>
 
+<section id="quickstart">
+  <div class="container">
+    <h2>Quick start</h2>
+    <p class="sub">The CLI is free and open source (MIT). Point it at any repo — it reads; it never writes.</p>
+
+    <div class="quickstart">
+      <div class="qs-block">
+        <div class="qs-header">
+          <span>Install</span>
+          <button type="button" class="qs-copy" data-copy="cargo install --git https://github.com/nuetzliches/composit">Copy</button>
+        </div>
+<pre><span class="comment"># Rust toolchain required. npx distribution is on the roadmap.</span>
+cargo install --git https://github.com/nuetzliches/composit</pre>
+      </div>
+
+      <div class="qs-block">
+        <div class="qs-header">
+          <span>Scan any repo — IS-state</span>
+          <button type="button" class="qs-copy" data-copy="composit scan">Copy</button>
+        </div>
+<pre><span class="comment"># Writes composit-report.yaml with everything detected.</span>
+composit scan</pre>
+      </div>
+
+      <div class="qs-block">
+        <div class="qs-header">
+          <span>Declare intent — SHOULD-state</span>
+          <button type="button" class="qs-copy" data-copy='# Compositfile
+workspace &quot;my-stack&quot; {
+  resources {
+    allow &quot;docker_service&quot; { max = 20 }
+    require &quot;workflow&quot;      { min = 1  }
+  }
+}'>Copy</button>
+        </div>
+<pre><span class="comment"># Compositfile</span>
+workspace "my-stack" {
+  resources {
+    allow "docker_service" { max = 20 }
+    require "workflow"      { min = 1  }
+  }
+}</pre>
+      </div>
+
+      <div class="qs-block">
+        <div class="qs-header">
+          <span>Diff — catch drift</span>
+          <button type="button" class="qs-copy" data-copy="composit diff --output html">Copy</button>
+        </div>
+<pre><span class="comment"># Terminal, JSON, YAML, or a standalone HTML report.</span>
+composit diff --output html</pre>
+      </div>
+    </div>
+
+    <p class="qs-note">See the <a href="https://github.com/nuetzliches/composit/tree/main/examples/demo" target="_blank" rel="noopener">examples/demo</a> directory for a diff against a real production-grade stack.</p>
+  </div>
+</section>
+
 <section>
   <div class="container">
     <h2>Who it's for</h2>
@@ -251,7 +337,7 @@ footer a:hover { text-decoration: underline; }
       </div>
       <div class="who-card">
         <strong>Solo devs</strong>
-        <span>Free CLI, same value. You build the adoption funnel.</span>
+        <span>Free CLI, same value. You help prove the spec.</span>
       </div>
     </div>
   </div>
@@ -292,8 +378,8 @@ POLICIES (1 warning)
 
 <section>
   <div class="container">
-    <h2>What would you pay for?</h2>
-    <p class="sub">Free CLI stays free. We're figuring out what the team-tier product should include. Click the capabilities you'd pay for — anonymous, one tap each.</p>
+    <h2>Which direction should composit take?</h2>
+    <p class="sub">The CLI stays free and open. Several capabilities could sit on top — which ones are worth building? Click what you'd actually use. One tap each, anonymous.</p>
     <div class="features" id="features">
       <button type="button" class="feature-btn" data-feature="drift-alerts">
         <strong>Drift alerts</strong>
@@ -320,19 +406,7 @@ POLICIES (1 warning)
         <span>Block PRs that break governance.</span>
       </button>
     </div>
-    <p class="feature-note">Votes are counted client-side and sent anonymously to shape the roadmap. No email required to vote.</p>
-  </div>
-</section>
-
-<section id="waitlist">
-  <div class="container">
-    <h2>Get notified</h2>
-    <p class="sub">Early-access updates only. No drip sequence, no spam. When we ship the team tier you'll hear about it first.</p>
-    <form class="waitlist" id="waitlist-form">
-      <input type="email" name="email" placeholder="you@team.dev" required autocomplete="email">
-      <button type="submit" class="btn btn-primary">Notify me</button>
-    </form>
-    <div class="waitlist-msg" id="waitlist-msg" role="status" aria-live="polite"></div>
+    <p class="feature-note">Votes stay on your device (localStorage) and fire one anonymous pageless event per choice — no accounts, no cookies, no tracking across sites.</p>
   </div>
 </section>
 
@@ -341,14 +415,18 @@ POLICIES (1 warning)
     Built by <a href="https://github.com/nuetzliches" target="_blank" rel="noopener">nuetzliches</a>
     · MIT-licensed CLI on <a href="https://github.com/nuetzliches/composit" target="_blank" rel="noopener">GitHub</a>
     · <a href="https://github.com/nuetzliches/composit/blob/main/docs/rfcs/001-composit-report-format.md" target="_blank" rel="noopener">RFC 001</a>
+    · Something to tell us? <a href="mailto:composit@nuetzliche.it">composit@nuetzliche.it</a>
+    <div class="legal">
+      <a href="https://nuetzliche.it/impressum" target="_blank" rel="noopener">Impressum</a>
+      <a href="https://nuetzliche.it/datenschutz" target="_blank" rel="noopener">Datenschutz</a>
+    </div>
   </div>
 </footer>
 
 <script>
 // ---- Feature interest tracking --------------------------------------------
-// Anonymous local tally. Replace ANALYTICS_ENDPOINT with a real endpoint
-// (Plausible/Umami custom events, or a minimal /api/vote) before going live.
-const ANALYTICS_ENDPOINT = null; // e.g. "/api/vote"
+// Anonymous: localStorage dedupes per-browser, Plausible (if present) fires
+// one custom event per click. No backend, no personal data.
 const STORAGE_KEY = "composit-voted-features";
 
 function getVoted() {
@@ -385,69 +463,38 @@ document.querySelectorAll(".feature-btn").forEach((btn) => {
     saveVoted(current);
     markVoted(btn);
 
-    if (ANALYTICS_ENDPOINT) {
-      fetch(ANALYTICS_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ feature }),
-        keepalive: true,
-      }).catch(() => { /* swallow — votes are best-effort */ });
-    }
-    // Plausible / Umami hooks (safe if absent).
     if (typeof window.plausible === "function") {
       window.plausible("feature-vote", { props: { feature } });
-    }
-    if (typeof window.umami === "object" && typeof window.umami.track === "function") {
-      window.umami.track("feature-vote", { feature });
     }
   });
 });
 
-// ---- Waitlist form --------------------------------------------------------
-// Replace WAITLIST_ENDPOINT with a real form handler (e.g. Formspree, Plunk,
-// Buttondown, or a self-hosted endpoint) before going live. Fallback: mailto.
-const WAITLIST_ENDPOINT = null;
-const FALLBACK_EMAIL = "composit@nuetzliche.it";
-
-const form = document.getElementById("waitlist-form");
-const msg = document.getElementById("waitlist-msg");
-
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const email = new FormData(form).get("email");
-  if (!email) return;
-
-  msg.textContent = "Submitting…";
-  msg.className = "waitlist-msg";
-
-  if (WAITLIST_ENDPOINT) {
+// ---- Copy buttons ----------------------------------------------------------
+// Quick-Start copy buttons emit a `quickstart-copy` event to Plausible so
+// "someone actually copied the install line" shows up as a signal alongside
+// pageviews.
+document.querySelectorAll(".qs-copy").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    const text = btn.dataset.copy || "";
     try {
-      const resp = await fetch(WAITLIST_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, features: getVoted() }),
-      });
-      if (!resp.ok) throw new Error("HTTP " + resp.status);
-      msg.textContent = "Thanks! You're on the list.";
-      msg.className = "waitlist-msg ok";
-      form.reset();
-    } catch (err) {
-      msg.textContent = "Submission failed. Email us directly: " + FALLBACK_EMAIL;
-      msg.className = "waitlist-msg err";
+      await navigator.clipboard.writeText(text);
+      btn.textContent = "Copied";
+      btn.classList.add("copied");
+      setTimeout(() => {
+        btn.textContent = "Copy";
+        btn.classList.remove("copied");
+      }, 1500);
+
+      if (typeof window.plausible === "function") {
+        const label = btn.closest(".qs-block")
+          ?.querySelector(".qs-header span")
+          ?.textContent || "unknown";
+        window.plausible("quickstart-copy", { props: { block: label } });
+      }
+    } catch {
+      /* clipboard may be blocked — fail silently */
     }
-  } else {
-    // No backend wired yet — fallback to mailto.
-    const features = getVoted();
-    const subject = encodeURIComponent("composit waitlist");
-    const body = encodeURIComponent(
-      "Count me in.\n\nFeatures I'd pay for: " +
-        (features.length ? features.join(", ") : "(none clicked)")
-    );
-    window.location.href =
-      `mailto:${FALLBACK_EMAIL}?subject=${subject}&body=${body}`;
-    msg.textContent = "Opening your mail client…";
-    msg.className = "waitlist-msg ok";
-  }
+  });
 });
 </script>
 </body>

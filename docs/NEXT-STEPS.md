@@ -235,24 +235,36 @@ die in gescannten Repos existieren, aber von keinem Scanner erfasst werden.
 ### Landing Page (Signalquelle #1 ohne Interviews)
 
 Ohne Interviews ist die Landing-Page die wichtigste externe Signalquelle.
+**Scope-Entscheidung (2026-04-18):** Keine Waitlist / kein Email-Signup.
+composit ist OSS — es gibt keinen "Launch" zu announcen. GitHub-Stars +
+Plausible-Traffic + Feature-Votes sind härtere Signale und passen zur
+Open-Spec-Positionierung. Detaillierter Rollout:
+[docs/LANDING-ROLLOUT.md](LANDING-ROLLOUT.md).
 
-- [ ] **Waitlist-Page online** (VOR HN, nicht parallel) — "See everything
-  your AI agents built — before it breaks." CTA: Email-Signup.
-  Tech: einfache statische Seite, Plausible/Umami für Analytics.
+- [ ] **Landing-Page online** (VOR HN, nicht parallel) — statische Seite
+  auf `composit.nuetzliche.it`, self-hosted via Caddy auf nuts-infra.
+  Primary CTA: **★ Star on GitHub**. Quick-Start mit Copy-Buttons.
+- [ ] **Plausible self-hosted** auf `plausible.nuetzliche.it` —
+  cookieless, EU-konform, kein Consent-Banner nötig.
+  Custom-Goals: `feature-vote`, `quickstart-copy`, GitHub-Outbound-Click.
 - [ ] **Feature-Interest-Tracking** — Klicks auf "Drift Alerts",
-  "Cost Attribution", "Compliance Reports", "Multi-Agent Visibility" messen.
-  Das ersetzt die Interview-Frage "was ist euch wichtig?".
-- [ ] **Signal-Benchmarks definieren** (ersetzt Interview-Kill-Criteria):
-  - Grün: ≥150 Signups / 30 Tage, Top-Feature klar identifizierbar
-  - Gelb: 50-150 Signups, kein klarer Feature-Favorit → Message-Iteration
-  - Rot: <50 Signups → Positioning oder Zielgruppe falsch
+  "Cost Attribution", "Compliance Reports", "Multi-Agent Visibility",
+  "Team Dashboard", "OPA at Commit Time". Ersetzt die Interview-Frage
+  "was ist euch wichtig?".
+- [ ] **Signal-Benchmarks** (30 Tage nach HN):
+
+  | Metrik | Grün | Gelb | Rot |
+  |---|---|---|---|
+  | GitHub-Stars | ≥300 | 100–300 | <100 |
+  | Pageviews | ≥3000 | 1000–3000 | <1000 |
+  | Feature-Votes Top-2 | ≥50% klarer Schwerpunkt | gemischt | keine Dominanz |
 
 ### Community
 
 - [ ] **Posting-Plan** — r/devops, r/platformengineering, Platform Engineering Slack,
   CNCF Slack, DevOps-Meetups. Nicht nur HN.
 - [ ] **croniq/hookaido/powerbrain READMEs** — Composit-Referenz ergänzen
-  (nach positivem HN/Waitlist-Signal).
+  (nach positivem HN + Star-Signal).
 
 ---
 
@@ -271,13 +283,16 @@ Ohne Interviews ist die Landing-Page die wichtigste externe Signalquelle.
 
 Nach Sprint 4 die Frage beantworten (ohne Interview-Signal, nur öffentliche Signale):
 
-- **Signal stark** (≥150 Waitlist-Signups, ≥300 GitHub Stars, ≥1 externer
-  Provider implementiert Spec, HN/Reddit-Kommentare bestätigen Pain):
-  → Full Build. Spec finalisieren, CLI erweitern, Cloud-Tier starten.
-- **Signal gemischt** (50-150 Signups, Stars da, aber kein externer Provider):
+- **Signal stark** (≥300 GitHub-Stars, ≥3000 Pageviews, Feature-Votes
+  mit klarem Top-2, ≥1 externer Provider implementiert Spec,
+  HN/Reddit-Kommentare bestätigen Pain):
+  → Full Build. Spec finalisieren, CLI erweitern, Team-Tier-Exploration
+  starten (jetzt MIT konkretem Beta-Produkt als Waitlist-Aufhänger).
+- **Signal gemischt** (100–300 Stars, 1000–3000 Pageviews, Votes gemischt,
+  kein externer Provider):
   → Pivot-Kandidat prüfen. Composit als Feature in croniq/hookaido? Oder
   als MCP-Plugin statt eigenständiges Produkt?
-- **Signal schwach** (<50 Signups, keine externe Resonanz):
+- **Signal schwach** (<100 Stars, <1000 Pageviews, keine externe Resonanz):
   → Spec open-sourcen, CLI maintenance-only, Fokus auf die Reference
   Providers (croniq, hookaido, powerbrain).
 
@@ -334,14 +349,15 @@ Composit stoppen wenn EINS davon eintritt:
 - **Dogfooding negativ** (Sprint 1-2): `composit diff` findet auf eigenen
   Stacks (nuts-infra, croniq, hookaido, powerbrain) keine echten Drifts,
   die wir vorher übersehen hätten. Dann fehlt der Pain sogar bei uns.
-- **HN + Waitlist schwach** (Sprint 3): <50 Signups, <100 Stars nach 30 Tagen,
-  überwiegend "cool, aber wozu"-Kommentare statt "genau das brauche ich".
+- **HN + Stars schwach** (Sprint 3): <100 GitHub-Stars, <1000 Pageviews
+  nach 30 Tagen, überwiegend "cool, aber wozu"-Kommentare statt "genau
+  das brauche ich".
 - **Kein externer Provider** (Sprint 4): 8 Wochen post-Launch kein einziger
   Third-Party-Provider implementiert `.well-known/composit.json`. Open-Spec-Story
   trägt dann nicht.
 - **Hyperscaler Open-Source-Move**: AWS/Microsoft launcht Open-Source Agent
   Control Plane mit echter Community-Adoption.
 
-**Wichtig:** "Gelb"-Signale (50-150 Signups, Stars da aber Engagement niedrig)
-führen zu Positioning-/Message-Iteration, nicht zu Kill. Kill nur bei klar
-negativem Signal aus mehreren Quellen.
+**Wichtig:** "Gelb"-Signale (100–300 Stars, Pageviews da, Feature-Votes
+ohne klaren Top-2) führen zu Positioning-/Message-Iteration, nicht zu
+Kill. Kill nur bei klar negativem Signal aus mehreren Quellen.
