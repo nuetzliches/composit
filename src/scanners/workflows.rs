@@ -111,19 +111,14 @@ impl Scanner for WorkflowScanner {
                         extra.insert(
                             "job_names".to_string(),
                             serde_json::Value::Array(
-                                jobs.into_iter()
-                                    .map(serde_json::Value::String)
-                                    .collect(),
+                                jobs.into_iter().map(serde_json::Value::String).collect(),
                             ),
                         );
                     }
 
                     // Extract runner
                     if let Some(runner) = extract_first_runner(&yaml) {
-                        extra.insert(
-                            "runs_on".to_string(),
-                            serde_json::Value::String(runner),
-                        );
+                        extra.insert("runs_on".to_string(), serde_json::Value::String(runner));
                     }
 
                     resources.push(Resource {
@@ -203,7 +198,10 @@ impl Scanner for WorkflowScanner {
 
 fn extract_triggers(yaml: &serde_yaml::Value) -> Vec<String> {
     // YAML spec: bare `on` is parsed as boolean `true` by some parsers
-    let on = match yaml.get("on").or_else(|| yaml.get(serde_yaml::Value::Bool(true))) {
+    let on = match yaml
+        .get("on")
+        .or_else(|| yaml.get(serde_yaml::Value::Bool(true)))
+    {
         Some(v) => v,
         None => return vec![],
     };

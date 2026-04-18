@@ -38,10 +38,7 @@ pub fn parse_compositfile(path: &Path) -> Result<Governance> {
             "policy" => policies.push(parse_policy_block(block)?),
             "resources" => resources = Some(parse_resources_block(block)?),
             other => {
-                eprintln!(
-                    "Warning: unknown block type '{}' in Compositfile",
-                    other
-                );
+                eprintln!("Warning: unknown block type '{}' in Compositfile", other);
             }
         }
     }
@@ -147,10 +144,7 @@ fn parse_resources_block(block: &hcl::Block) -> Result<ResourceConstraints> {
                 require.push(RequireRule { resource_type, min });
             }
             other => {
-                eprintln!(
-                    "Warning: unknown block '{}' in resources block",
-                    other
-                );
+                eprintln!("Warning: unknown block '{}' in resources block", other);
             }
         }
     }

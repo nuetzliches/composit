@@ -127,11 +127,7 @@ fn git_file_info(repo_dir: &Path, file_path: &str, first: bool) -> Option<GitFil
     // Extract Co-Authored-By lines
     let co_authors: Vec<String> = body
         .lines()
-        .filter(|line| {
-            line.trim()
-                .to_lowercase()
-                .starts_with("co-authored-by:")
-        })
+        .filter(|line| line.trim().to_lowercase().starts_with("co-authored-by:"))
         .map(|line| {
             line.trim()
                 .splitn(2, ':')
@@ -181,18 +177,15 @@ fn classify_commit(info: &GitFileInfo) -> (String, HashMap<String, serde_json::V
     // Check co-authors for agent involvement
     for (i, label) in co_author_labels.iter().enumerate() {
         if label.starts_with("agent:") {
-            extra.insert(
-                "agent_assisted".to_string(),
-                serde_json::Value::Bool(true),
-            );
+            extra.insert("agent_assisted".to_string(), serde_json::Value::Bool(true));
             extra.insert(
                 "assisted_by".to_string(),
                 serde_json::Value::String(label.clone()),
             );
             // Also store the raw co-author string for the first agent match
-            extra.entry("assisted_by_raw".to_string()).or_insert_with(|| {
-                serde_json::Value::String(info.co_authors[i].clone())
-            });
+            extra
+                .entry("assisted_by_raw".to_string())
+                .or_insert_with(|| serde_json::Value::String(info.co_authors[i].clone()));
             break; // Use first agent match for assisted_by
         }
     }
@@ -249,9 +242,7 @@ mod tests {
         let info = GitFileInfo {
             author: "7schmiede <seb@example.com>".to_string(),
             date: "2026-04-13".to_string(),
-            co_authors: vec![
-                "Claude Opus 4.6 (1M context) <noreply@anthropic.com>".to_string(),
-            ],
+            co_authors: vec!["Claude Opus 4.6 (1M context) <noreply@anthropic.com>".to_string()],
         };
         let (attribution, extra) = classify_commit(&info);
         // Human stays as created_by, agent is only flagged

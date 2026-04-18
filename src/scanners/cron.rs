@@ -32,7 +32,12 @@ impl Scanner for CronScanner {
 
         let output = match output {
             Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
-            _ => return Ok(ScanResult { resources: vec![], providers: vec![] }),
+            _ => {
+                return Ok(ScanResult {
+                    resources: vec![],
+                    providers: vec![],
+                })
+            }
         };
 
         Ok(ScanResult {
@@ -62,10 +67,7 @@ fn parse_crontab(output: &str) -> Vec<Resource> {
         let command = parts[5].to_string();
 
         let mut extra = HashMap::new();
-        extra.insert(
-            "schedule".to_string(),
-            serde_json::Value::String(schedule),
-        );
+        extra.insert("schedule".to_string(), serde_json::Value::String(schedule));
         extra.insert(
             "command".to_string(),
             serde_json::Value::String(command.clone()),

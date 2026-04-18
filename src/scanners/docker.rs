@@ -193,10 +193,7 @@ fn scan_compose_file(path: &Path, base_dir: &Path) -> Result<(Resource, Vec<Reso
             } else {
                 ".".to_string()
             };
-            extra.insert(
-                "build".to_string(),
-                serde_json::Value::String(build_ctx),
-            );
+            extra.insert("build".to_string(), serde_json::Value::String(build_ctx));
         }
 
         // Ports
@@ -343,16 +340,23 @@ volumes:
     #[test]
     fn test_malformed_compose_yields_error() {
         let dir = tempdir().unwrap();
-        write(dir.path(), "docker-compose.yml", "services:\n  api:\n    image: [broken");
-        let result =
-            scan_compose_file(&dir.path().join("docker-compose.yml"), dir.path());
+        write(
+            dir.path(),
+            "docker-compose.yml",
+            "services:\n  api:\n    image: [broken",
+        );
+        let result = scan_compose_file(&dir.path().join("docker-compose.yml"), dir.path());
         assert!(result.is_err(), "broken YAML must error so caller can warn");
     }
 
     #[test]
     fn test_empty_services_block() {
         let dir = tempdir().unwrap();
-        write(dir.path(), "docker-compose.yml", "version: \"3\"\nservices: {}\n");
+        write(
+            dir.path(),
+            "docker-compose.yml",
+            "version: \"3\"\nservices: {}\n",
+        );
         let (compose_res, services) =
             scan_compose_file(&dir.path().join("docker-compose.yml"), dir.path()).unwrap();
         assert_eq!(compose_res.resource_type, "docker_compose");

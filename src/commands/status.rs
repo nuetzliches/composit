@@ -44,9 +44,7 @@ pub async fn run_status(dir: &Path, live: bool) -> Result<()> {
     Ok(())
 }
 
-async fn check_providers_live(
-    providers: &mut [Provider],
-) -> Result<HashMap<String, LiveInfo>> {
+async fn check_providers_live(providers: &mut [Provider]) -> Result<HashMap<String, LiveInfo>> {
     let client = Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
@@ -89,10 +87,7 @@ async fn check_providers_live(
 /// Enrich the in-memory Provider with fields read from the manifest.
 /// Returns the extra display-only info (description, compliance, region)
 /// that doesn't have a home on the persisted Provider struct.
-fn merge_manifest_into_provider(
-    manifest: &serde_json::Value,
-    provider: &mut Provider,
-) -> LiveInfo {
+fn merge_manifest_into_provider(manifest: &serde_json::Value, provider: &mut Provider) -> LiveInfo {
     // If the manifest declares a canonical name, prefer it.
     if let Some(name) = manifest
         .get("provider")
@@ -151,16 +146,8 @@ fn merge_manifest_into_provider(
 fn print_status(report: &Report, live_info: &HashMap<String, LiveInfo>) {
     println!();
     println!("{}", "composit status".bold());
-    println!(
-        "{} {}",
-        "Workspace:".dimmed(),
-        report.workspace.bold()
-    );
-    println!(
-        "{} {}",
-        "Last scan:".dimmed(),
-        report.generated
-    );
+    println!("{} {}", "Workspace:".dimmed(), report.workspace.bold());
+    println!("{} {}", "Last scan:".dimmed(), report.generated);
     println!("{}", "=".repeat(60));
 
     // Resources by type
@@ -201,11 +188,7 @@ fn print_status(report: &Report, live_info: &HashMap<String, LiveInfo>) {
         println!("    {:30} {}", display, count);
     }
     if untracked > 0 {
-        println!(
-            "    {:30} {}",
-            "untracked".dimmed(),
-            untracked
-        );
+        println!("    {:30} {}", "untracked".dimmed(), untracked);
     }
 
     // Providers
@@ -221,7 +204,9 @@ fn print_status(report: &Report, live_info: &HashMap<String, LiveInfo>) {
             let caps = if p.capabilities.is_empty() {
                 String::new()
             } else {
-                format!(" ({})", p.capabilities.join(", ")).dimmed().to_string()
+                format!(" ({})", p.capabilities.join(", "))
+                    .dimmed()
+                    .to_string()
             };
             println!("    {:30} {}{}", p.name, status, caps);
 
@@ -231,11 +216,7 @@ fn print_status(report: &Report, live_info: &HashMap<String, LiveInfo>) {
                     println!("      {} {}", "·".dimmed(), desc.dimmed());
                 }
                 if let Some(region) = &info.region {
-                    println!(
-                        "      {} region: {}",
-                        "·".dimmed(),
-                        region.cyan()
-                    );
+                    println!("      {} region: {}", "·".dimmed(), region.cyan());
                 }
                 if !info.compliance.is_empty() {
                     println!(

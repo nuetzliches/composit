@@ -137,9 +137,21 @@ pub fn compute_diff_opts(
     categories.push(check_resources(governance, report));
     categories.push(check_policies(governance, base_dir));
 
-    let errors: usize = categories.iter().flat_map(|c| &c.violations).filter(|v| v.severity == Severity::Error).count();
-    let warnings: usize = categories.iter().flat_map(|c| &c.violations).filter(|v| v.severity == Severity::Warning).count();
-    let info: usize = categories.iter().flat_map(|c| &c.violations).filter(|v| v.severity == Severity::Info).count();
+    let errors: usize = categories
+        .iter()
+        .flat_map(|c| &c.violations)
+        .filter(|v| v.severity == Severity::Error)
+        .count();
+    let warnings: usize = categories
+        .iter()
+        .flat_map(|c| &c.violations)
+        .filter(|v| v.severity == Severity::Warning)
+        .count();
+    let info: usize = categories
+        .iter()
+        .flat_map(|c| &c.violations)
+        .filter(|v| v.severity == Severity::Info)
+        .count();
     let passed: usize = categories.iter().map(|c| c.passed).sum();
 
     DiffReport {
@@ -156,15 +168,15 @@ pub fn compute_diff_opts(
     }
 }
 
-fn check_providers(
-    governance: &Governance,
-    report: &Report,
-    offline: bool,
-) -> ViolationCategory {
+fn check_providers(governance: &Governance, report: &Report, offline: bool) -> ViolationCategory {
     let mut violations = Vec::new();
     let mut passed = 0;
 
-    let approved_names: Vec<&str> = governance.providers.iter().map(|p| p.name.as_str()).collect();
+    let approved_names: Vec<&str> = governance
+        .providers
+        .iter()
+        .map(|p| p.name.as_str())
+        .collect();
 
     // Check report providers against approved list
     for rp in &report.providers {
@@ -174,7 +186,10 @@ fn check_providers(
             violations.push(Violation {
                 severity: Severity::Error,
                 rule: "unapproved_provider".to_string(),
-                message: format!("Provider \"{}\" found in report but not approved in Compositfile", rp.name),
+                message: format!(
+                    "Provider \"{}\" found in report but not approved in Compositfile",
+                    rp.name
+                ),
                 details: Some(format!("Endpoint: {}", rp.endpoint)),
             });
         }
@@ -250,7 +265,9 @@ fn check_budgets(governance: &Governance, report: &Report) -> ViolationCategory 
                             rule: "budget_alert".to_string(),
                             message: format!(
                                 "Workspace cost {} exceeds {}% alert threshold ({:.0} EUR)",
-                                report.summary.estimated_monthly_cost, (threshold * 100.0) as usize, alert_amount
+                                report.summary.estimated_monthly_cost,
+                                (threshold * 100.0) as usize,
+                                alert_amount
                             ),
                             details: None,
                         });
@@ -313,7 +330,11 @@ fn check_resources(governance: &Governance, report: &Report) -> ViolationCategor
 
     // Allowlist mode: if at least one allow rule exists, unlisted types are violations
     let allowlist_mode = !constraints.allow.is_empty();
-    let allowed_types: Vec<&str> = constraints.allow.iter().map(|a| a.resource_type.as_str()).collect();
+    let allowed_types: Vec<&str> = constraints
+        .allow
+        .iter()
+        .map(|a| a.resource_type.as_str())
+        .collect();
 
     if allowlist_mode {
         for resource_type in by_type.keys() {
@@ -469,10 +490,7 @@ fn check_policies(governance: &Governance, base_dir: &Path) -> ViolationCategory
                 violations.push(Violation {
                     severity: Severity::Warning,
                     rule: "policy_file_unreadable".to_string(),
-                    message: format!(
-                        "Policy \"{}\" could not be read: {}",
-                        policy.name, e
-                    ),
+                    message: format!("Policy \"{}\" could not be read: {}", policy.name, e),
                     details: Some(policy.source.clone()),
                 });
                 continue;
@@ -551,10 +569,9 @@ fn parse_percentage(s: &str) -> Option<f64> {
 }
 
 fn matches_any_pattern(value: &str, patterns: &[String]) -> bool {
-    patterns.iter().any(|p| {
-        glob::Pattern::new(p)
-            .map_or(false, |pat| pat.matches(value))
-    })
+    patterns
+        .iter()
+        .any(|p| glob::Pattern::new(p).map_or(false, |pat| pat.matches(value)))
 }
 
 // ─────────────────────────────────────────────────────────
@@ -579,16 +596,46 @@ fn render_diff_html(diff: &DiffReport) -> String {
 
     let mut categories_html = String::new();
     for cat in &diff.categories {
-        let error_count = cat.violations.iter().filter(|v| v.severity == Severity::Error).count();
-        let warn_count = cat.violations.iter().filter(|v| v.severity == Severity::Warning).count();
-        let info_count = cat.violations.iter().filter(|v| v.severity == Severity::Info).count();
+        let error_count = cat
+            .violations
+            .iter()
+            .filter(|v| v.severity == Severity::Error)
+            .count();
+        let warn_count = cat
+            .violations
+            .iter()
+            .filter(|v| v.severity == Severity::Warning)
+            .count();
+        let info_count = cat
+            .violations
+            .iter()
+            .filter(|v| v.severity == Severity::Info)
+            .count();
 
         let mut badge_parts = Vec::new();
-        if error_count > 0 { badge_parts.push(format!(r#"<span class="badge badge-error">{} errors</span>"#, error_count)); }
-        if warn_count > 0 { badge_parts.push(format!(r#"<span class="badge badge-warn">{} warnings</span>"#, warn_count)); }
-        if info_count > 0 { badge_parts.push(format!(r#"<span class="badge badge-info">{} info</span>"#, info_count)); }
+        if error_count > 0 {
+            badge_parts.push(format!(
+                r#"<span class="badge badge-error">{} errors</span>"#,
+                error_count
+            ));
+        }
+        if warn_count > 0 {
+            badge_parts.push(format!(
+                r#"<span class="badge badge-warn">{} warnings</span>"#,
+                warn_count
+            ));
+        }
+        if info_count > 0 {
+            badge_parts.push(format!(
+                r#"<span class="badge badge-info">{} info</span>"#,
+                info_count
+            ));
+        }
         if cat.violations.is_empty() && cat.passed > 0 {
-            badge_parts.push(format!(r#"<span class="badge badge-pass">{} passed</span>"#, cat.passed));
+            badge_parts.push(format!(
+                r#"<span class="badge badge-pass">{} passed</span>"#,
+                cat.passed
+            ));
         }
 
         let mut rows = String::new();
@@ -736,16 +783,36 @@ fn print_diff_terminal(diff: &DiffReport) {
 
     for cat in &diff.categories {
         println!();
-        let error_count = cat.violations.iter().filter(|v| v.severity == Severity::Error).count();
-        let warn_count = cat.violations.iter().filter(|v| v.severity == Severity::Warning).count();
-        let info_count = cat.violations.iter().filter(|v| v.severity == Severity::Info).count();
+        let error_count = cat
+            .violations
+            .iter()
+            .filter(|v| v.severity == Severity::Error)
+            .count();
+        let warn_count = cat
+            .violations
+            .iter()
+            .filter(|v| v.severity == Severity::Warning)
+            .count();
+        let info_count = cat
+            .violations
+            .iter()
+            .filter(|v| v.severity == Severity::Info)
+            .count();
 
         let mut parts = Vec::new();
         if error_count > 0 {
-            parts.push(format!("{} error{}", error_count, if error_count != 1 { "s" } else { "" }));
+            parts.push(format!(
+                "{} error{}",
+                error_count,
+                if error_count != 1 { "s" } else { "" }
+            ));
         }
         if warn_count > 0 {
-            parts.push(format!("{} warning{}", warn_count, if warn_count != 1 { "s" } else { "" }));
+            parts.push(format!(
+                "{} warning{}",
+                warn_count,
+                if warn_count != 1 { "s" } else { "" }
+            ));
         }
         if info_count > 0 {
             parts.push(format!("{} info", info_count));
@@ -757,11 +824,19 @@ fn print_diff_terminal(diff: &DiffReport) {
         println!(
             "{} ({})",
             cat.name.to_uppercase().bold(),
-            if parts.is_empty() { "no checks".to_string() } else { parts.join(", ") }
+            if parts.is_empty() {
+                "no checks".to_string()
+            } else {
+                parts.join(", ")
+            }
         );
 
         if cat.violations.is_empty() && cat.passed > 0 {
-            println!("  {}  All {} checks passed", "PASS".green().bold(), cat.passed);
+            println!(
+                "  {}  All {} checks passed",
+                "PASS".green().bold(),
+                cat.passed
+            );
         }
 
         for v in &cat.violations {
@@ -787,7 +862,9 @@ fn print_diff_terminal(diff: &DiffReport) {
             "0 errors".to_string()
         },
         if diff.summary.warnings > 0 {
-            format!("{} warnings", diff.summary.warnings).yellow().to_string()
+            format!("{} warnings", diff.summary.warnings)
+                .yellow()
+                .to_string()
         } else {
             "0 warnings".to_string()
         },
@@ -873,13 +950,21 @@ mod tests {
 
     #[test]
     fn test_unapproved_provider() {
-        let report = make_report(vec![make_provider("croniq"), make_provider("rogue")], vec![], "0 EUR");
+        let report = make_report(
+            vec![make_provider("croniq"), make_provider("rogue")],
+            vec![],
+            "0 EUR",
+        );
         let gov = make_governance(vec!["croniq"], "500 EUR");
         let diff = compute_diff(&gov, &report, Path::new("."));
 
         let prov_cat = &diff.categories[0];
         assert_eq!(prov_cat.name, "providers");
-        let errors: Vec<_> = prov_cat.violations.iter().filter(|v| v.severity == Severity::Error).collect();
+        let errors: Vec<_> = prov_cat
+            .violations
+            .iter()
+            .filter(|v| v.severity == Severity::Error)
+            .collect();
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].rule, "unapproved_provider");
         assert!(errors[0].message.contains("rogue"));
@@ -892,7 +977,11 @@ mod tests {
         let diff = compute_diff(&gov, &report, Path::new("."));
 
         let budget_cat = &diff.categories[1];
-        let errors: Vec<_> = budget_cat.violations.iter().filter(|v| v.severity == Severity::Error).collect();
+        let errors: Vec<_> = budget_cat
+            .violations
+            .iter()
+            .filter(|v| v.severity == Severity::Error)
+            .collect();
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].rule, "budget_exceeded");
     }
@@ -904,7 +993,11 @@ mod tests {
         let diff = compute_diff(&gov, &report, Path::new("."));
 
         let budget_cat = &diff.categories[1];
-        let warnings: Vec<_> = budget_cat.violations.iter().filter(|v| v.severity == Severity::Warning).collect();
+        let warnings: Vec<_> = budget_cat
+            .violations
+            .iter()
+            .filter(|v| v.severity == Severity::Warning)
+            .collect();
         assert_eq!(warnings.len(), 1);
         assert_eq!(warnings[0].rule, "budget_alert");
     }
@@ -922,7 +1015,11 @@ mod tests {
 
         let diff = compute_diff(&gov, &report, Path::new("."));
         let res_cat = &diff.categories[2];
-        let errors: Vec<_> = res_cat.violations.iter().filter(|v| v.rule == "resource_count_exceeded").collect();
+        let errors: Vec<_> = res_cat
+            .violations
+            .iter()
+            .filter(|v| v.rule == "resource_count_exceeded")
+            .collect();
         assert_eq!(errors.len(), 1);
     }
 
@@ -943,7 +1040,11 @@ mod tests {
 
         let diff = compute_diff(&gov, &report, Path::new("."));
         let res_cat = &diff.categories[2];
-        let errors: Vec<_> = res_cat.violations.iter().filter(|v| v.rule == "resource_type_not_allowed").collect();
+        let errors: Vec<_> = res_cat
+            .violations
+            .iter()
+            .filter(|v| v.rule == "resource_type_not_allowed")
+            .collect();
         assert_eq!(errors.len(), 1);
         assert!(errors[0].message.contains("mcp_server"));
     }
@@ -963,7 +1064,11 @@ mod tests {
 
         let diff = compute_diff(&gov, &report, Path::new("."));
         let res_cat = &diff.categories[2];
-        let errors: Vec<_> = res_cat.violations.iter().filter(|v| v.rule == "required_resource_missing").collect();
+        let errors: Vec<_> = res_cat
+            .violations
+            .iter()
+            .filter(|v| v.rule == "required_resource_missing")
+            .collect();
         assert_eq!(errors.len(), 1);
     }
 
@@ -971,7 +1076,10 @@ mod tests {
     fn test_all_checks_pass() {
         let report = make_report(
             vec![make_provider("croniq")],
-            vec![make_resource("docker_service"), make_resource("docker_compose")],
+            vec![
+                make_resource("docker_service"),
+                make_resource("docker_compose"),
+            ],
             "100 EUR",
         );
         let mut gov = make_governance(vec!["croniq"], "500 EUR");

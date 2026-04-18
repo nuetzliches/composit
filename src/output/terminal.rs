@@ -37,18 +37,10 @@ pub fn print_summary(report: &Report) {
                     Some(a) if a.starts_with("human:") => a.dimmed().to_string(),
                     _ => "untracked".dimmed().to_string(),
                 };
-                let date = r
-                    .created
-                    .as_deref()
-                    .unwrap_or("")
-                    .dimmed()
-                    .to_string();
+                let date = r.created.as_deref().unwrap_or("").dimmed().to_string();
 
                 // Show last_modified_by if different from created_by
-                let last_mod = r
-                    .extra
-                    .get("last_modified_by")
-                    .and_then(|v| v.as_str());
+                let last_mod = r.extra.get("last_modified_by").and_then(|v| v.as_str());
                 let last_mod_str = match last_mod {
                     Some(lm) if Some(lm) != r.created_by.as_deref() => {
                         if lm.starts_with("agent:") {
@@ -223,7 +215,11 @@ fn format_extra(r: &crate::core::types::Resource) -> String {
     if let Some(rp) = r.extra.get("reverse_proxy").and_then(|v| v.as_str()) {
         parts.push(format!("-> {}", rp));
     }
-    if r.extra.get("file_server").and_then(|v| v.as_bool()).unwrap_or(false) {
+    if r.extra
+        .get("file_server")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
         parts.push("file_server".to_string());
     }
     // Workflows
@@ -256,7 +252,11 @@ fn format_extra(r: &crate::core::types::Resource) -> String {
             parts.push(format!("{} groups", groups));
         }
     }
-    if r.extra.get("alerting").and_then(|v| v.as_bool()).unwrap_or(false) {
+    if r.extra
+        .get("alerting")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
         parts.push("alerting".to_string());
     }
 

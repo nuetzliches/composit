@@ -29,9 +29,7 @@ impl Scanner for McpProviderScanner {
     }
 
     async fn scan(&self, context: &ScanContext) -> Result<ScanResult> {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(10))
-            .build()?;
+        let client = Client::builder().timeout(Duration::from_secs(10)).build()?;
 
         let mut all_resources = Vec::new();
         let mut all_providers = Vec::new();
@@ -63,10 +61,7 @@ impl Scanner for McpProviderScanner {
 }
 
 /// Fetch a provider's composit manifest and extract capabilities
-async fn fetch_provider(
-    client: &Client,
-    base_url: &str,
-) -> Result<(Provider, Vec<Resource>)> {
+async fn fetch_provider(client: &Client, base_url: &str) -> Result<(Provider, Vec<Resource>)> {
     let manifest_url = format!(
         "{}/.well-known/composit.json",
         base_url.trim_end_matches('/')
@@ -175,10 +170,7 @@ mod tests {
         assert_eq!(r.resource_type, "mcp_capability");
         assert_eq!(r.name.as_deref(), Some("croniq"));
         assert_eq!(r.provider.as_deref(), Some("croniq"));
-        assert_eq!(
-            r.extra.get("tools").and_then(|v| v.as_u64()),
-            Some(12)
-        );
+        assert_eq!(r.extra.get("tools").and_then(|v| v.as_u64()), Some(12));
         assert_eq!(
             r.extra.get("description").and_then(|v| v.as_str()),
             Some("Cron-as-a-service")

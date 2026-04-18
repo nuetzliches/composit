@@ -66,10 +66,7 @@ fn dirs_config_path(app: &str, file: &str) -> Option<PathBuf> {
     dirs::config_dir().map(|d| d.join(app).join(file))
 }
 
-fn parse_mcp_config(
-    path: &PathBuf,
-    source: &str,
-) -> Result<(Vec<Resource>, Vec<Provider>)> {
+fn parse_mcp_config(path: &PathBuf, source: &str) -> Result<(Vec<Resource>, Vec<Provider>)> {
     let content = std::fs::read_to_string(path)?;
     let config: serde_json::Value = serde_json::from_str(&content)?;
 

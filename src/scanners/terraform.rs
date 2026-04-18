@@ -49,8 +49,7 @@ impl Scanner for TerraformScanner {
         }
 
         for (dir, files) in &tf_files_by_dir {
-            let (config_resource, nested_resources) =
-                scan_tf_directory(dir, files, &context.dir);
+            let (config_resource, nested_resources) = scan_tf_directory(dir, files, &context.dir);
             resources.push(config_resource);
             resources.extend(nested_resources);
         }
@@ -274,18 +273,12 @@ fn parse_tf_body(body: &Body, file_path: &str, tf_dir: &str, summary: &mut TfDir
 
                 // Extract source attribute
                 if let Some(source) = get_string_attr(&block.body, "source") {
-                    extra.insert(
-                        "source".to_string(),
-                        serde_json::Value::String(source),
-                    );
+                    extra.insert("source".to_string(), serde_json::Value::String(source));
                 }
 
                 // Extract version attribute
                 if let Some(version) = get_string_attr(&block.body, "version") {
-                    extra.insert(
-                        "version".to_string(),
-                        serde_json::Value::String(version),
-                    );
+                    extra.insert("version".to_string(), serde_json::Value::String(version));
                 }
 
                 summary.nested_resources.push(Resource {

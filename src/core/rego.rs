@@ -172,8 +172,8 @@ fn extract_rule_name(line: &str) -> Option<String> {
 
     // Filter out Rego keywords that would look like rules but aren't.
     const KEYWORDS: &[&str] = &[
-        "package", "import", "default", "else", "not", "with", "as", "in", "some",
-        "every", "true", "false", "null",
+        "package", "import", "default", "else", "not", "with", "as", "in", "some", "every", "true",
+        "false", "null",
     ];
     if KEYWORDS.contains(&first_token.as_str()) {
         return None;

@@ -15,8 +15,8 @@ fn example_report_matches_required_top_level_shape() {
     // assert the top-level shape via raw YAML. Guards against an example
     // that silently drifts from the published schema.
     let path = repo_root().join("examples/composit-report.yaml");
-    let content = fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("read {}: {}", path.display(), e));
+    let content =
+        fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {}", path.display(), e));
     let doc: serde_yaml::Value = serde_yaml::from_str(&content)
         .unwrap_or_else(|e| panic!("parse {}: {}", path.display(), e));
 
@@ -92,8 +92,8 @@ fn schema_allows_x_prefix_extensions_on_root_and_summary() {
 #[test]
 fn json_schema_is_valid_json() {
     let path = repo_root().join("schemas/composit-report-v0.1.json");
-    let content = fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("read {}: {}", path.display(), e));
+    let content =
+        fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {}", path.display(), e));
     let schema: serde_json::Value = serde_json::from_str(&content)
         .unwrap_or_else(|e| panic!("parse {}: {}", path.display(), e));
 

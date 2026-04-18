@@ -115,10 +115,7 @@ impl Report {
                             .unwrap_or(false)
                 })
                 .count(),
-            auto_detected: resources
-                .iter()
-                .filter(|r| r.created_by.is_none())
-                .count(),
+            auto_detected: resources.iter().filter(|r| r.created_by.is_none()).count(),
             estimated_monthly_cost: aggregate_costs(&resources),
         };
 

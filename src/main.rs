@@ -14,8 +14,8 @@ use colored::Colorize;
 use cli::{Cli, Commands, OutputFormat};
 use core::config::ScanConfig;
 use core::registry::ScannerRegistry;
-use core::scanner::ScanContext;
 use core::report::{dedup_providers, dedup_resources};
+use core::scanner::ScanContext;
 use core::types::{Report, ScanMode};
 
 #[tokio::main]
@@ -32,7 +32,15 @@ async fn main() -> Result<()> {
             quiet,
         } => {
             let dir = fs::canonicalize(&dir)?;
-            run_scan(&dir, output, providers, no_providers, config.as_deref(), quiet).await?;
+            run_scan(
+                &dir,
+                output,
+                providers,
+                no_providers,
+                config.as_deref(),
+                quiet,
+            )
+            .await?;
         }
         Commands::Status { dir, live } => {
             let dir = fs::canonicalize(&dir)?;
@@ -81,11 +89,9 @@ async fn run_scan(
     // Register extra_patterns scanner if config has patterns
     if let Some(cfg) = &config {
         if !cfg.extra_patterns.is_empty() {
-            registry.register(Box::new(
-                scanners::extra_patterns::ExtraPatternsScanner {
-                    patterns: cfg.extra_patterns.clone(),
-                },
-            ));
+            registry.register(Box::new(scanners::extra_patterns::ExtraPatternsScanner {
+                patterns: cfg.extra_patterns.clone(),
+            }));
         }
     }
 

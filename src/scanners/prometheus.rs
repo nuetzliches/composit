@@ -131,24 +131,15 @@ impl Scanner for PrometheusScanner {
 
                     // Detect alertmanager config
                     if yaml.get("alerting").is_some() {
-                        extra.insert(
-                            "alerting".to_string(),
-                            serde_json::Value::Bool(true),
-                        );
+                        extra.insert("alerting".to_string(), serde_json::Value::Bool(true));
                     }
 
                     // Detect remote write/read
                     if yaml.get("remote_write").is_some() {
-                        extra.insert(
-                            "remote_write".to_string(),
-                            serde_json::Value::Bool(true),
-                        );
+                        extra.insert("remote_write".to_string(), serde_json::Value::Bool(true));
                     }
                     if yaml.get("remote_read").is_some() {
-                        extra.insert(
-                            "remote_read".to_string(),
-                            serde_json::Value::Bool(true),
-                        );
+                        extra.insert("remote_read".to_string(), serde_json::Value::Bool(true));
                     }
 
                     resources.push(Resource {
@@ -167,7 +158,14 @@ impl Scanner for PrometheusScanner {
         }
 
         // Scan for alerting rule files
-        for pattern in &["**/alerts.yml", "**/alerts.yaml", "**/alert_rules.yml", "**/alert_rules.yaml", "**/rules/*.yml", "**/rules/*.yaml"] {
+        for pattern in &[
+            "**/alerts.yml",
+            "**/alerts.yaml",
+            "**/alert_rules.yml",
+            "**/alert_rules.yaml",
+            "**/rules/*.yml",
+            "**/rules/*.yaml",
+        ] {
             let full_pattern = context.dir.join(pattern);
             for entry in glob(&full_pattern.to_string_lossy())? {
                 if let Ok(path) = entry {
@@ -336,10 +334,7 @@ groups:
         )
         .unwrap();
 
-        let groups = yaml
-            .get("groups")
-            .and_then(|g| g.as_sequence())
-            .unwrap();
+        let groups = yaml.get("groups").and_then(|g| g.as_sequence()).unwrap();
         assert_eq!(groups.len(), 2);
 
         let rule_count: usize = groups

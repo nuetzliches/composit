@@ -3,7 +3,11 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
-#[command(name = "composit", version, about = "Governance-as-Code for AI-generated infrastructure")]
+#[command(
+    name = "composit",
+    version,
+    about = "Governance-as-Code for AI-generated infrastructure"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,

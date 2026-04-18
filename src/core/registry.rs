@@ -34,11 +34,7 @@ impl ScannerRegistry {
             .scanners
             .iter()
             .filter(|s| !s.needs_network())
-            .filter(|s| {
-                config
-                    .map(|c| c.is_scanner_enabled(s.id()))
-                    .unwrap_or(true)
-            })
+            .filter(|s| config.map(|c| c.is_scanner_enabled(s.id())).unwrap_or(true))
             .map(|s| s.as_ref())
             .collect();
 
@@ -60,11 +56,7 @@ impl ScannerRegistry {
                 .scanners
                 .iter()
                 .filter(|s| s.needs_network())
-                .filter(|s| {
-                    config
-                        .map(|c| c.is_scanner_enabled(s.id()))
-                        .unwrap_or(true)
-                })
+                .filter(|s| config.map(|c| c.is_scanner_enabled(s.id())).unwrap_or(true))
                 .map(|s| s.as_ref())
                 .collect();
 

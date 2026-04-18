@@ -255,14 +255,22 @@ fn attribution_stats(resources: &[Resource]) -> Vec<(String, String, usize)> {
     let mut mods: Vec<_> = modified_by.into_iter().collect();
     mods.sort_by(|a, b| b.1.cmp(&a.1));
     for (author, count) in mods {
-        result.push((format!("{} (last modified)", author), "tag-agent".to_string(), count));
+        result.push((
+            format!("{} (last modified)", author),
+            "tag-agent".to_string(),
+            count,
+        ));
     }
 
     // Agent assistants
     let mut assists: Vec<_> = assisted_by.into_iter().collect();
     assists.sort_by(|a, b| b.1.cmp(&a.1));
     for (agent, count) in assists {
-        result.push((format!("{} (co-authored)", agent), "tag-assisted".to_string(), count));
+        result.push((
+            format!("{} (co-authored)", agent),
+            "tag-assisted".to_string(),
+            count,
+        ));
     }
 
     // Then creators
@@ -278,7 +286,11 @@ fn attribution_stats(resources: &[Resource]) -> Vec<(String, String, usize)> {
     }
 
     if untracked > 0 {
-        result.push(("untracked".to_string(), "tag-untracked".to_string(), untracked));
+        result.push((
+            "untracked".to_string(),
+            "tag-untracked".to_string(),
+            untracked,
+        ));
     }
     result
 }
@@ -295,12 +307,10 @@ fn render_summary_cards(report: &Report) -> String {
         })
         .count();
 
-    let mut cards = vec![
-        format!(
-            r#"<div class="card"><div class="label">Resources</div><div class="value accent">{}</div></div>"#,
-            report.summary.total_resources
-        ),
-    ];
+    let mut cards = vec![format!(
+        r#"<div class="card"><div class="label">Resources</div><div class="value accent">{}</div></div>"#,
+        report.summary.total_resources
+    )];
 
     if report.summary.agent_created > 0 {
         cards.push(format!(
@@ -562,13 +572,23 @@ fn format_details(r: &Resource) -> String {
     if let Some(domains) = r.extra.get("domains").and_then(|v| v.as_array()) {
         let dom_strs: Vec<&str> = domains.iter().filter_map(|d| d.as_str()).collect();
         if !dom_strs.is_empty() {
-            parts.push(dom_strs.iter().map(|d| html_escape(d)).collect::<Vec<_>>().join(", "));
+            parts.push(
+                dom_strs
+                    .iter()
+                    .map(|d| html_escape(d))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            );
         }
     }
     if let Some(rp) = r.extra.get("reverse_proxy").and_then(|v| v.as_str()) {
         parts.push(format!("&rarr; <code>{}</code>", html_escape(rp)));
     }
-    if r.extra.get("file_server").and_then(|v| v.as_bool()).unwrap_or(false) {
+    if r.extra
+        .get("file_server")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
         parts.push("file_server".to_string());
     }
     // Workflows
@@ -607,7 +627,11 @@ fn format_details(r: &Resource) -> String {
             parts.push(format!("{} groups", groups));
         }
     }
-    if r.extra.get("alerting").and_then(|v| v.as_bool()).unwrap_or(false) {
+    if r.extra
+        .get("alerting")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
         parts.push("alerting".to_string());
     }
 

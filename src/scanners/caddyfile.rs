@@ -101,16 +101,11 @@ impl Scanner for CaddyfileScanner {
                         );
                     }
                     if site.file_server {
-                        site_extra.insert(
-                            "file_server".to_string(),
-                            serde_json::Value::Bool(true),
-                        );
+                        site_extra.insert("file_server".to_string(), serde_json::Value::Bool(true));
                     }
                     if let Some(ref tls) = site.tls {
-                        site_extra.insert(
-                            "tls".to_string(),
-                            serde_json::Value::String(tls.clone()),
-                        );
+                        site_extra
+                            .insert("tls".to_string(), serde_json::Value::String(tls.clone()));
                     }
 
                     let directives: Vec<String> = site.directives.clone();
@@ -304,10 +299,7 @@ example.com {
 
         assert_eq!(sites.len(), 1);
         assert_eq!(sites[0].address, "example.com");
-        assert_eq!(
-            sites[0].reverse_proxy.as_deref(),
-            Some("localhost:8080")
-        );
+        assert_eq!(sites[0].reverse_proxy.as_deref(), Some("localhost:8080"));
     }
 
     #[test]
