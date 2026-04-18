@@ -38,8 +38,8 @@
   "compliance": ["gdpr", "eu-ai-act"],
   "region": "eu-central-1",
   "self_hosted": true,
-  "contract_endpoint": "https://composit.nuetzliche.it/contract",
+  "contract_endpoint": "https://composit.public-schloss.nuetzliche.it/contract",
   "discovery": {
-    "well_known": "https://composit.nuetzliche.it/.well-known/composit.json"
+    "well_known": "https://composit.public-schloss.nuetzliche.it/.well-known/composit.json"
   }
 }

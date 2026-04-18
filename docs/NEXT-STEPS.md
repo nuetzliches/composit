@@ -246,9 +246,9 @@ Open-Spec-Positionierung. Detaillierter Rollout:
 [docs/LANDING-ROLLOUT.md](LANDING-ROLLOUT.md).
 
 - [ ] **Landing-Page online** (VOR HN, nicht parallel) — statische Seite
-  auf `composit.nuetzliche.it`, self-hosted via Caddy auf nuts-infra.
+  auf `composit.public-schloss.nuetzliche.it`, self-hosted via Caddy auf nuts-infra.
   Primary CTA: **★ Star on GitHub**. Quick-Start mit Copy-Buttons.
-- [ ] **Plausible self-hosted** auf `plausible.nuetzliche.it` —
+- [ ] **Plausible self-hosted** auf `plausible.public-schloss.nuetzliche.it` —
   cookieless, EU-konform, kein Consent-Banner nötig.
   Custom-Goals: `feature-vote`, `quickstart-copy`, GitHub-Outbound-Click.
 - [ ] **Feature-Interest-Tracking** — Klicks auf "Drift Alerts",

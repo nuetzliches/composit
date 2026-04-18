@@ -5,7 +5,7 @@ to GitHub-Stars, the Quick-Start, and anonymous feature-interest votes.
 
 Single file, no build step, no framework. Works when served from:
 
-- Caddy (the production target: `composit.nuetzliche.it` on nuts-infra)
+- Caddy (the production target: `composit.public-schloss.nuetzliche.it` on nuts-infra)
 - Any static host (GitHub Pages, Cloudflare Pages, Netlify, plain nginx)
 - Opened directly (`file://`) for local preview
 
@@ -37,8 +37,8 @@ and Copy-Button handlers already call `window.plausible(...)` if that
 global exists. Add this to the `<head>` once Plausible is running:
 
 ```html
-<script defer data-domain="composit.nuetzliche.it"
-        src="https://plausible.nuetzliche.it/js/script.outbound-links.js"></script>
+<script defer data-domain="composit.public-schloss.nuetzliche.it"
+        src="https://plausible.public-schloss.nuetzliche.it/js/script.outbound-links.js"></script>
 ```
 
 `script.outbound-links.js` (Plausible variant) picks up the GitHub-CTA

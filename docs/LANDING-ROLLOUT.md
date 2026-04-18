@@ -3,7 +3,7 @@
 **Status:** Draft · **Erstellt:** 2026-04-18 · **Revidiert:** 2026-04-18
 
 Plan für den Go-Live der Composit Landing-Page unter
-`composit.nuetzliche.it`. Ziel vor HN-Launch: produktive,
+`composit.public-schloss.nuetzliche.it`. Ziel vor HN-Launch: produktive,
 EU-konforme Seite mit strukturierten Signalen.
 
 **Scope-Entscheidung (2026-04-18):** Keine Waitlist / kein Signup-Form.
@@ -27,8 +27,8 @@ Browser (Besucher)
    │ HTTPS
    ▼
 Caddy (int-baumeister/services/caddy-core oder caddy-app)
- ├─ composit.nuetzliche.it/            → landing/index.html (statisch)
- └─ plausible.nuetzliche.it/           → Plausible Container
+ ├─ composit.public-schloss.nuetzliche.it/            → landing/index.html (statisch)
+ └─ plausible.public-schloss.nuetzliche.it/           → Plausible Container
        │
        ▼
    Events: pageview + feature-vote (custom goal)
@@ -49,7 +49,7 @@ Reine Static-Site + Analytics.
 - **Org-Manifest** (`nuetzliche.it/.well-known/composit.json`) —
   separater Rollout auf der Root-Domain. Listet die drei echten
   Provider (croniq, hookaido, powerbrain) als Capabilities. Gehört
-  inhaltlich NICHT auf `composit.nuetzliche.it`, weil composit selbst
+  inhaltlich NICHT auf `composit.public-schloss.nuetzliche.it`, weil composit selbst
   kein Provider ist, sondern der CLI der Provider-Manifeste liest.
 - **Team-Tier-SaaS** — falls Signale stark genug sind (Sprint-4-Entscheidungspunkt),
   entsteht daraus eine separate Waitlist MIT konkretem Produkt im Beta-Stadium.
@@ -61,13 +61,13 @@ Reine Static-Site + Analytics.
 
 **Aufwand:** ~20–30 Min. Branch: `composit-landing` auf `nuts-infra`.
 
-1. **DNS** — A/AAAA für `composit.nuetzliche.it` und
-   `plausible.nuetzliche.it` auf int-baumeister zeigen.
+1. **DNS** — A/AAAA für `composit.public-schloss.nuetzliche.it` und
+   `plausible.public-schloss.nuetzliche.it` auf int-baumeister zeigen.
 2. **Caddy-vhost** in `int-baumeister/services/caddy-app/Caddyfile`
    (oder caddy-core, je nach bestehender Trennung):
 
    ```caddy
-   composit.nuetzliche.it {
+   composit.public-schloss.nuetzliche.it {
        root * /srv/composit-landing
        file_server
        encode gzip zstd
@@ -96,8 +96,8 @@ Reine Static-Site + Analytics.
 1. Neuer Ordner `int-baumeister/services/plausible/` mit
    `docker-compose.yml` (Plausible + Clickhouse + Postgres).
    Standard-Setup, ~90 Zeilen compose.
-2. Caddy-Site `plausible.nuetzliche.it` → `reverse_proxy` auf den Container.
-3. Erste Anmeldung, Site `composit.nuetzliche.it` anlegen,
+2. Caddy-Site `plausible.public-schloss.nuetzliche.it` → `reverse_proxy` auf den Container.
+3. Erste Anmeldung, Site `composit.public-schloss.nuetzliche.it` anlegen,
    **Goals**:
    - `feature-vote` (Custom Event, props: `feature`)
    - `github-star-click` (Custom Event, Outbound-Click auf GitHub-CTA)
@@ -105,8 +105,8 @@ Reine Static-Site + Analytics.
 4. Tracking-Snippet in `landing/index.html` einfügen:
 
    ```html
-   <script defer data-domain="composit.nuetzliche.it"
-           src="https://plausible.nuetzliche.it/js/script.outbound-links.js"></script>
+   <script defer data-domain="composit.public-schloss.nuetzliche.it"
+           src="https://plausible.public-schloss.nuetzliche.it/js/script.outbound-links.js"></script>
    ```
 
    `outbound-links.js` (Plausible-Variante) erfasst GitHub-Clicks automatisch
@@ -171,7 +171,7 @@ Umbau `landing/index.html` gemäß Scope-Entscheidung (keine Waitlist):
 
 Vor öffentlicher Verlinkung:
 
-- [ ] DNS propagiert (`dig composit.nuetzliche.it +short`)
+- [ ] DNS propagiert (`dig composit.public-schloss.nuetzliche.it +short`)
 - [ ] TLS-Zertifikat von Caddy ausgestellt (check in Caddy-Logs)
 - [ ] Plausible empfängt Pageview beim eigenen Besuch
 - [ ] GitHub-Star-Button klickbar, Outbound-Event landet in Plausible
