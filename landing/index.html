@@ -318,7 +318,7 @@ composit diff --output html</pre>
       </div>
     </div>
 
-    <p class="qs-note">See the <a href="https://github.com/nuetzliches/composit/tree/main/examples/demo" target="_blank" rel="noopener">examples/demo</a> directory for a diff against a real production-grade stack.</p>
+    <p class="qs-note">See the <a href="https://github.com/nuetzliches/composit/tree/main/examples" target="_blank" rel="noopener">examples</a> directory for a full Compositfile and matching report.</p>
   </div>
 </section>
 
@@ -346,32 +346,27 @@ composit diff --output html</pre>
 <section>
   <div class="container">
     <h2>composit diff — sample output</h2>
-    <p class="sub">Real diff against a non-trivial production stack. The Compositfile is deliberately tight to surface every violation category.</p>
+    <p class="sub">What a diff looks like when the Compositfile is tighter than reality — one violation category at a time.</p>
     <pre class="sample">composit diff
 ============================================================
-Workspace: nuts-infra
+Workspace: example-stack
 
-PROVIDERS (3 warnings)
-  <span class="warn">WARN</span>   unused_provider — Approved provider "croniq" not found in scan report
-  <span class="warn">WARN</span>   unused_provider — Approved provider "hookaido" not found in scan report
-  <span class="warn">WARN</span>   unused_provider — Approved provider "powerbrain" not found in scan report
+PROVIDERS (1 warning)
+  <span class="warn">WARN</span>   unused_provider — Approved provider "scheduler" not found in scan report
 
 BUDGETS (pass)
   <span class="ok">PASS</span>  All 1 checks passed
 
-RESOURCES (6 errors)
+RESOURCES (3 errors)
   <span class="err">ERROR</span>  resource_count_exceeded — Total resources 96 exceeds max_total 60
-  <span class="err">ERROR</span>  resource_type_not_allowed — "caddy_site" (24 found) not in allow list
-  <span class="err">ERROR</span>  resource_type_not_allowed — "dockerfile" (2 found) not in allow list
-  <span class="err">ERROR</span>  resource_type_not_allowed — "env_file" (10 found) not in allow list
   <span class="err">ERROR</span>  resource_type_max_exceeded — docker_service: 38 found, max allowed is 20
   <span class="err">ERROR</span>  required_resource_missing — "prometheus_config": 0 found, minimum is 1
 
 POLICIES (1 warning)
-  <span class="warn">WARN</span>   policy_file_missing — references missing file: policies/no-experimental-images.rego
+  <span class="warn">WARN</span>   policy_file_missing — references missing file: policies/pinned-images.rego
 
 <span class="dim">------------------------------------------------------------</span>
-  <span class="err">6 errors</span> | <span class="warn">4 warnings</span> | 0 info | <span class="ok">4 passed</span>
+  <span class="err">3 errors</span> | <span class="warn">2 warnings</span> | 0 info | <span class="ok">6 passed</span>
 </pre>
   </div>
 </section>
