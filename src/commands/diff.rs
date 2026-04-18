@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::cli::DiffOutputFormat;
 use crate::core::compositfile::parse_compositfile;
 use crate::core::governance::Governance;
-use crate::core::types::Report;
+use crate::core::types::{Report, ScanMode};
 
 // ─────────────────────────────────────────────────────────
 // Violation model
@@ -66,6 +66,7 @@ pub fn run_diff(
     report_path: Option<&Path>,
     output: DiffOutputFormat,
     strict: bool,
+    offline: bool,
 ) -> Result<i32> {
     let cf_path = compositfile
         .map(|p| p.to_path_buf())
@@ -81,7 +82,12 @@ pub fn run_diff(
     let report: Report = serde_yaml::from_str(&report_content)
         .with_context(|| format!("Failed to parse report YAML: {}", rp_path.display()))?;
 
-    let diff = compute_diff(&governance, &report, dir);
+    // Offline mode: explicit CLI flag OR the report itself was produced
+    // without contacting providers. Both paths collapse to the same
+    // behaviour inside compute_diff.
+    let effective_offline = offline || matches!(report.scan_mode, Some(ScanMode::Offline));
+
+    let diff = compute_diff_opts(&governance, &report, dir, effective_offline);
 
     match output {
         DiffOutputFormat::Terminal => print_diff_terminal(&diff),
@@ -110,10 +116,23 @@ pub fn run_diff(
 // Diff engine
 // ─────────────────────────────────────────────────────────
 
+#[cfg(test)]
 pub fn compute_diff(governance: &Governance, report: &Report, base_dir: &Path) -> DiffReport {
+    compute_diff_opts(governance, report, base_dir, false)
+}
+
+/// Same as `compute_diff`, but with a flag that downgrades warnings which
+/// only make sense when provider manifests were actually fetched
+/// (currently: `unused_provider` → Info).
+pub fn compute_diff_opts(
+    governance: &Governance,
+    report: &Report,
+    base_dir: &Path,
+    offline: bool,
+) -> DiffReport {
     let mut categories = Vec::new();
 
-    categories.push(check_providers(governance, report));
+    categories.push(check_providers(governance, report, offline));
     categories.push(check_budgets(governance, report));
     categories.push(check_resources(governance, report));
     categories.push(check_policies(governance, base_dir));
@@ -137,7 +156,11 @@ pub fn compute_diff(governance: &Governance, report: &Report, base_dir: &Path) -
     }
 }
 
-fn check_providers(governance: &Governance, report: &Report) -> ViolationCategory {
+fn check_providers(
+    governance: &Governance,
+    report: &Report,
+    offline: bool,
+) -> ViolationCategory {
     let mut violations = Vec::new();
     let mut passed = 0;
 
@@ -157,17 +180,36 @@ fn check_providers(governance: &Governance, report: &Report) -> ViolationCategor
         }
     }
 
-    // Check approved providers not in report
+    // Check approved providers not in report.
+    // Offline scans don't attempt manifest discovery, so the report
+    // lacks remote providers by construction — a mismatch here is
+    // expected, not a red flag. Downgrade to Info with an explanatory
+    // details field so the signal still shows up but doesn't block.
     let report_names: Vec<&str> = report.providers.iter().map(|p| p.name.as_str()).collect();
     for gp in &governance.providers {
-        if !report_names.contains(&gp.name.as_str()) {
-            violations.push(Violation {
-                severity: Severity::Warning,
-                rule: "unused_provider".to_string(),
-                message: format!("Approved provider \"{}\" not found in scan report — governance may be outdated", gp.name),
-                details: None,
-            });
+        if report_names.contains(&gp.name.as_str()) {
+            continue;
         }
+        let (severity, details) = if offline {
+            (
+                Severity::Info,
+                Some(
+                    "scan ran offline (--no-providers); run without --no-providers to verify"
+                        .to_string(),
+                ),
+            )
+        } else {
+            (Severity::Warning, None)
+        };
+        violations.push(Violation {
+            severity,
+            rule: "unused_provider".to_string(),
+            message: format!(
+                "Approved provider \"{}\" not found in scan report — governance may be outdated",
+                gp.name
+            ),
+            details,
+        });
     }
 
     ViolationCategory {
@@ -688,6 +730,7 @@ mod tests {
             workspace: "test".to_string(),
             generated: "2026-04-14".to_string(),
             scanner_version: "0.1.0".to_string(),
+            scan_mode: Some(ScanMode::Online),
             providers,
             resources,
             summary: Summary {
@@ -878,6 +921,41 @@ mod tests {
         assert_eq!(diff.summary.errors, 0);
         assert_eq!(diff.summary.warnings, 0);
         assert!(diff.summary.passed_checks > 0);
+    }
+
+    #[test]
+    fn test_unused_provider_downgraded_when_offline() {
+        // Governance declares a provider; the scan didn't find it.
+        // Online: Warning. Offline: Info with an explanatory details field.
+        let report = make_report(vec![], vec![], "0 EUR");
+        let gov = make_governance(vec!["croniq"], "500 EUR");
+
+        let online = compute_diff_opts(&gov, &report, Path::new("."), false);
+        let online_prov = &online.categories[0];
+        let online_unused: Vec<_> = online_prov
+            .violations
+            .iter()
+            .filter(|v| v.rule == "unused_provider")
+            .collect();
+        assert_eq!(online_unused.len(), 1);
+        assert_eq!(online_unused[0].severity, Severity::Warning);
+
+        let offline = compute_diff_opts(&gov, &report, Path::new("."), true);
+        let offline_prov = &offline.categories[0];
+        let offline_unused: Vec<_> = offline_prov
+            .violations
+            .iter()
+            .filter(|v| v.rule == "unused_provider")
+            .collect();
+        assert_eq!(offline_unused.len(), 1);
+        assert_eq!(offline_unused[0].severity, Severity::Info);
+        assert!(
+            offline_unused[0]
+                .details
+                .as_deref()
+                .map_or(false, |d| d.contains("offline")),
+            "offline details should mention the offline mode"
+        );
     }
 
     #[test]

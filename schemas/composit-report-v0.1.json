@@ -25,6 +25,11 @@
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[A-Za-z0-9.-]+)?$",
       "examples": ["0.1.0"]
     },
+    "scan_mode": {
+      "type": "string",
+      "enum": ["online", "offline"],
+      "description": "Whether the scan contacted provider manifests. 'offline' means --no-providers was set (or no providers were configured), which consumers like `composit diff` use to downgrade warnings that only apply when providers were actually checked. Optional for backward compatibility with reports produced before this field was introduced; a missing value should be treated as 'online'."
+    },
     "providers": {
       "type": "array",
       "description": "Providers discovered through MCP configs, manifest URLs, or explicit CLI flags.",

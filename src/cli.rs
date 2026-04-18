@@ -68,6 +68,13 @@ pub enum Commands {
         /// Exit with code 1 if any errors found
         #[arg(long)]
         strict: bool,
+
+        /// Treat the scan as offline: downgrade warnings that only
+        /// make sense when provider manifests were fetched
+        /// (unused_provider → info). Auto-enabled if the report was
+        /// produced with --no-providers.
+        #[arg(long)]
+        offline: bool,
     },
 }
 

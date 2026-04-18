@@ -7,6 +7,7 @@
 workspace: nuetzliche
 generated: "2026-04-12T14:32:00Z"
 scanner_version: "0.1.0"
+scan_mode: online
 
 providers:
   - name: croniq

@@ -46,9 +46,22 @@ pub struct Report {
     pub workspace: String,
     pub generated: String,
     pub scanner_version: String,
+    /// How the scan was run. `online` means provider manifests were fetched;
+    /// `offline` means `--no-providers` (or equivalent config) was set.
+    /// Optional for backward compatibility with v0.1 reports; consumers
+    /// should treat a missing value as `online`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scan_mode: Option<ScanMode>,
     pub providers: Vec<Provider>,
     pub resources: Vec<Resource>,
     pub summary: Summary,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ScanMode {
+    Online,
+    Offline,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,6 +80,7 @@ impl Report {
         workspace: String,
         providers: Vec<Provider>,
         resources: Vec<Resource>,
+        scan_mode: ScanMode,
     ) -> Self {
         let summary = Summary {
             total_resources: resources.len(),
@@ -112,6 +126,7 @@ impl Report {
             workspace,
             generated: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
             scanner_version: env!("CARGO_PKG_VERSION").to_string(),
+            scan_mode: Some(scan_mode),
             providers,
             resources,
             summary,

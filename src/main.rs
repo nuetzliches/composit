@@ -16,7 +16,7 @@ use core::config::ScanConfig;
 use core::registry::ScannerRegistry;
 use core::scanner::ScanContext;
 use core::report::{dedup_providers, dedup_resources};
-use core::types::Report;
+use core::types::{Report, ScanMode};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -44,6 +44,7 @@ async fn main() -> Result<()> {
             report,
             output,
             strict,
+            offline,
         } => {
             let dir = fs::canonicalize(&dir)?;
             let exit_code = commands::diff::run_diff(
@@ -52,6 +53,7 @@ async fn main() -> Result<()> {
                 report.as_deref(),
                 output,
                 strict,
+                offline,
             )?;
             if exit_code != 0 {
                 std::process::exit(exit_code);
@@ -97,6 +99,16 @@ async fn run_scan(
         }
     }
 
+    // "offline" = we never attempted to contact provider manifests —
+    // either --no-providers was passed, or no provider URLs are
+    // configured.  Downstream (`composit diff`) uses this to downgrade
+    // warnings that only make sense when providers were actually checked.
+    let scan_mode = if no_providers || all_providers.is_empty() {
+        ScanMode::Offline
+    } else {
+        ScanMode::Online
+    };
+
     let context = ScanContext {
         dir: dir.to_path_buf(),
         providers: all_providers,
@@ -121,7 +133,7 @@ async fn run_scan(
     // Enrich with git-blame attribution
     core::attribution::enrich_attribution(&mut resources, dir);
 
-    let report = Report::build(workspace, providers, resources);
+    let report = Report::build(workspace, providers, resources, scan_mode);
 
     // Write report file
     let (content, filename) = match format {
