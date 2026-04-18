@@ -59,6 +59,37 @@ fn example_report_matches_required_top_level_shape() {
 }
 
 #[test]
+fn schema_allows_x_prefix_extensions_on_root_and_summary() {
+    // The schema declares additionalProperties: false at root and summary.
+    // Without patternProperties "^x-", extensions would be rejected.
+    // This test pins both locations so future edits don't silently close
+    // the extension surface.
+    let path = repo_root().join("schemas/composit-report-v0.1.json");
+    let content = fs::read_to_string(&path).unwrap();
+    let schema: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+    fn has_x_pattern(obj: &serde_json::Value) -> bool {
+        obj.get("patternProperties")
+            .and_then(|v| v.as_object())
+            .map(|m| m.contains_key("^x-"))
+            .unwrap_or(false)
+    }
+
+    assert!(
+        has_x_pattern(&schema),
+        "root object must accept ^x- extensions"
+    );
+
+    let summary = schema
+        .pointer("/$defs/Summary")
+        .expect("Summary definition present");
+    assert!(
+        has_x_pattern(summary),
+        "Summary object must accept ^x- extensions"
+    );
+}
+
+#[test]
 fn json_schema_is_valid_json() {
     let path = repo_root().join("schemas/composit-report-v0.1.json");
     let content = fs::read_to_string(&path)

@@ -94,12 +94,48 @@ numbers should compute from `resources[]` directly.
 `estimated_cost` values. v0.1 assumes a single currency (EUR) across the
 report; mixed-currency reports are an explicit future concern.
 
+### Extensions
+
+Two places in the format are closed by design (root and summary use
+`additionalProperties: false`). To keep them forward-compatible without
+breaking consumers on every new field, the format reserves the `x-`
+prefix for extension data:
+
+- At the **root** and in the **summary** block, any key prefixed with
+  `x-` is allowed. Examples: `x-cost-center: "platform-eng"`,
+  `x-summary-fingerprint: "sha256:..."`.
+- Extension keys MUST start with `x-`, a vendor prefix, or both
+  (`x-acme-…` is canonical for vendor-specific data).
+- Consumers that do not recognise an `x-` key **MUST** ignore it
+  silently. It is never a validation error.
+- The core schema does not type extension values — implementations
+  publishing an extension SHOULD document its shape and semantics in
+  an external document (or RFC).
+
+Resources remain open-ended (`additionalProperties: true`) and do NOT
+require the `x-` prefix — scanners routinely add type-specific fields
+(e.g. `image`, `ports`, `volumes` on a `docker_service`) which are
+part of the type's vocabulary, not extensions. A future RFC MAY close
+the resource object and promote today's free-form fields to canonical
+per-type properties; at that point the `x-` convention would apply
+there too.
+
+Providers and individual violations in `composit diff` output use the
+same convention.
+
+The first concrete extension in the wild is `eu_ai_act` on
+`.well-known/composit.json` (see RFC 002 draft, forthcoming). It would
+be published under `x-eu-ai-act` under this scheme once the manifest
+RFC adopts the same extension rules.
+
 ### Versioning
 
 This RFC is **v0.1**. Compatibility rules:
 
 - **Minor-version bumps** (v0.2, v0.3) MAY add new required top-level
   fields, but MUST keep existing fields compatible with v0.1 consumers.
+  Adding optional fields (like `scan_mode` in 2026-04) does NOT bump
+  the version — the schema filename stays `composit-report-v0.1.json`.
 - **Major-version bumps** (v1.0) are breaking. A v1.0 release will close
   out the forward-compat rule on resources and publish a per-type
   vocabulary.
@@ -152,3 +188,6 @@ drift in PRs.
 ## Changelog
 
 - **2026-04-18** — Initial draft (v0.1).
+- **2026-04-18** — Additive: added optional `scan_mode` field
+  (`online` | `offline`) and `x-` extension convention for root and
+  summary. No schema-file rename — still `composit-report-v0.1.json`.

@@ -6,6 +6,11 @@
   "type": "object",
   "required": ["workspace", "generated", "scanner_version", "providers", "resources", "summary"],
   "additionalProperties": false,
+  "patternProperties": {
+    "^x-": {
+      "description": "Extension field. Implementations MAY attach vendor- or domain-specific data under any top-level key prefixed with `x-`. Consumers unaware of a given extension MUST ignore it."
+    }
+  },
   "properties": {
     "workspace": {
       "type": "string",
@@ -147,6 +152,11 @@
         "estimated_monthly_cost"
       ],
       "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {
+          "description": "Summary-level extension field (see top-level $schema description)."
+        }
+      },
       "properties": {
         "total_resources": {
           "type": "integer",
