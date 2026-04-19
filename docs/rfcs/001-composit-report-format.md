@@ -200,3 +200,8 @@ drift in PRs.
   "unreachable"`) becomes an optional documented field. No schema
   change needed today — `Provider` already accepts extra properties
   — but noted here so the additive step is visible.
+- **2026-04-20** — Additive schema update alongside RFC 003 landing:
+  documents `providers[*].auth_mode`, `providers[*].auth_error`, and
+  a new optional `providers[*].contract` object (`id`, `issued_at`,
+  `expires_at`, `pricing_tier`). All additions are backward-compatible;
+  schema version stays at v0.1.
