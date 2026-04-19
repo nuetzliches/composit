@@ -37,6 +37,10 @@ confidence.
 - **Not** the Compositfile format. That is a separate RFC (future work).
 - **Not** a network protocol. Reports are local files first; transport is
   the consumer's concern.
+- **Not** the provider manifest format. That lives in
+  [RFC 002](002-provider-manifest-tiers.md) — public `.well-known`
+  manifest plus authenticated contract manifest. RFC 001 only documents
+  how the *report* records what a scan observed.
 
 ## Design
 
@@ -191,3 +195,8 @@ drift in PRs.
 - **2026-04-18** — Additive: added optional `scan_mode` field
   (`online` | `offline`) and `x-` extension convention for root and
   summary. No schema-file rename — still `composit-report-v0.1.json`.
+- **2026-04-19** — Tracked follow-up from RFC 002: once that RFC is
+  accepted, `providers[*].auth_mode` (`"public" | "contract" |
+  "unreachable"`) becomes an optional documented field. No schema
+  change needed today — `Provider` already accepts extra properties
+  — but noted here so the additive step is visible.

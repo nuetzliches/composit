@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/nuetzliches/composit/schemas/composit-provider-manifest-v0.1.json",
+  "title": "composit-provider-manifest",
+  "description": "Public, unauthenticated provider manifest served at /.well-known/composit.json. Minimal by design: identity, capability types, compliance claims, and pointers to authenticated contract endpoints. See RFC 002 for tiering rationale and the contract manifest shape.",
+  "type": "object",
+  "required": ["composit", "provider", "capabilities"],
+  "additionalProperties": false,
+  "patternProperties": {
+    "^x-": {
+      "description": "Extension field. Implementations MAY attach vendor- or domain-specific data under any top-level key prefixed with `x-`. Consumers unaware of a given extension MUST ignore it."
+    }
+  },
+  "properties": {
+    "composit": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[A-Za-z0-9.-]+)?$",
+      "description": "Spec version the manifest conforms to.",
+      "examples": ["0.1.0"]
+    },
+    "provider": { "$ref": "#/$defs/ProviderIdentity" },
+    "capabilities": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/PublicCapability" },
+      "description": "Capability types the provider claims to offer. Concrete endpoints, tools, SLAs, and rate limits live in the contract manifest — not here."
+    },
+    "compliance": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Compliance claims as short tags. Interpretation is ecosystem-defined; commonly used: 'gdpr', 'eu-ai-act', 'soc2', 'hipaa'.",
+      "examples": [["gdpr", "eu-ai-act"]]
+    },
+    "region": {
+      "type": "string",
+      "description": "Primary deployment region in a provider-chosen notation (e.g. an AWS region code, a country code, or 'self-hosted'). Informational only."
+    },
+    "self_hosted": {
+      "type": "boolean",
+      "description": "True if the provider ships software the consumer can run themselves. False or omitted implies a managed offering."
+    },
+    "contracts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ContractPointer" },
+      "description": "Pointers to authenticated contract endpoints. Each entry describes how to talk to the contract URL and what auth method is expected; the *content* behind each URL is personalized per identity (see RFC 002)."
+    },
+    "discovery": { "$ref": "#/$defs/DiscoveryInfo" }
+  },
+  "$defs": {
+    "ProviderIdentity": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Canonical short identifier for the provider. Kebab-case conventional."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable one-liner. Marketing-appropriate; visible to unauthenticated consumers."
+        },
+        "website": {
+          "type": "string",
+          "format": "uri",
+          "description": "Primary marketing URL. Typically the provider's org landing page."
+        },
+        "contact": {
+          "type": "string",
+          "description": "How a prospective consumer starts the relationship. Typically an email address; MAY be a URL to a contact form or a signup flow."
+        }
+      }
+    },
+    "PublicCapability": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {
+          "description": "Capability-level extension field (see top-level $schema description)."
+        }
+      },
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Capability family — a short canonical token like 'scheduling', 'events', 'knowledge', 'identity'. Ecosystem-defined vocabulary; not a closed enum.",
+          "examples": ["scheduling", "events", "knowledge", "identity", "observability"]
+        },
+        "product": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Specific product within this capability. A provider MAY ship multiple products for the same capability type."
+        },
+        "protocol": {
+          "type": "string",
+          "description": "Transport for the capability. 'mcp' is canonical for MCP-native products; 'http' and 'grpc' are other valid values.",
+          "examples": ["mcp", "http", "grpc"]
+        }
+      },
+      "description": "Minimal capability descriptor. NOTE the absence of endpoints, tool counts, descriptions beyond the product name, repo, or license. Those fields live in (a) the product's own public manifest on its own host, and (b) the authenticated contract manifest. See RFC 002 for the tiering rules."
+    },
+    "ContractPointer": {
+      "type": "object",
+      "required": ["url", "auth"],
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "HTTPS URL that returns a contract manifest when called with valid credentials. Response body is personalized per identity."
+        },
+        "auth": { "$ref": "#/$defs/AuthDescriptor" },
+        "tier": {
+          "type": "string",
+          "description": "Optional tier label so providers MAY advertise multiple parallel contracts (e.g. 'free', 'team', 'enterprise'). Informational — each consumer follows the URL that matches their identity.",
+          "examples": ["free", "team", "enterprise"]
+        }
+      }
+    },
+    "AuthDescriptor": {
+      "oneOf": [
+        { "$ref": "#/$defs/AuthDescriptorApiKey" },
+        { "$ref": "#/$defs/AuthDescriptorOAuth2" }
+      ],
+      "description": "Minimal declaration of what credentials the consumer must present. Only enough information to pick the right auth path; actual tokens/keys are provisioned out of band."
+    },
+    "AuthDescriptorApiKey": {
+      "type": "object",
+      "required": ["type", "header"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "api-key" },
+        "header": {
+          "type": "string",
+          "minLength": 1,
+          "description": "HTTP header name the key is sent in.",
+          "examples": ["X-Composit-Api-Key", "X-Api-Key", "Authorization"]
+        },
+        "scheme": {
+          "type": "string",
+          "description": "Only meaningful when `header: 'Authorization'`. The scheme prefix to use (e.g. 'Bearer').",
+          "examples": ["Bearer", "ApiKey"]
+        }
+      }
+    },
+    "AuthDescriptorOAuth2": {
+      "type": "object",
+      "required": ["type", "discovery_url"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "oauth2" },
+        "discovery_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "RFC 8414 authorization-server metadata URL."
+        },
+        "grant_types": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Grant types the provider accepts on this contract URL. Typically includes 'client_credentials' for machine-to-machine flows.",
+          "examples": [["client_credentials"]]
+        },
+        "scopes_required": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Minimum OAuth2 scopes a token must carry to read the contract manifest."
+        }
+      },
+      "description": "OAuth2 is a roadmap auth method in v0.1 — included in the schema so existing validators don't break once a provider adopts it, but not normative for v1 conformance. See RFC 002 § 'Auth — v1 and roadmap'."
+    },
+    "DiscoveryInfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "well_known": {
+          "type": "string",
+          "format": "uri",
+          "description": "Canonical URL of this manifest. Useful for verifying a copy of the manifest that was fetched via a redirect or cached by a third party."
+        }
+      }
+    }
+  }
+}

@@ -15,9 +15,10 @@ third-party tools and other implementations target.
 
 ## Index
 
-| #   | Title                          | Status | Artifact                             |
-|-----|--------------------------------|--------|--------------------------------------|
-| 001 | composit-report v0.1 format    | Draft  | `schemas/composit-report-v0.1.json`  |
+| #   | Title                                      | Status | Artifact                                          |
+|-----|--------------------------------------------|--------|---------------------------------------------------|
+| 001 | composit-report v0.1 format                | Draft  | `schemas/composit-report-v0.1.json`               |
+| 002 | Provider manifest: public + contract tiers | Draft  | `schemas/composit-provider-manifest-v0.1.json`    |
 
 ## Process
 
