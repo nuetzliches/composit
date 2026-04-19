@@ -12,22 +12,39 @@ workspace "nuetzliche" {
   # Only these providers may be used in this workspace.
   # Any provider found in the scan report that is not listed here
   # will be flagged as a governance violation.
+  #
+  # Trust levels (RFC 002):
+  # - "public":   only the unauthenticated .well-known manifest is read.
+  # - "contract": composit also fetches the authenticated contract
+  #               manifest, using the credential named in `auth { env }`.
 
   provider "croniq" {
-    manifest   = "https://composit.nuetzliche.it/.well-known/composit.json"
+    manifest   = "https://nuetzliche.it/.well-known/composit.json"
     trust      = "contract"
     compliance = ["gdpr", "eu-ai-act"]
+    auth {
+      type = "api-key"
+      env  = "NUETZLICHE_COMPOSIT_KEY"
+    }
   }
 
   provider "hookaido" {
-    manifest = "https://hooks.nuetzliche.it/.well-known/composit.json"
+    manifest = "https://nuetzliche.it/.well-known/composit.json"
     trust    = "contract"
+    auth {
+      type = "api-key"
+      env  = "NUETZLICHE_COMPOSIT_KEY"
+    }
   }
 
   provider "powerbrain" {
-    manifest   = "https://mcp.nuetzliche.it/.well-known/composit.json"
+    manifest   = "https://nuetzliche.it/.well-known/composit.json"
     trust      = "contract"
     compliance = ["gdpr", "eu-ai-act"]
+    auth {
+      type = "api-key"
+      env  = "NUETZLICHE_COMPOSIT_KEY"
+    }
   }
 
   # --- Budget Constraints ---

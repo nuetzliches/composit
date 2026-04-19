@@ -130,3 +130,107 @@ fn json_schema_is_valid_json() {
         );
     }
 }
+
+#[test]
+fn public_provider_manifest_example_matches_schema_shape() {
+    // RFC 002 v0.1: the example public manifest must stay minimal —
+    // no tools / description / repo / license on capabilities, and
+    // every required top-level field must be present.
+    let manifest_path = repo_root().join("examples/composit-manifest.json");
+    let content = fs::read_to_string(&manifest_path)
+        .unwrap_or_else(|e| panic!("read {}: {}", manifest_path.display(), e));
+    let doc: serde_json::Value = serde_json::from_str(&content)
+        .unwrap_or_else(|e| panic!("parse {}: {}", manifest_path.display(), e));
+
+    for field in &["composit", "provider", "capabilities"] {
+        assert!(
+            doc.get(field).is_some(),
+            "example public manifest missing required field: {}",
+            field
+        );
+    }
+
+    let caps = doc
+        .get("capabilities")
+        .and_then(|v| v.as_array())
+        .expect("capabilities is an array");
+    for cap in caps {
+        let obj = cap.as_object().expect("capability is an object");
+        for forbidden in &["tools", "description", "repo", "license"] {
+            assert!(
+                !obj.contains_key(*forbidden),
+                "capability should not leak {} at the public tier (RFC 002)",
+                forbidden
+            );
+        }
+    }
+
+    // Contracts pointer shape: url + auth.type.
+    let contracts = doc
+        .get("contracts")
+        .and_then(|v| v.as_array())
+        .expect("contracts[] present");
+    assert!(!contracts.is_empty(), "contracts[] must have at least one pointer");
+    for c in contracts {
+        assert!(c.get("url").and_then(|v| v.as_str()).is_some());
+        let auth_type = c
+            .pointer("/auth/type")
+            .and_then(|v| v.as_str())
+            .expect("contracts[].auth.type");
+        assert!(
+            matches!(auth_type, "api-key" | "oauth2"),
+            "unexpected auth.type in example: {}",
+            auth_type
+        );
+    }
+}
+
+#[test]
+fn public_provider_manifest_schema_is_valid_json() {
+    let path = repo_root().join("schemas/composit-provider-manifest-v0.1.json");
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("read {}: {}", path.display(), e));
+    let schema: serde_json::Value = serde_json::from_str(&content)
+        .unwrap_or_else(|e| panic!("parse {}: {}", path.display(), e));
+
+    assert_eq!(
+        schema.get("$schema").and_then(|v| v.as_str()),
+        Some("https://json-schema.org/draft/2020-12/schema"),
+        "schema must declare Draft 2020-12"
+    );
+    assert_eq!(
+        schema.get("title").and_then(|v| v.as_str()),
+        Some("composit-provider-manifest")
+    );
+
+    // Top-level required fields: composit, provider, capabilities.
+    let required: Vec<&str> = schema
+        .get("required")
+        .and_then(|v| v.as_array())
+        .expect("required array")
+        .iter()
+        .filter_map(|v| v.as_str())
+        .collect();
+    for field in &["composit", "provider", "capabilities"] {
+        assert!(
+            required.contains(field),
+            "public-manifest schema missing required field: {}",
+            field
+        );
+    }
+
+    // PublicCapability must NOT declare tools/description/repo/license as
+    // allowed properties — those belong in the product's own manifest or
+    // in the contract tier (RFC 002).
+    let cap_props = schema
+        .pointer("/$defs/PublicCapability/properties")
+        .and_then(|v| v.as_object())
+        .expect("PublicCapability.properties");
+    for forbidden in &["tools", "description", "repo", "license"] {
+        assert!(
+            !cap_props.contains_key(*forbidden),
+            "PublicCapability must not allow `{}` — belongs in contract tier",
+            forbidden
+        );
+    }
+}

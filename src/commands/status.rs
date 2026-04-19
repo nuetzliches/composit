@@ -262,6 +262,8 @@ mod tests {
             protocol: "unknown".to_string(),
             capabilities: vec![],
             status: ProviderStatus::Unknown,
+            auth_mode: None,
+            auth_error: None,
         }
     }
 

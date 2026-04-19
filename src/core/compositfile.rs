@@ -4,7 +4,8 @@ use anyhow::{anyhow, Context, Result};
 use hcl::Body;
 
 use crate::core::governance::{
-    AllowRule, BudgetRule, Governance, PolicyRule, ProviderRule, RequireRule, ResourceConstraints,
+    AllowRule, AuthRef, BudgetRule, Governance, PolicyRule, ProviderRule, RequireRule,
+    ResourceConstraints,
 };
 
 /// Parse a Compositfile (HCL governance document) into a Governance struct.
@@ -65,12 +66,74 @@ fn parse_provider_block(block: &hcl::Block) -> Result<ProviderRule> {
         .ok_or_else(|| anyhow!("Provider '{}' missing 'trust' attribute", name))?;
     let compliance = get_string_array_attr(&block.body, "compliance");
 
+    // Optional nested `auth { type = "...", env = "..." }` block.
+    let auth = block
+        .body
+        .blocks()
+        .find(|b| b.identifier.as_str() == "auth")
+        .map(|b| parse_auth_block(b, &name))
+        .transpose()?;
+
+    // RFC 002 § "Compositfile extensions": trust="contract" requires auth.
+    // trust="public" MUST NOT carry an auth block (signals intent confusion).
+    match (trust.as_str(), auth.is_some()) {
+        ("contract", false) => {
+            return Err(anyhow!(
+                "Provider '{}' declares trust = \"contract\" but has no auth block. \
+                 Add: auth {{ type = \"api-key\", env = \"SOME_ENV_VAR\" }}",
+                name
+            ));
+        }
+        ("public", true) => {
+            return Err(anyhow!(
+                "Provider '{}' declares trust = \"public\" but also defines an auth block. \
+                 Remove the auth block or switch trust to \"contract\".",
+                name
+            ));
+        }
+        _ => {}
+    }
+
     Ok(ProviderRule {
         name,
         manifest,
         trust,
         compliance,
+        auth,
     })
+}
+
+fn parse_auth_block(block: &hcl::Block, provider_name: &str) -> Result<AuthRef> {
+    let auth_type = get_string_attr(&block.body, "type").ok_or_else(|| {
+        anyhow!(
+            "Provider '{}' auth block missing 'type' (e.g. \"api-key\")",
+            provider_name
+        )
+    })?;
+
+    // v0.1: only api-key is normative. oauth2 is reserved for the RFC 002
+    // roadmap but rejected here until the CLI grows the fetch path.
+    match auth_type.as_str() {
+        "api-key" => {}
+        "oauth2" => {
+            return Err(anyhow!(
+                "Provider '{}' declares auth.type = \"oauth2\"; that method is on the RFC 002 \
+                 roadmap but not yet implemented. Use \"api-key\" for now.",
+                provider_name
+            ));
+        }
+        other => {
+            return Err(anyhow!(
+                "Provider '{}' auth.type = \"{}\" is not recognised. Valid: \"api-key\".",
+                provider_name,
+                other
+            ));
+        }
+    }
+
+    let env = get_string_attr(&block.body, "env");
+
+    Ok(AuthRef { auth_type, env })
 }
 
 fn parse_budget_block(block: &hcl::Block) -> Result<BudgetRule> {
@@ -243,11 +306,19 @@ mod tests {
                 manifest = "https://example.com/.well-known/composit.json"
                 trust    = "contract"
                 compliance = ["gdpr", "eu-ai-act"]
+                auth {
+                  type = "api-key"
+                  env  = "CRONIQ_COMPOSIT_KEY"
+                }
               }
 
               provider "hookaido" {
                 manifest = "https://hooks.example.com/.well-known/composit.json"
                 trust    = "contract"
+                auth {
+                  type = "api-key"
+                  env  = "HOOKAIDO_COMPOSIT_KEY"
+                }
               }
 
               budget "workspace" {
@@ -285,6 +356,9 @@ mod tests {
         assert_eq!(gov.providers[0].name, "croniq");
         assert_eq!(gov.providers[0].compliance, vec!["gdpr", "eu-ai-act"]);
         assert_eq!(gov.providers[1].compliance.len(), 0);
+        let auth = gov.providers[0].auth.as_ref().expect("auth block present");
+        assert_eq!(auth.auth_type, "api-key");
+        assert_eq!(auth.env.as_deref(), Some("CRONIQ_COMPOSIT_KEY"));
         assert_eq!(gov.budgets.len(), 1);
         assert_eq!(gov.budgets[0].max_monthly, "500 EUR");
         assert_eq!(gov.budgets[0].alert_at.as_deref(), Some("80%"));
@@ -298,6 +372,92 @@ mod tests {
         assert_eq!(res.require.len(), 1);
         assert_eq!(res.require[0].resource_type, "docker_compose");
         assert_eq!(res.require[0].min, 1);
+    }
+
+    #[test]
+    fn test_parse_public_trust_without_auth() {
+        // trust="public" MUST NOT carry an auth block but MAY omit it.
+        let gov = parse_hcl(
+            r#"
+            workspace "test" {
+              provider "croniq" {
+                manifest = "https://example.com/.well-known/composit.json"
+                trust    = "public"
+              }
+            }
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(gov.providers.len(), 1);
+        assert_eq!(gov.providers[0].trust, "public");
+        assert!(gov.providers[0].auth.is_none());
+    }
+
+    #[test]
+    fn test_contract_trust_without_auth_errors() {
+        let err = parse_hcl(
+            r#"
+            workspace "test" {
+              provider "croniq" {
+                manifest = "https://example.com/.well-known/composit.json"
+                trust    = "contract"
+              }
+            }
+            "#,
+        )
+        .expect_err("contract trust without auth must fail");
+        let msg = format!("{}", err);
+        assert!(
+            msg.contains("auth") && msg.contains("croniq"),
+            "error should mention the provider name and the missing auth block: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn test_public_trust_with_auth_errors() {
+        let err = parse_hcl(
+            r#"
+            workspace "test" {
+              provider "croniq" {
+                manifest = "https://example.com/.well-known/composit.json"
+                trust    = "public"
+                auth {
+                  type = "api-key"
+                  env  = "X"
+                }
+              }
+            }
+            "#,
+        )
+        .expect_err("public trust with auth block must fail");
+        let msg = format!("{}", err);
+        assert!(
+            msg.contains("public") && msg.contains("auth"),
+            "error should flag the public+auth contradiction: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn test_oauth2_rejected_in_v0_1() {
+        let err = parse_hcl(
+            r#"
+            workspace "test" {
+              provider "croniq" {
+                manifest = "https://example.com/.well-known/composit.json"
+                trust    = "contract"
+                auth {
+                  type = "oauth2"
+                }
+              }
+            }
+            "#,
+        )
+        .expect_err("oauth2 is on the roadmap, not implemented");
+        let msg = format!("{}", err);
+        assert!(msg.contains("oauth2") || msg.contains("OAuth"));
     }
 
     #[test]

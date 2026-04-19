@@ -12,10 +12,11 @@ use clap::Parser;
 use colored::Colorize;
 
 use cli::{Cli, Commands, OutputFormat};
+use core::compositfile::parse_compositfile;
 use core::config::ScanConfig;
 use core::registry::ScannerRegistry;
 use core::report::{dedup_providers, dedup_resources};
-use core::scanner::ScanContext;
+use core::scanner::{ProviderTarget, ScanContext};
 use core::types::{Report, ScanMode};
 
 #[tokio::main]
@@ -95,12 +96,57 @@ async fn run_scan(
         }
     }
 
-    // Merge CLI providers with config providers
-    let mut all_providers = providers;
+    // Build provider targets: Compositfile (if present, governs trust/auth)
+    // wins over CLI --providers, which wins over composit.config.yaml.
+    // URLs deduplicate across sources by first-seen.
+    let mut targets: Vec<ProviderTarget> = Vec::new();
+    let mut seen_urls: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    // 1. Compositfile — carries trust + auth metadata for RFC 002 contract flows.
+    let compositfile_path = dir.join("Compositfile");
+    if compositfile_path.exists() {
+        match parse_compositfile(&compositfile_path) {
+            Ok(governance) => {
+                for rule in &governance.providers {
+                    if !seen_urls.insert(rule.manifest.clone()) {
+                        continue;
+                    }
+                    let (auth_type, auth_env) = match &rule.auth {
+                        Some(a) => (Some(a.auth_type.clone()), a.env.clone()),
+                        None => (None, None),
+                    };
+                    targets.push(ProviderTarget {
+                        url: rule.manifest.clone(),
+                        trust: Some(rule.trust.clone()),
+                        auth_type,
+                        auth_env,
+                    });
+                }
+            }
+            Err(e) => {
+                // Don't abort the scan if the Compositfile is broken —
+                // the user can still want an inventory. Surface loudly.
+                eprintln!(
+                    "warning: Compositfile present at {} but could not be parsed: {}",
+                    compositfile_path.display(),
+                    e
+                );
+            }
+        }
+    }
+
+    // 2. CLI --providers: public-only, no governance attached.
+    for url in providers {
+        if seen_urls.insert(url.clone()) {
+            targets.push(ProviderTarget::public_only(url));
+        }
+    }
+
+    // 3. composit.config.yaml providers: public-only fallback.
     if let Some(cfg) = &config {
         for entry in &cfg.providers {
-            if !all_providers.contains(&entry.url) {
-                all_providers.push(entry.url.clone());
+            if seen_urls.insert(entry.url.clone()) {
+                targets.push(ProviderTarget::public_only(entry.url.clone()));
             }
         }
     }
@@ -109,7 +155,7 @@ async fn run_scan(
     // either --no-providers was passed, or no provider URLs are
     // configured.  Downstream (`composit diff`) uses this to downgrade
     // warnings that only make sense when providers were actually checked.
-    let scan_mode = if no_providers || all_providers.is_empty() {
+    let scan_mode = if no_providers || targets.is_empty() {
         ScanMode::Offline
     } else {
         ScanMode::Online
@@ -117,7 +163,7 @@ async fn run_scan(
 
     let context = ScanContext {
         dir: dir.to_path_buf(),
-        providers: all_providers,
+        providers: targets,
         skip_providers: no_providers,
     };
 

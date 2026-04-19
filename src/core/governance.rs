@@ -12,6 +12,9 @@ pub struct Governance {
 }
 
 /// An approved provider with manifest URL, trust level, and compliance tags.
+///
+/// When `trust == "contract"` an `auth` block is required — composit needs
+/// a credential handle to fetch the contract manifest. See RFC 002.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderRule {
     pub name: String,
@@ -19,6 +22,27 @@ pub struct ProviderRule {
     pub trust: String,
     #[serde(default)]
     pub compliance: Vec<String>,
+    /// Credential handle for contract-tier fetches. `None` when
+    /// `trust == "public"`; required when `trust == "contract"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth: Option<AuthRef>,
+}
+
+/// Credential handle as declared in a Compositfile. composit never reads a
+/// secret from the tracked file — `env` names an environment variable that
+/// holds the actual credential at scan time.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthRef {
+    /// Method advertised by the provider's public manifest.
+    /// Currently `"api-key"`; `"oauth2"` is on the RFC 002 roadmap.
+    #[serde(rename = "type")]
+    pub auth_type: String,
+    /// Name of the environment variable that holds the credential value.
+    /// `None` means "no credential configured" — scans fall back to
+    /// public-only behaviour and `composit diff` surfaces a
+    /// `contract_auth_missing` info diagnostic.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub env: Option<String>,
 }
 
 /// A budget constraint with max monthly cost and optional alert threshold.

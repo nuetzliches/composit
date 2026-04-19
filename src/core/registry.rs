@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use super::config::ScanConfig;
-use super::scanner::{ScanContext, ScanResult, Scanner};
+use super::scanner::{ProviderTarget, ScanContext, ScanResult, Scanner};
 use super::types::{Provider, Resource};
 
 pub struct ScannerRegistry {
@@ -60,19 +60,23 @@ impl ScannerRegistry {
                 .map(|s| s.as_ref())
                 .collect();
 
-            // Build extended context with discovered provider URLs
-            let mut extended_providers = context.providers.clone();
+            // Build extended target list with discovered provider URLs.
+            // Entries carry optional trust/auth metadata from the initial
+            // context (typically sourced from a Compositfile). Discovered
+            // URLs are treated as public-only.
+            let mut extended_providers: Vec<ProviderTarget> = context.providers.clone();
+            let known_urls = |list: &[ProviderTarget], url: &str| list.iter().any(|t| t.url == url);
             for p in &all_providers {
-                if !extended_providers.contains(&p.endpoint) {
-                    extended_providers.push(p.endpoint.clone());
+                if !known_urls(&extended_providers, &p.endpoint) {
+                    extended_providers.push(ProviderTarget::public_only(p.endpoint.clone()));
                 }
             }
 
             // Add providers from config
             if let Some(cfg) = config {
                 for entry in &cfg.providers {
-                    if !extended_providers.contains(&entry.url) {
-                        extended_providers.push(entry.url.clone());
+                    if !known_urls(&extended_providers, &entry.url) {
+                        extended_providers.push(ProviderTarget::public_only(entry.url.clone()));
                     }
                 }
             }

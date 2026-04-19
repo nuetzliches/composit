@@ -1,12 +1,13 @@
 use std::collections::HashMap;
+use std::env;
 use std::time::Duration;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use reqwest::Client;
+use reqwest::{Client, StatusCode};
 
-use crate::core::scanner::{ScanContext, ScanResult, Scanner};
-use crate::core::types::{Provider, ProviderStatus, Resource};
+use crate::core::scanner::{ProviderTarget, ScanContext, ScanResult, Scanner};
+use crate::core::types::{AuthMode, Provider, ProviderStatus, Resource};
 
 pub struct McpProviderScanner;
 
@@ -21,7 +22,9 @@ impl Scanner for McpProviderScanner {
     }
 
     fn description(&self) -> &str {
-        "Connects to MCP providers via /.well-known/composit.json"
+        "Connects to MCP providers via /.well-known/composit.json and, \
+         when the Compositfile declares trust=contract, also fetches the \
+         contract manifest"
     }
 
     fn needs_network(&self) -> bool {
@@ -34,20 +37,29 @@ impl Scanner for McpProviderScanner {
         let mut all_resources = Vec::new();
         let mut all_providers = Vec::new();
 
-        for url in &context.providers {
-            match fetch_provider(&client, url).await {
-                Ok((provider, resources)) => {
-                    all_providers.push(provider);
+        for target in &context.providers {
+            match fetch_public(&client, &target.url).await {
+                Ok((mut provider, resources)) => {
+                    provider.auth_mode = Some(AuthMode::Public);
                     all_resources.extend(resources);
+
+                    // If governance asked for contract-tier, try to upgrade.
+                    if target.trust.as_deref() == Some("contract") {
+                        upgrade_to_contract(&client, &mut provider, target).await;
+                    }
+
+                    all_providers.push(provider);
                 }
                 Err(e) => {
-                    eprintln!("Warning: could not reach provider {}: {}", url, e);
+                    eprintln!("Warning: could not reach provider {}: {}", target.url, e);
                     all_providers.push(Provider {
-                        name: url.clone(),
-                        endpoint: url.clone(),
+                        name: target.url.clone(),
+                        endpoint: target.url.clone(),
                         protocol: "unknown".to_string(),
                         capabilities: vec![],
                         status: ProviderStatus::Unreachable,
+                        auth_mode: Some(AuthMode::Unreachable),
+                        auth_error: Some("fetch_failed".to_string()),
                     });
                 }
             }
@@ -60,8 +72,10 @@ impl Scanner for McpProviderScanner {
     }
 }
 
-/// Fetch a provider's composit manifest and extract capabilities
-async fn fetch_provider(client: &Client, base_url: &str) -> Result<(Provider, Vec<Resource>)> {
+/// Fetch a provider's public manifest and extract capabilities.
+/// The returned Provider has `auth_mode = None` — the scan loop sets it
+/// based on what happens next.
+async fn fetch_public(client: &Client, base_url: &str) -> Result<(Provider, Vec<Resource>)> {
     let manifest_url = format!(
         "{}/.well-known/composit.json",
         base_url.trim_end_matches('/')
@@ -75,6 +89,117 @@ async fn fetch_provider(client: &Client, base_url: &str) -> Result<(Provider, Ve
 
     let manifest: serde_json::Value = resp.json().await?;
     Ok(parse_manifest(&manifest, base_url))
+}
+
+/// Attempt a contract-tier fetch. Mutates the Provider in place to record
+/// either success (auth_mode = Contract) or a specific failure reason
+/// (auth_error = ...). Never returns an error — the scan continues even
+/// when the contract path fails; `composit diff` reports on the outcome.
+async fn upgrade_to_contract(client: &Client, provider: &mut Provider, target: &ProviderTarget) {
+    // 1. Credential present?
+    let env_name = match &target.auth_env {
+        Some(n) => n,
+        None => {
+            provider.auth_error = Some("auth_missing".to_string());
+            return;
+        }
+    };
+    let token = match env::var(env_name) {
+        Ok(v) if !v.is_empty() => v,
+        _ => {
+            provider.auth_error = Some("auth_missing".to_string());
+            return;
+        }
+    };
+
+    // 2. Public manifest must have advertised a matching contract endpoint.
+    //    We refetch the public manifest here (small cost) to avoid plumbing
+    //    the raw JSON through fetch_public's return — the pure parser
+    //    function stays compatible with existing tests.
+    let public_url = format!(
+        "{}/.well-known/composit.json",
+        provider.endpoint.trim_end_matches('/')
+    );
+    let manifest: serde_json::Value = match client.get(&public_url).send().await {
+        Ok(resp) if resp.status().is_success() => match resp.json().await {
+            Ok(v) => v,
+            Err(_) => {
+                provider.auth_error = Some("fetch_failed".to_string());
+                return;
+            }
+        },
+        _ => {
+            provider.auth_error = Some("fetch_failed".to_string());
+            return;
+        }
+    };
+
+    let want_type = target.auth_type.as_deref().unwrap_or("api-key");
+    let pointer = match find_contract_pointer(&manifest, want_type) {
+        Some(p) => p,
+        None => {
+            provider.auth_error = Some("auth_type_not_advertised".to_string());
+            return;
+        }
+    };
+
+    // 3. Fetch the contract URL with the credential.
+    let header_name = pointer.header.as_deref().unwrap_or("X-Composit-Api-Key");
+    let resp = client
+        .get(&pointer.url)
+        .header(header_name, &token)
+        .send()
+        .await;
+    let resp = match resp {
+        Ok(r) => r,
+        Err(_) => {
+            provider.auth_error = Some("fetch_failed".to_string());
+            return;
+        }
+    };
+
+    let status = resp.status();
+    if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
+        provider.auth_error = Some("unauthorized".to_string());
+        return;
+    }
+    if !status.is_success() {
+        provider.auth_error = Some("fetch_failed".to_string());
+        return;
+    }
+
+    // 4. Success. v0.1 doesn't parse the contract body into Provider
+    //    fields yet — schema is still pending in RFC 003. We mark the
+    //    mode and clear any prior error so `composit diff` sees a clean
+    //    contract state.
+    provider.auth_mode = Some(AuthMode::Contract);
+    provider.auth_error = None;
+}
+
+#[derive(Debug, Clone)]
+struct ContractPointer {
+    url: String,
+    header: Option<String>,
+}
+
+/// Find the first `contracts[]` entry whose `auth.type` matches `want_type`.
+/// Public manifest shape per RFC 002 / v0.1 schema.
+fn find_contract_pointer(manifest: &serde_json::Value, want_type: &str) -> Option<ContractPointer> {
+    let contracts = manifest.get("contracts")?.as_array()?;
+    for entry in contracts {
+        let auth = entry.get("auth")?;
+        let ty = auth.get("type").and_then(|v| v.as_str());
+        if ty != Some(want_type) {
+            continue;
+        }
+        let url = entry.get("url").and_then(|v| v.as_str())?.to_string();
+        let header = auth
+            .get("header")
+            .and_then(|v| v.as_str())
+            .map(String::from);
+        return Some(ContractPointer { url, header });
+    }
+    None
 }
 
 /// Pure function: given a parsed manifest and the base URL, return the
@@ -133,6 +258,10 @@ fn parse_manifest(manifest: &serde_json::Value, base_url: &str) -> (Provider, Ve
         protocol: "mcp".to_string(),
         capabilities,
         status: ProviderStatus::Reachable,
+        // Scan loop will set auth_mode once the public-vs-contract path is
+        // decided; leave as None here so the parser stays pure.
+        auth_mode: None,
+        auth_error: None,
     };
 
     (provider, resources)
@@ -164,6 +293,8 @@ mod tests {
         assert_eq!(provider.name, "croniq");
         assert_eq!(provider.protocol, "mcp");
         assert_eq!(provider.capabilities, vec!["scheduling", "events"]);
+        assert!(provider.auth_mode.is_none());
+        assert!(provider.auth_error.is_none());
 
         assert_eq!(resources.len(), 1);
         let r = &resources[0];
@@ -192,5 +323,33 @@ mod tests {
         let (provider, resources) = parse_manifest(&manifest, "https://example.com");
         assert_eq!(provider.name, "unknown");
         assert!(resources.is_empty());
+    }
+
+    #[test]
+    fn find_contract_pointer_picks_matching_auth_type() {
+        let manifest = json!({
+            "contracts": [
+                {
+                    "url": "https://p.example.com/oauth-contract",
+                    "auth": { "type": "oauth2", "discovery_url": "https://..." }
+                },
+                {
+                    "url": "https://p.example.com/contract",
+                    "auth": { "type": "api-key", "header": "X-Custom-Key" }
+                }
+            ]
+        });
+
+        let ptr = find_contract_pointer(&manifest, "api-key").expect("api-key matched");
+        assert_eq!(ptr.url, "https://p.example.com/contract");
+        assert_eq!(ptr.header.as_deref(), Some("X-Custom-Key"));
+
+        assert!(find_contract_pointer(&manifest, "mtls").is_none());
+    }
+
+    #[test]
+    fn find_contract_pointer_none_when_no_contracts() {
+        let manifest = json!({ "provider": { "name": "x" } });
+        assert!(find_contract_pointer(&manifest, "api-key").is_none());
     }
 }

@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::cli::DiffOutputFormat;
 use crate::core::compositfile::parse_compositfile;
-use crate::core::governance::Governance;
-use crate::core::types::{Report, ScanMode};
+use crate::core::governance::{Governance, ProviderRule};
+use crate::core::types::{AuthMode, Provider, Report, ScanMode};
 
 // ─────────────────────────────────────────────────────────
 // Violation model
@@ -172,26 +172,37 @@ fn check_providers(governance: &Governance, report: &Report, offline: bool) -> V
     let mut violations = Vec::new();
     let mut passed = 0;
 
-    let approved_names: Vec<&str> = governance
+    // Build a name → ProviderRule map so we can correlate report entries
+    // back to their governance rule for contract-tier checks (RFC 002).
+    let gov_by_name: HashMap<&str, &crate::core::governance::ProviderRule> = governance
         .providers
         .iter()
-        .map(|p| p.name.as_str())
+        .map(|p| (p.name.as_str(), p))
         .collect();
 
     // Check report providers against approved list
     for rp in &report.providers {
-        if approved_names.contains(&rp.name.as_str()) {
-            passed += 1;
-        } else {
-            violations.push(Violation {
-                severity: Severity::Error,
-                rule: "unapproved_provider".to_string(),
-                message: format!(
-                    "Provider \"{}\" found in report but not approved in Compositfile",
-                    rp.name
-                ),
-                details: Some(format!("Endpoint: {}", rp.endpoint)),
-            });
+        match gov_by_name.get(rp.name.as_str()) {
+            Some(rule) => {
+                // Provider is approved. Run RFC 002 contract-tier checks.
+                let contract_violations = check_provider_contract(rule, rp, offline);
+                if contract_violations.is_empty() {
+                    passed += 1;
+                } else {
+                    violations.extend(contract_violations);
+                }
+            }
+            None => {
+                violations.push(Violation {
+                    severity: Severity::Error,
+                    rule: "unapproved_provider".to_string(),
+                    message: format!(
+                        "Provider \"{}\" found in report but not approved in Compositfile",
+                        rp.name
+                    ),
+                    details: Some(format!("Endpoint: {}", rp.endpoint)),
+                });
+            }
         }
     }
 
@@ -232,6 +243,138 @@ fn check_providers(governance: &Governance, report: &Report, offline: bool) -> V
         violations,
         passed,
     }
+}
+
+/// Run the RFC 002 contract-tier checks for a single approved provider.
+/// Returns zero violations when everything lines up — the caller treats
+/// that as a passing check.
+///
+/// Rule coverage (RFC 002 §scan/diff behaviour):
+/// - `contract_auth_missing`     Info    — trust=contract, no credential configured
+/// - `contract_auth_mismatch`    Warning — gov auth.type != public manifest's advertised type
+/// - `contract_unreachable`      Warning — public manifest itself was unreachable
+/// - `contract_unauthorized`     Error   — credential present, contract URL returned 401/403
+/// - `contract_expired`          Error   — contract manifest reports expired
+///
+/// `contract_auth_mismatch` is detected at scan time (recorded as
+/// `auth_error = "auth_type_not_advertised"`). `contract_expired` is not
+/// yet emitted — the contract-response schema (RFC 003) will add an
+/// `expires_at` field; the wire is in place.
+fn check_provider_contract(
+    rule: &ProviderRule,
+    report_provider: &Provider,
+    offline: bool,
+) -> Vec<Violation> {
+    let mut violations = Vec::new();
+
+    // Unreachable: flag regardless of trust level — governance expected
+    // the provider to exist, the scanner couldn't reach it.
+    if matches!(report_provider.auth_mode, Some(AuthMode::Unreachable)) {
+        violations.push(Violation {
+            severity: Severity::Warning,
+            rule: "contract_unreachable".to_string(),
+            message: format!("Provider \"{}\" was unreachable during the scan", rule.name),
+            details: Some(format!("Endpoint: {}", report_provider.endpoint)),
+        });
+        return violations;
+    }
+
+    // Contract-tier checks apply only when the governance rule asked for it.
+    if rule.trust != "contract" {
+        return violations;
+    }
+
+    // auth_mode defaults to Public when missing (back-compat with reports
+    // produced before the field existed).
+    let observed = report_provider.auth_mode.unwrap_or(AuthMode::Public);
+
+    match observed {
+        AuthMode::Contract => {
+            // Upgrade succeeded. Nothing more to flag.
+        }
+        AuthMode::Public => {
+            // Scanner either didn't attempt the upgrade or it failed.
+            // The specific reason is in auth_error (set by the scanner).
+            let reason = report_provider.auth_error.as_deref().unwrap_or("");
+            match reason {
+                "unauthorized" => {
+                    violations.push(Violation {
+                        severity: Severity::Error,
+                        rule: "contract_unauthorized".to_string(),
+                        message: format!(
+                            "Provider \"{}\" rejected the configured credential (401/403). \
+                             Contract is stale, revoked, or the wrong key was configured.",
+                            rule.name
+                        ),
+                        details: rule
+                            .auth
+                            .as_ref()
+                            .and_then(|a| a.env.as_ref().map(|e| format!("credential env: {}", e))),
+                    });
+                }
+                "auth_type_not_advertised" => {
+                    violations.push(Violation {
+                        severity: Severity::Warning,
+                        rule: "contract_auth_mismatch".to_string(),
+                        message: format!(
+                            "Provider \"{}\": Compositfile declares auth.type = {:?} but the public \
+                             manifest does not advertise a contract endpoint with that type. \
+                             Update one side to match.",
+                            rule.name,
+                            rule.auth.as_ref().map(|a| a.auth_type.as_str()).unwrap_or("api-key"),
+                        ),
+                        details: None,
+                    });
+                }
+                "fetch_failed" => {
+                    violations.push(Violation {
+                        severity: Severity::Warning,
+                        rule: "contract_unreachable".to_string(),
+                        message: format!(
+                            "Provider \"{}\": contract fetch failed (network error, 5xx, or invalid body)",
+                            rule.name
+                        ),
+                        details: None,
+                    });
+                }
+                // Empty reason OR "auth_missing": the scanner didn't
+                // have a credential to try. Info, not warning — CI that
+                // runs offline legitimately lands here.
+                _ => {
+                    let (severity, details) = if offline {
+                        (
+                            Severity::Info,
+                            Some("scan ran offline; credential not checked".to_string()),
+                        )
+                    } else {
+                        (
+                            Severity::Info,
+                            Some(
+                                "set the env var named in auth.env on the Compositfile to verify the contract tier"
+                                    .to_string(),
+                            ),
+                        )
+                    };
+                    violations.push(Violation {
+                        severity,
+                        rule: "contract_auth_missing".to_string(),
+                        message: format!(
+                            "Provider \"{}\" declared trust = \"contract\" but the scan \
+                             could not attempt the upgrade (no credential available).",
+                            rule.name
+                        ),
+                        details,
+                    });
+                }
+            }
+        }
+        AuthMode::Unreachable => {
+            // Covered above; unreachable.
+            unreachable!("unreachable auth_mode already handled");
+        }
+    }
+
+    violations
 }
 
 fn check_budgets(governance: &Governance, report: &Report) -> ViolationCategory {
@@ -909,6 +1052,8 @@ mod tests {
             protocol: "mcp".to_string(),
             capabilities: vec![],
             status: ProviderStatus::Unknown,
+            auth_mode: None,
+            auth_error: None,
         }
     }
 
@@ -934,8 +1079,12 @@ mod tests {
                 .map(|n| ProviderRule {
                     name: n.to_string(),
                     manifest: format!("https://{}.example.com", n),
-                    trust: "contract".to_string(),
+                    // Tests that don't exercise the contract flow use
+                    // "public" to avoid the RFC 002 validation check
+                    // that requires an auth block for "contract".
+                    trust: "public".to_string(),
                     compliance: vec![],
+                    auth: None,
                 })
                 .collect(),
             budgets: vec![BudgetRule {
@@ -1154,5 +1303,120 @@ mod tests {
         assert_eq!(parse_percentage("150%"), None);
         assert_eq!(parse_percentage("-10%"), None);
         assert_eq!(parse_percentage("abc"), None);
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // RFC 002 contract-tier rules
+    // ─────────────────────────────────────────────────────────
+
+    fn contract_rule(name: &str) -> ProviderRule {
+        ProviderRule {
+            name: name.to_string(),
+            manifest: format!("https://{}.example.com/.well-known/composit.json", name),
+            trust: "contract".to_string(),
+            compliance: vec![],
+            auth: Some(crate::core::governance::AuthRef {
+                auth_type: "api-key".to_string(),
+                env: Some("TEST_KEY".to_string()),
+            }),
+        }
+    }
+
+    fn provider_with(auth_mode: Option<AuthMode>, auth_error: Option<&str>) -> Provider {
+        let mut p = make_provider("croniq");
+        p.auth_mode = auth_mode;
+        p.auth_error = auth_error.map(String::from);
+        p
+    }
+
+    #[test]
+    fn contract_success_passes() {
+        let rule = contract_rule("croniq");
+        let p = provider_with(Some(AuthMode::Contract), None);
+        let v = check_provider_contract(&rule, &p, false);
+        assert!(v.is_empty(), "contract tier reached: no diagnostics");
+    }
+
+    #[test]
+    fn contract_auth_missing_is_info() {
+        let rule = contract_rule("croniq");
+        let p = provider_with(Some(AuthMode::Public), Some("auth_missing"));
+        let v = check_provider_contract(&rule, &p, false);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].rule, "contract_auth_missing");
+        assert_eq!(v[0].severity, Severity::Info);
+    }
+
+    #[test]
+    fn contract_unauthorized_is_error() {
+        let rule = contract_rule("croniq");
+        let p = provider_with(Some(AuthMode::Public), Some("unauthorized"));
+        let v = check_provider_contract(&rule, &p, false);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].rule, "contract_unauthorized");
+        assert_eq!(v[0].severity, Severity::Error);
+        assert!(
+            v[0].details
+                .as_deref()
+                .map_or(false, |d| d.contains("TEST_KEY")),
+            "error should reference the env var name"
+        );
+    }
+
+    #[test]
+    fn contract_auth_mismatch_is_warning() {
+        let rule = contract_rule("croniq");
+        let p = provider_with(Some(AuthMode::Public), Some("auth_type_not_advertised"));
+        let v = check_provider_contract(&rule, &p, false);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].rule, "contract_auth_mismatch");
+        assert_eq!(v[0].severity, Severity::Warning);
+    }
+
+    #[test]
+    fn contract_unreachable_from_fetch_error_is_warning() {
+        let rule = contract_rule("croniq");
+        let p = provider_with(Some(AuthMode::Public), Some("fetch_failed"));
+        let v = check_provider_contract(&rule, &p, false);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].rule, "contract_unreachable");
+        assert_eq!(v[0].severity, Severity::Warning);
+    }
+
+    #[test]
+    fn public_unreachable_always_warns_even_for_public_trust() {
+        // unreachable is emitted regardless of trust level.
+        let mut rule = contract_rule("croniq");
+        rule.trust = "public".to_string();
+        rule.auth = None;
+        let p = provider_with(Some(AuthMode::Unreachable), Some("fetch_failed"));
+        let v = check_provider_contract(&rule, &p, false);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].rule, "contract_unreachable");
+    }
+
+    #[test]
+    fn public_trust_never_emits_contract_rules() {
+        // trust = public → contract-tier checks are silent even when
+        // auth_mode == Public (which is the expected state).
+        let mut rule = contract_rule("croniq");
+        rule.trust = "public".to_string();
+        rule.auth = None;
+        let p = provider_with(Some(AuthMode::Public), None);
+        let v = check_provider_contract(&rule, &p, false);
+        assert!(v.is_empty());
+    }
+
+    #[test]
+    fn contract_auth_missing_mentions_offline_when_offline() {
+        let rule = contract_rule("croniq");
+        let p = provider_with(Some(AuthMode::Public), Some("auth_missing"));
+        let v = check_provider_contract(&rule, &p, true);
+        assert!(
+            v[0].details
+                .as_deref()
+                .map_or(false, |d| d.contains("offline")),
+            "offline run should be mentioned in details"
+        );
     }
 }

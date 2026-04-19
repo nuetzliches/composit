@@ -31,6 +31,24 @@ pub struct Provider {
     pub protocol: String,
     pub capabilities: Vec<String>,
     pub status: ProviderStatus,
+    /// How much of the provider we observed during the scan.
+    /// See RFC 002 for the public/contract tiering.
+    ///
+    /// Optional for backward compatibility with reports produced before the
+    /// field existed; consumers should treat a missing value as `Public`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_mode: Option<AuthMode>,
+    /// Outcome of a contract-fetch attempt when `auth_mode == Public` but
+    /// the governance had declared trust = "contract". Lets `composit diff`
+    /// distinguish "no credential configured" (info) from "credential
+    /// rejected" (error). Known values:
+    /// - `"auth_missing"` — no env var set at scan time
+    /// - `"auth_type_not_advertised"` — public manifest offered no contract
+    ///   pointer matching the configured auth type
+    /// - `"unauthorized"` — contract URL returned 401/403
+    /// - `"fetch_failed"` — network error, 5xx, invalid JSON
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,6 +57,25 @@ pub enum ProviderStatus {
     Reachable,
     Unreachable,
     Unknown,
+}
+
+/// What tier of the provider we observed during the scan (RFC 002).
+///
+/// - `Public`: only the unauthenticated `.well-known/composit.json` was
+///   fetched. Default when a Compositfile declares `trust = "public"` or
+///   when no credential for a `contract` trust was available.
+/// - `Contract`: the contract manifest was fetched successfully with the
+///   configured credential. Endpoints and tooling inventory come from the
+///   authenticated response.
+/// - `Unreachable`: the public manifest could not be fetched (network
+///   error, 404, …). The scanner emits this instead of silently skipping
+///   the provider so `composit diff` can call it out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AuthMode {
+    Public,
+    Contract,
+    Unreachable,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

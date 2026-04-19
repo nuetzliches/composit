@@ -117,6 +117,8 @@ fn parse_mcp_config(path: &PathBuf, source: &str) -> Result<(Vec<Resource>, Vec<
                     protocol: "mcp".to_string(),
                     capabilities: vec![],
                     status: ProviderStatus::Unknown,
+                    auth_mode: None,
+                    auth_error: None,
                 });
             }
         }
