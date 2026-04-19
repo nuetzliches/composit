@@ -238,30 +238,24 @@ die in gescannten Repos existieren, aber von keinem Scanner erfasst werden.
 
 ### Landing Page (Signalquelle #1 ohne Interviews)
 
-Ohne Interviews ist die Landing-Page die wichtigste externe Signalquelle.
-**Scope-Entscheidung (2026-04-18):** Keine Waitlist / kein Email-Signup.
-composit ist OSS — es gibt keinen "Launch" zu announcen. GitHub-Stars +
-Plausible-Traffic + Feature-Votes sind härtere Signale und passen zur
-Open-Spec-Positionierung. Detaillierter Rollout:
-[docs/LANDING-ROLLOUT.md](LANDING-ROLLOUT.md).
+Ohne Interviews ist die Landing-Page der wichtigste externe Berührungspunkt.
+**Scope-Entscheidung (2026-04-18):** Keine Waitlist / kein Email-Signup,
+kein Analytics. composit ist OSS — es gibt keinen "Launch" zu announcen.
+GitHub-Stars sind das externe Signal, alles andere ist UX. Detaillierter
+Rollout: [docs/LANDING-ROLLOUT.md](LANDING-ROLLOUT.md).
 
 - [ ] **Landing-Page online** (VOR HN, nicht parallel) — statische Seite
   auf `composit.public-schloss.nuetzliche.it`, self-hosted via Caddy auf nuts-infra.
   Primary CTA: **★ Star on GitHub**. Quick-Start mit Copy-Buttons.
-- [ ] **Plausible self-hosted** auf `plausible.public-schloss.nuetzliche.it` —
-  cookieless, EU-konform, kein Consent-Banner nötig.
-  Custom-Goals: `feature-vote`, `quickstart-copy`, GitHub-Outbound-Click.
-- [ ] **Feature-Interest-Tracking** — Klicks auf "Drift Alerts",
+- [ ] **Feature-Voting-UX** — Klicks auf "Drift Alerts",
   "Cost Attribution", "Compliance Reports", "Multi-Agent Visibility",
-  "Team Dashboard", "OPA at Commit Time". Ersetzt die Interview-Frage
-  "was ist euch wichtig?".
-- [ ] **Signal-Benchmarks** (30 Tage nach HN):
+  "Team Dashboard", "OPA at Commit Time". Reine Client-UX
+  (localStorage-Dedup), kein Backend.
+- [ ] **Signal-Benchmark** (30 Tage nach HN):
 
   | Metrik | Grün | Gelb | Rot |
   |---|---|---|---|
   | GitHub-Stars | ≥300 | 100–300 | <100 |
-  | Pageviews | ≥3000 | 1000–3000 | <1000 |
-  | Feature-Votes Top-2 | ≥50% klarer Schwerpunkt | gemischt | keine Dominanz |
 
 ### Community
 

@@ -11,10 +11,6 @@
 <meta property="og:description" content="Open-source CLI. Scan the infra your agents touched, declare intent in a Compositfile, and surface every drift before it ships.">
 <meta property="og:type" content="website">
 
-<!-- Plausible: self-hosted, cookieless. Outbound-links variant auto-tracks the GitHub CTA. -->
-<script defer data-domain="composit.public-schloss.nuetzliche.it"
-        src="https://plausible.public-schloss.nuetzliche.it/js/script.outbound-links.js"></script>
-
 <style>
 :root {
   --bg: #0d1117;
@@ -423,9 +419,9 @@ POLICIES (1 warning)
 </footer>
 
 <script>
-// ---- Feature interest tracking --------------------------------------------
-// Anonymous: localStorage dedupes per-browser, Plausible (if present) fires
-// one custom event per click. No backend, no personal data.
+// ---- Feature interest UX ---------------------------------------------------
+// Pure client-side: localStorage dedupes per-browser so a visitor can't
+// double-vote. No backend, no tracking, no personal data.
 const STORAGE_KEY = "composit-voted-features";
 
 function getVoted() {
@@ -461,17 +457,10 @@ document.querySelectorAll(".feature-btn").forEach((btn) => {
     current.push(feature);
     saveVoted(current);
     markVoted(btn);
-
-    if (typeof window.plausible === "function") {
-      window.plausible("feature-vote", { props: { feature } });
-    }
   });
 });
 
 // ---- Copy buttons ----------------------------------------------------------
-// Quick-Start copy buttons emit a `quickstart-copy` event to Plausible so
-// "someone actually copied the install line" shows up as a signal alongside
-// pageviews.
 document.querySelectorAll(".qs-copy").forEach((btn) => {
   btn.addEventListener("click", async () => {
     const text = btn.dataset.copy || "";
@@ -483,13 +472,6 @@ document.querySelectorAll(".qs-copy").forEach((btn) => {
         btn.textContent = "Copy";
         btn.classList.remove("copied");
       }, 1500);
-
-      if (typeof window.plausible === "function") {
-        const label = btn.closest(".qs-block")
-          ?.querySelector(".qs-header span")
-          ?.textContent || "unknown";
-        window.plausible("quickstart-copy", { props: { block: label } });
-      }
     } catch {
       /* clipboard may be blocked — fail silently */
     }
