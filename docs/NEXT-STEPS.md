@@ -1,6 +1,6 @@
 # Composit — Next Steps
 
-Stand: 2026-04-18 (post-Validation, post-Compositfile)
+Stand: 2026-04-20 (post-RFC-003, Public→Contract-Zyklus end-to-end)
 
 Basiert auf Business Validation Report (7.5/10, BUILD — re-assessment 2026-04-14).
 Zeitgebundene Sprints mit klarem ICP-Fokus: Platform Engineers + CTOs.
@@ -8,6 +8,55 @@ Zeitgebundene Sprints mit klarem ICP-Fokus: Platform Engineers + CTOs.
 **Arbeitsmodus (explizit):** Wir validieren nicht über Interviews, sondern
 über **Dogfooding + Launch-Signale**. Annahmen werden als solche markiert
 und durch öffentliche Artefakte (Spec, Demo, Landing) überprüft.
+
+---
+
+## Offene Stränge (Stand 2026-04-20)
+
+Konsolidiert aus allen Sprints, sortiert nach unmittelbarer Blocker-Qualität.
+Erledigt: RFC 001-003 (Draft), Public/Contract-Split end-to-end inkl.
+`contract_expired`, Contract-Endpoint auf nuetzliche.it, composit-landing
+(ersetzt durch OSS-native Landing ohne Plausible/DNS-Arbeit).
+
+**Blocker für Launch:**
+
+- [ ] **Live-Demo (public) bauen** — synthetisches Demo-Repo mit
+  Compositfile + bewusst eingebauter Drift. Sprint-2-Restposten,
+  Haupt-HN-Artefakt.
+- [ ] **Asciinema-Recording** für Show-HN-Post.
+- [ ] **Show-HN-Post** selbst (Woche-5/6 in Sprint 3).
+
+**Nicht-Blocker, aber auf der Liste:**
+
+- [ ] **NUETZLICHE_COMPOSIT_CONTRACT_KEYS** im Production-`.env` auf
+  ext-docker-host-1 setzen und nuetzliche-site neu starten — erst
+  dann antwortet `https://nuetzliche.it/contract` auf echte Keys.
+  Passthrough liegt in `ext-docker-host-1/docker-compose.yml`, Doku in
+  `ext-docker-host-1/.env.example`.
+- [ ] **Dogfood-Runs dokumentieren** — `composit scan` + `diff`-Artefakte
+  aus nuts-infra, croniq, hookaido, powerbrain als Demo-Material.
+- [ ] **npx-Wrapper** für Zero-Install-Distribution (Sprint 3).
+- [ ] **Scanner-Tests nachziehen** für docker, env_files, cron,
+  mcp_config, mcp_provider + End-to-End-Test.
+- [ ] **Percentage-Validierung** im Compositfile-Parser (0-100% Range).
+- [ ] **OPA Runtime-Evaluation** — Rego tatsächlich ausführen statt nur
+  parsen.
+- [ ] **Scanner-Gaps Tier 1** — K8s Manifests, Kustomize, Helm Charts.
+- [ ] **Scanner-Benchmark** (`composit-scanner-tests`, Coverage-Metrik).
+
+**Spec-Folgearbeiten (keine Consumer-Blocker):**
+
+- [ ] **RFC 004 Compositfile-Spec** — HCL-Schema dokumentieren
+  (workspace, provider, budget, policy, require). Abgeleitet aus
+  tatsächlicher Parser-Implementierung.
+- [ ] **OAuth2-Flow** — auf Roadmap. Vollausbau eigener RFC wenn ein
+  zweiter Provider das fordert.
+- [ ] **Multi-Tier-Contracts** (RFC 002 Open Question #3).
+- [ ] **Multi-Identity pro Provider** (RFC 002 Open Question #1).
+- [ ] **Voller CLI-Consume der Contract-Response** — v0.1 liest nur
+  `contract.{id, issued_at, expires_at, pricing_tier}`. Endpoints,
+  tools, sla, rate_limits bleiben ungenutzt bis ein Consumer sie
+  fordert.
 
 ---
 
@@ -34,14 +83,14 @@ Anstelle von 10-15 Interviews validieren wir über eigene Stacks:
 
 ### Spec
 
-- [ ] **composit-report.yaml Spec v0.1 als RFC** — Formales JSON Schema,
-  nicht nur Beispiele. Auf GitHub als Discussion veröffentlichen.
-  Signal = Kommentare/Reaktionen von Platform-Eng-Community.
-- [ ] **Compositfile Spec v0.1 als RFC** — HCL-Schema dokumentieren
+- [x] **composit-report.yaml Spec v0.1 als RFC** — RFC 001 Draft,
+  `schemas/composit-report-v0.1.json`.
+- [ ] **Compositfile Spec als RFC** — HCL-Schema dokumentieren
   (workspace, provider, budget, policy, require). Abgeleitet aus
-  tatsächlicher Parser-Implementierung.
-- [ ] **Manifest Schema finalisieren** — composit.json v0.1 mit konkreten Feldern,
-  Versionierung, Discovery-Mechanismus (.well-known URL, align mit MCP).
+  tatsächlicher Parser-Implementierung. Offen als RFC 004.
+- [x] **Manifest Schema finalisieren** — RFC 002 (Public/Contract-Tier
+  Split) + RFC 003 (Contract-Response-Envelope) jeweils Draft, Schema
+  und Reference-Implementation auf nuetzliche.it.
 
 ### Annahmen (explizit, zu widerlegen durch Signale)
 
