@@ -170,7 +170,10 @@ fn public_provider_manifest_example_matches_schema_shape() {
         .get("contracts")
         .and_then(|v| v.as_array())
         .expect("contracts[] present");
-    assert!(!contracts.is_empty(), "contracts[] must have at least one pointer");
+    assert!(
+        !contracts.is_empty(),
+        "contracts[] must have at least one pointer"
+    );
     for c in contracts {
         assert!(c.get("url").and_then(|v| v.as_str()).is_some());
         let auth_type = c
@@ -188,8 +191,8 @@ fn public_provider_manifest_example_matches_schema_shape() {
 #[test]
 fn public_provider_manifest_schema_is_valid_json() {
     let path = repo_root().join("schemas/composit-provider-manifest-v0.1.json");
-    let content = fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("read {}: {}", path.display(), e));
+    let content =
+        fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {}", path.display(), e));
     let schema: serde_json::Value = serde_json::from_str(&content)
         .unwrap_or_else(|e| panic!("parse {}: {}", path.display(), e));
 
