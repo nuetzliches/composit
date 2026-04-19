@@ -237,3 +237,98 @@ fn public_provider_manifest_schema_is_valid_json() {
         );
     }
 }
+
+#[test]
+fn contract_response_schema_is_valid_json() {
+    // RFC 003: the contract-response schema must declare draft/2020-12 and
+    // pin the required `contract.{id, provider, issued_at, expires_at}`
+    // envelope so external provider implementers have a stable target.
+    let path = repo_root().join("schemas/composit-contract-response-v0.1.json");
+    let content =
+        fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {}", path.display(), e));
+    let schema: serde_json::Value = serde_json::from_str(&content)
+        .unwrap_or_else(|e| panic!("parse {}: {}", path.display(), e));
+
+    assert_eq!(
+        schema.get("$schema").and_then(|v| v.as_str()),
+        Some("https://json-schema.org/draft/2020-12/schema"),
+        "schema must declare Draft 2020-12"
+    );
+    assert_eq!(
+        schema.get("title").and_then(|v| v.as_str()),
+        Some("composit-contract-response")
+    );
+
+    // Top-level required fields: composit, contract.
+    let required: Vec<&str> = schema
+        .get("required")
+        .and_then(|v| v.as_array())
+        .expect("required array")
+        .iter()
+        .filter_map(|v| v.as_str())
+        .collect();
+    for field in &["composit", "contract"] {
+        assert!(
+            required.contains(field),
+            "contract-response schema missing required field: {}",
+            field
+        );
+    }
+
+    // Contract object must require the v0.1 bookkeeping fields.
+    let contract_required: Vec<&str> = schema
+        .pointer("/$defs/Contract/required")
+        .and_then(|v| v.as_array())
+        .expect("Contract.required")
+        .iter()
+        .filter_map(|v| v.as_str())
+        .collect();
+    for field in &["id", "provider", "issued_at", "expires_at"] {
+        assert!(
+            contract_required.contains(field),
+            "Contract.required missing: {}",
+            field
+        );
+    }
+}
+
+#[test]
+fn contract_response_example_matches_schema_shape() {
+    // RFC 003: the example response must carry the v0.1 required fields
+    // so it stays a usable target for provider implementers.
+    let path = repo_root().join("examples/composit-contract.example.json");
+    let content =
+        fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {}", path.display(), e));
+    let doc: serde_json::Value = serde_json::from_str(&content)
+        .unwrap_or_else(|e| panic!("parse {}: {}", path.display(), e));
+
+    for field in &["composit", "contract"] {
+        assert!(
+            doc.get(field).is_some(),
+            "example contract response missing required top-level field: {}",
+            field
+        );
+    }
+
+    for field in &["id", "provider", "issued_at", "expires_at"] {
+        assert!(
+            doc.pointer(&format!("/contract/{}", field)).is_some(),
+            "example contract missing required field: contract.{}",
+            field
+        );
+    }
+
+    // Capabilities SHOULD mirror the public manifest's types when present.
+    if let Some(caps) = doc.get("capabilities").and_then(|v| v.as_array()) {
+        assert!(
+            !caps.is_empty(),
+            "example capabilities[] should not be empty when the key is present"
+        );
+        for cap in caps {
+            assert!(
+                cap.pointer("/type").and_then(|v| v.as_str()).is_some(),
+                "every contract capability must carry a `type`"
+            );
+        }
+    }
+}

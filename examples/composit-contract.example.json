@@ -1,0 +1,50 @@
+{
+  "composit": "0.1.0",
+  "contract": {
+    "id": "c-2026-nuetzliche-42",
+    "provider": "nuetzliche",
+    "issued_at": "2026-04-01T00:00:00Z",
+    "expires_at": "2027-04-01T00:00:00Z",
+    "pricing_tier": "team"
+  },
+  "capabilities": [
+    {
+      "type": "scheduling",
+      "product": "croniq",
+      "protocol": "mcp",
+      "endpoint": "https://mcp.public-schloss.nuetzliche.it/croniq",
+      "tools": 12,
+      "rate_limit": {
+        "requests_per_minute": 120,
+        "burst": 20
+      },
+      "regions": ["eu-central-1"]
+    },
+    {
+      "type": "events",
+      "product": "hookaido",
+      "protocol": "mcp",
+      "endpoint": "https://mcp.public-schloss.nuetzliche.it/hookaido",
+      "tools": 8,
+      "rate_limit": {
+        "requests_per_minute": 240
+      },
+      "regions": ["eu-central-1"]
+    },
+    {
+      "type": "knowledge",
+      "product": "powerbrain",
+      "protocol": "mcp",
+      "endpoint": "https://mcp.public-schloss.nuetzliche.it/powerbrain",
+      "tools": 15,
+      "rate_limit": {
+        "requests_per_minute": 60
+      },
+      "regions": ["eu-central-1"]
+    }
+  ],
+  "sla": {
+    "uptime_pct": 99.5,
+    "incident_contact": "sre@nuetzliche.it"
+  }
+}

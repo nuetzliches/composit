@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/nuetzliches/composit/schemas/composit-contract-response-v0.1.json",
+  "title": "composit-contract-response",
+  "description": "Response body returned by a provider's authenticated contract URL (pointed to by the public /.well-known/composit.json). Personalized per identity: the schema defines the allowed shape; actual values depend on the caller. See RFC 003 for the contract governance surface and RFC 002 for the public/contract tiering.",
+  "type": "object",
+  "required": ["composit", "contract"],
+  "additionalProperties": true,
+  "patternProperties": {
+    "^x-": {
+      "description": "Extension field. Providers MAY attach vendor- or domain-specific data under any top-level key prefixed with `x-`. Consumers unaware of a given extension MUST ignore it."
+    }
+  },
+  "properties": {
+    "composit": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[A-Za-z0-9.-]+)?$",
+      "description": "Spec version the response conforms to. MUST match a shipped composit-contract-response schema version.",
+      "examples": ["0.1.0"]
+    },
+    "contract": { "$ref": "#/$defs/Contract" },
+    "capabilities": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ContractCapability" },
+      "description": "Concrete, per-identity capability descriptors. Extends the public-tier PublicCapability shape with call-time metadata (endpoint, tools, rate_limit, regions)."
+    },
+    "sla": { "$ref": "#/$defs/ServiceLevel" }
+  },
+  "$defs": {
+    "Contract": {
+      "type": "object",
+      "required": ["id", "provider", "issued_at", "expires_at"],
+      "additionalProperties": true,
+      "patternProperties": {
+        "^x-": {
+          "description": "Contract-level extension field (see top-level $schema description)."
+        }
+      },
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable identifier for this (contract, identity) pair. Opaque to consumers; providers MAY encode issue year, internal sequence, etc. Surfaces in composit-report.yaml for operator visibility."
+        },
+        "provider": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Canonical provider name. MUST match the `provider.name` of the public manifest that pointed here; a mismatch is treated as invalid_contract_body by consumers."
+        },
+        "issued_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the contract relationship started. ISO 8601 with an explicit UTC offset preferred (Z). No v0.1 rule depends on this; informational."
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the contract becomes invalid. ISO 8601, UTC preferred. `composit diff` MUST emit `contract_expired` (Error) when this timestamp is in the past."
+        },
+        "pricing_tier": {
+          "type": "string",
+          "description": "Short label identifying the identity's tier. Provider-defined vocabulary; commonly used: 'free', 'team', 'enterprise'. Informational only in v0.1.",
+          "examples": ["free", "team", "enterprise"]
+        }
+      }
+    },
+    "ContractCapability": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": true,
+      "patternProperties": {
+        "^x-": {
+          "description": "Capability-level extension field."
+        }
+      },
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Capability family — same vocabulary as the public manifest (scheduling, events, knowledge, ...). Providers SHOULD use the same token the public manifest advertised."
+        },
+        "product": {
+          "type": "string",
+          "description": "Specific product within this capability. SHOULD match the public manifest when one was advertised, so consumers can correlate entries across tiers by (type, product)."
+        },
+        "protocol": {
+          "type": "string",
+          "description": "Transport for this capability. 'mcp' for MCP-native products; 'http', 'grpc' for others.",
+          "examples": ["mcp", "http", "grpc"]
+        },
+        "endpoint": {
+          "type": "string",
+          "format": "uri",
+          "description": "Concrete base URL the authenticated identity should call. Personalized per identity."
+        },
+        "tools": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Size of the tool inventory the identity may use. v0.1 publishes a count; future versions MAY embed the full list."
+        },
+        "rate_limit": { "$ref": "#/$defs/RateLimit" },
+        "regions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Regions the identity is allowed to route through. Same notation as the public manifest's `region` field (provider-chosen)."
+        }
+      }
+    },
+    "RateLimit": {
+      "type": "object",
+      "additionalProperties": true,
+      "anyOf": [
+        { "required": ["requests_per_minute"] },
+        { "required": ["requests_per_hour"] },
+        { "required": ["burst"] }
+      ],
+      "properties": {
+        "requests_per_minute": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sustained request budget per 60-second window."
+        },
+        "requests_per_hour": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sustained request budget per 3600-second window."
+        },
+        "burst": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Short-term burst capacity above the sustained rate."
+        }
+      },
+      "description": "Declared rate-limit budget for this identity. Declaration, not enforcement — enforcement is provider-side."
+    },
+    "ServiceLevel": {
+      "type": "object",
+      "additionalProperties": true,
+      "patternProperties": {
+        "^x-": {
+          "description": "SLA-level extension field."
+        }
+      },
+      "properties": {
+        "uptime_pct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Claimed monthly uptime percentage. Decimals allowed (e.g. 99.9)."
+        },
+        "incident_contact": {
+          "type": "string",
+          "description": "How the consumer reaches support when the SLA is breached. Typically an email address; MAY be a URL."
+        },
+        "response_time_ms_p99": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Claimed 99th-percentile response-time budget in milliseconds."
+        }
+      },
+      "description": "Provider-supplied service-level claims. Consumers surface these in `composit status --live` but do not make governance decisions on them in v0.1."
+    }
+  }
+}
