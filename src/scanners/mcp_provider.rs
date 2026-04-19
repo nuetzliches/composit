@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use reqwest::{Client, StatusCode};
 
 use crate::core::scanner::{ProviderTarget, ScanContext, ScanResult, Scanner};
-use crate::core::types::{AuthMode, Provider, ProviderStatus, Resource};
+use crate::core::types::{AuthMode, ContractInfo, Provider, ProviderStatus, Resource};
 
 pub struct McpProviderScanner;
 
@@ -60,6 +60,7 @@ impl Scanner for McpProviderScanner {
                         status: ProviderStatus::Unreachable,
                         auth_mode: Some(AuthMode::Unreachable),
                         auth_error: Some("fetch_failed".to_string()),
+                        contract: None,
                     });
                 }
             }
@@ -168,12 +169,58 @@ async fn upgrade_to_contract(client: &Client, provider: &mut Provider, target: &
         return;
     }
 
-    // 4. Success. v0.1 doesn't parse the contract body into Provider
-    //    fields yet — schema is still pending in RFC 003. We mark the
-    //    mode and clear any prior error so `composit diff` sees a clean
-    //    contract state.
-    provider.auth_mode = Some(AuthMode::Contract);
-    provider.auth_error = None;
+    // 4. Parse the body against the RFC 003 v0.1 envelope. Unknown fields
+    //    pass through silently (additionalProperties: true); missing or
+    //    mismatched required fields fall back to public-tier with a
+    //    specific error so `composit diff` can flag the shape problem
+    //    separately from network/auth failures.
+    let body: serde_json::Value = match resp.json().await {
+        Ok(v) => v,
+        Err(_) => {
+            provider.auth_error = Some("invalid_contract_body".to_string());
+            return;
+        }
+    };
+
+    match parse_contract_body(&body, &provider.name) {
+        Some(info) => {
+            provider.auth_mode = Some(AuthMode::Contract);
+            provider.auth_error = None;
+            provider.contract = Some(info);
+        }
+        None => {
+            provider.auth_error = Some("invalid_contract_body".to_string());
+        }
+    }
+}
+
+/// Extract the `contract` bookkeeping subset from a RFC 003 response body.
+///
+/// Returns `None` when the response violates the v0.1 required-fields rule
+/// (`contract.{id, provider, issued_at, expires_at}`) or when
+/// `contract.provider` disagrees with the public manifest's provider name.
+/// That guards against a misrouted contract URL silently accepting a wrong
+/// provider's response.
+fn parse_contract_body(body: &serde_json::Value, expected_provider: &str) -> Option<ContractInfo> {
+    let contract = body.get("contract")?.as_object()?;
+    let id = contract.get("id")?.as_str()?.to_string();
+    let provider_field = contract.get("provider")?.as_str()?;
+    if provider_field != expected_provider {
+        return None;
+    }
+    let issued_at = contract.get("issued_at")?.as_str()?.to_string();
+    let expires_at = contract.get("expires_at")?.as_str()?.to_string();
+    let pricing_tier = contract
+        .get("pricing_tier")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    Some(ContractInfo {
+        id,
+        issued_at,
+        expires_at,
+        pricing_tier,
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -262,6 +309,7 @@ fn parse_manifest(manifest: &serde_json::Value, base_url: &str) -> (Provider, Ve
         // decided; leave as None here so the parser stays pure.
         auth_mode: None,
         auth_error: None,
+        contract: None,
     };
 
     (provider, resources)
@@ -351,5 +399,74 @@ mod tests {
     fn find_contract_pointer_none_when_no_contracts() {
         let manifest = json!({ "provider": { "name": "x" } });
         assert!(find_contract_pointer(&manifest, "api-key").is_none());
+    }
+
+    #[test]
+    fn parse_contract_body_happy_path() {
+        let body = json!({
+            "composit": "0.1.0",
+            "contract": {
+                "id": "c-2026-nuetzliche-42",
+                "provider": "nuetzliche",
+                "issued_at": "2026-04-01T00:00:00Z",
+                "expires_at": "2027-04-01T00:00:00Z",
+                "pricing_tier": "team"
+            },
+            "capabilities": []
+        });
+
+        let info = parse_contract_body(&body, "nuetzliche").expect("happy path parses");
+        assert_eq!(info.id, "c-2026-nuetzliche-42");
+        assert_eq!(info.issued_at, "2026-04-01T00:00:00Z");
+        assert_eq!(info.expires_at, "2027-04-01T00:00:00Z");
+        assert_eq!(info.pricing_tier.as_deref(), Some("team"));
+    }
+
+    #[test]
+    fn parse_contract_body_missing_required_field_returns_none() {
+        // expires_at absent.
+        let body = json!({
+            "contract": {
+                "id": "c-1",
+                "provider": "x",
+                "issued_at": "2026-01-01T00:00:00Z"
+            }
+        });
+        assert!(parse_contract_body(&body, "x").is_none());
+    }
+
+    #[test]
+    fn parse_contract_body_rejects_provider_mismatch() {
+        // contract.provider disagrees with the public manifest's
+        // provider.name — guards against a misrouted contract URL.
+        let body = json!({
+            "contract": {
+                "id": "c-1",
+                "provider": "acme",
+                "issued_at": "2026-01-01T00:00:00Z",
+                "expires_at": "2027-01-01T00:00:00Z"
+            }
+        });
+        assert!(parse_contract_body(&body, "nuetzliche").is_none());
+    }
+
+    #[test]
+    fn parse_contract_body_tolerates_unknown_fields() {
+        // RFC 003 §Unknown fields: additionalProperties: true at every
+        // level — providers MAY embed vendor-specific keys.
+        let body = json!({
+            "contract": {
+                "id": "c-1",
+                "provider": "x",
+                "issued_at": "2026-01-01T00:00:00Z",
+                "expires_at": "2027-01-01T00:00:00Z",
+                "x-internal-seq": 42
+            },
+            "sla": {"uptime_pct": 99.9},
+            "x-region-overrides": {"eu-west-1": true}
+        });
+        let info = parse_contract_body(&body, "x").expect("unknown fields ignored");
+        assert_eq!(info.id, "c-1");
+        assert!(info.pricing_tier.is_none());
     }
 }

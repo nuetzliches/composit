@@ -264,6 +264,7 @@ mod tests {
             status: ProviderStatus::Unknown,
             auth_mode: None,
             auth_error: None,
+            contract: None,
         }
     }
 

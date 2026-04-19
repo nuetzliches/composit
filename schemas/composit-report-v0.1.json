@@ -76,6 +76,43 @@
           "type": "string",
           "enum": ["reachable", "unreachable", "unknown"],
           "description": "Reachability at scan time. 'unknown' when no live check was performed."
+        },
+        "auth_mode": {
+          "type": "string",
+          "enum": ["public", "contract", "unreachable"],
+          "description": "How much of the provider was observed during the scan (RFC 002). 'public' = only /.well-known/composit.json. 'contract' = authenticated contract URL was also fetched. 'unreachable' = public manifest could not be loaded. Optional for backward compatibility with reports produced before this field existed; consumers SHOULD treat a missing value as 'public'."
+        },
+        "auth_error": {
+          "type": "string",
+          "description": "Diagnostic when `auth_mode == 'public'` but governance declared trust = 'contract'. Known values: 'auth_missing', 'auth_type_not_advertised', 'unauthorized', 'fetch_failed', 'invalid_contract_body'. See RFC 002 §scan/diff behaviour and RFC 003 for semantics."
+        },
+        "contract": { "$ref": "#/$defs/ContractInfo" }
+      }
+    },
+    "ContractInfo": {
+      "type": "object",
+      "required": ["id", "issued_at", "expires_at"],
+      "additionalProperties": false,
+      "description": "Bookkeeping subset of the RFC 003 contract-manifest response, recorded when `auth_mode == 'contract'`. Present only when the scanner successfully parsed the contract body. `composit diff` emits `contract_expired` when `expires_at` is in the past.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable identifier for the (contract, identity) pair. Opaque to consumers."
+        },
+        "issued_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the contract relationship started. ISO 8601."
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the contract becomes invalid. ISO 8601. Past timestamp triggers `contract_expired` (Error) in `composit diff`."
+        },
+        "pricing_tier": {
+          "type": "string",
+          "description": "Short label identifying the identity's tier (provider-defined, e.g. 'free', 'team', 'enterprise'). Informational."
         }
       }
     },

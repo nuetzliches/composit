@@ -47,8 +47,36 @@ pub struct Provider {
     ///   pointer matching the configured auth type
     /// - `"unauthorized"` — contract URL returned 401/403
     /// - `"fetch_failed"` — network error, 5xx, invalid JSON
+    /// - `"invalid_contract_body"` — contract URL returned 200 but the
+    ///   body violated the RFC 003 v0.1 required-fields rule (missing
+    ///   contract.{id, provider, issued_at, expires_at}, or
+    ///   contract.provider mismatching the public manifest).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auth_error: Option<String>,
+    /// Bookkeeping fields extracted from the contract-manifest response
+    /// (RFC 003). Present only when `auth_mode == Contract`. Optional for
+    /// backward compatibility with reports produced before RFC 003.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub contract: Option<ContractInfo>,
+}
+
+/// Subset of the RFC 003 contract response that `composit` v0.1 consumes.
+/// The response carries more (endpoints, tools, sla, rate_limit) but v0.1
+/// only needs the governance surface — enough to emit `contract_expired`
+/// and to surface the tier in reports.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContractInfo {
+    /// Stable identifier for the (contract, identity) pair. Opaque.
+    pub id: String,
+    /// Issue timestamp (ISO 8601, UTC preferred).
+    pub issued_at: String,
+    /// Expiry timestamp (ISO 8601, UTC preferred). `composit diff` compares
+    /// this against the local clock to emit `contract_expired`.
+    pub expires_at: String,
+    /// Short label for the identity's tier (provider-defined vocabulary,
+    /// e.g. "free", "team", "enterprise"). Informational.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pricing_tier: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 
@@ -257,9 +257,9 @@ fn check_providers(governance: &Governance, report: &Report, offline: bool) -> V
 /// - `contract_expired`          Error   — contract manifest reports expired
 ///
 /// `contract_auth_mismatch` is detected at scan time (recorded as
-/// `auth_error = "auth_type_not_advertised"`). `contract_expired` is not
-/// yet emitted — the contract-response schema (RFC 003) will add an
-/// `expires_at` field; the wire is in place.
+/// `auth_error = "auth_type_not_advertised"`). `contract_expired` fires
+/// when the RFC 003 `contract.expires_at` timestamp is in the past
+/// against the scanner's local UTC clock.
 fn check_provider_contract(
     rule: &ProviderRule,
     report_provider: &Provider,
@@ -290,7 +290,52 @@ fn check_provider_contract(
 
     match observed {
         AuthMode::Contract => {
-            // Upgrade succeeded. Nothing more to flag.
+            // Upgrade succeeded. Only outstanding verdict is expiry —
+            // the scanner records contract.expires_at from the RFC 003
+            // response; compare it against the local clock.
+            if let Some(info) = report_provider.contract.as_ref() {
+                match DateTime::parse_from_rfc3339(&info.expires_at) {
+                    Ok(ts) => {
+                        let expires_utc = ts.with_timezone(&Utc);
+                        let now = Utc::now();
+                        if expires_utc < now {
+                            let days_past = (now - expires_utc).num_days();
+                            violations.push(Violation {
+                                severity: Severity::Error,
+                                rule: "contract_expired".to_string(),
+                                message: format!(
+                                    "Provider \"{}\" contract expired at {} ({} day{} ago). \
+                                     Renew or rotate the governance entry.",
+                                    rule.name,
+                                    info.expires_at,
+                                    days_past,
+                                    if days_past == 1 { "" } else { "s" },
+                                ),
+                                details: info
+                                    .pricing_tier
+                                    .as_ref()
+                                    .map(|t| format!("pricing tier: {}", t)),
+                            });
+                        }
+                    }
+                    Err(_) => {
+                        // Scanner accepted the body but the timestamp is
+                        // malformed. Treat as a body-shape problem, not an
+                        // expiry verdict — reported as contract_unreachable
+                        // so an operator sees it without it masquerading
+                        // as a policy failure.
+                        violations.push(Violation {
+                            severity: Severity::Warning,
+                            rule: "contract_unreachable".to_string(),
+                            message: format!(
+                                "Provider \"{}\": contract.expires_at is not a valid ISO-8601 timestamp",
+                                rule.name
+                            ),
+                            details: Some(format!("received: {:?}", info.expires_at)),
+                        });
+                    }
+                }
+            }
         }
         AuthMode::Public => {
             // Scanner either didn't attempt the upgrade or it failed.
@@ -335,6 +380,20 @@ fn check_provider_contract(
                             rule.name
                         ),
                         details: None,
+                    });
+                }
+                "invalid_contract_body" => {
+                    violations.push(Violation {
+                        severity: Severity::Warning,
+                        rule: "contract_unreachable".to_string(),
+                        message: format!(
+                            "Provider \"{}\": contract response did not match the RFC 003 v0.1 envelope",
+                            rule.name
+                        ),
+                        details: Some(
+                            "missing or malformed contract.{id, provider, issued_at, expires_at}, or contract.provider did not match the public manifest"
+                                .to_string(),
+                        ),
                     });
                 }
                 // Empty reason OR "auth_missing": the scanner didn't
@@ -1054,6 +1113,7 @@ mod tests {
             status: ProviderStatus::Unknown,
             auth_mode: None,
             auth_error: None,
+            contract: None,
         }
     }
 
@@ -1417,6 +1477,84 @@ mod tests {
                 .as_deref()
                 .map_or(false, |d| d.contains("offline")),
             "offline run should be mentioned in details"
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // RFC 003 contract_expired + invalid_contract_body
+    // ─────────────────────────────────────────────────────────
+
+    fn contract_info(expires_at: &str) -> crate::core::types::ContractInfo {
+        crate::core::types::ContractInfo {
+            id: "c-test".to_string(),
+            issued_at: "2026-01-01T00:00:00Z".to_string(),
+            expires_at: expires_at.to_string(),
+            pricing_tier: Some("team".to_string()),
+        }
+    }
+
+    #[test]
+    fn contract_expired_past_timestamp_is_error() {
+        let rule = contract_rule("croniq");
+        let mut p = provider_with(Some(AuthMode::Contract), None);
+        p.contract = Some(contract_info("2020-01-01T00:00:00Z"));
+        let v = check_provider_contract(&rule, &p, false);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].rule, "contract_expired");
+        assert_eq!(v[0].severity, Severity::Error);
+        assert!(
+            v[0].message.contains("2020-01-01"),
+            "message should quote the expiry timestamp"
+        );
+    }
+
+    #[test]
+    fn contract_expired_future_timestamp_is_silent() {
+        let rule = contract_rule("croniq");
+        let mut p = provider_with(Some(AuthMode::Contract), None);
+        // Far-future date so the test doesn't bitrot.
+        p.contract = Some(contract_info("2099-12-31T23:59:59Z"));
+        let v = check_provider_contract(&rule, &p, false);
+        assert!(v.is_empty(), "future expiry: no diagnostics");
+    }
+
+    #[test]
+    fn contract_expired_absent_contract_info_is_silent() {
+        // Contract-tier reached but scanner didn't populate ContractInfo
+        // (back-compat with older reports). Silent until the scanner
+        // re-runs and fills in the bookkeeping.
+        let rule = contract_rule("croniq");
+        let p = provider_with(Some(AuthMode::Contract), None);
+        let v = check_provider_contract(&rule, &p, false);
+        assert!(v.is_empty());
+    }
+
+    #[test]
+    fn contract_expired_malformed_timestamp_downgrades_to_unreachable() {
+        let rule = contract_rule("croniq");
+        let mut p = provider_with(Some(AuthMode::Contract), None);
+        p.contract = Some(contract_info("not-a-date"));
+        let v = check_provider_contract(&rule, &p, false);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].rule, "contract_unreachable");
+        assert_eq!(v[0].severity, Severity::Warning);
+    }
+
+    #[test]
+    fn invalid_contract_body_maps_to_unreachable_warning() {
+        let rule = contract_rule("croniq");
+        let p = provider_with(Some(AuthMode::Public), Some("invalid_contract_body"));
+        let v = check_provider_contract(&rule, &p, false);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].rule, "contract_unreachable");
+        assert_eq!(v[0].severity, Severity::Warning);
+        assert!(
+            v[0].details
+                .as_deref()
+                .map_or(false, |d| d.contains("RFC 003")
+                    || d.contains("contract.provider")
+                    || d.contains("contract.{")),
+            "details should point at the RFC 003 envelope requirement"
         );
     }
 }
