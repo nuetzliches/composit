@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "rogue-tools": {
+      "url": "https://mcp.example.com/rogue-tools"
+    }
+  }
+}

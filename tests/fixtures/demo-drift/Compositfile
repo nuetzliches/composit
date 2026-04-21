@@ -1,0 +1,35 @@
+workspace "widgetshop" {
+
+  budget "workspace" {
+    max_monthly = "500 EUR"
+    alert_at    = "80%"
+  }
+
+  resources {
+    max_total = 20
+
+    allow "docker_compose" {
+      max = 2
+    }
+
+    # Only official widgetshop images and the Postgres base are approved.
+    # `redis:latest` in the compose file will surface as image_not_allowed.
+    allow "docker_service" {
+      max            = 10
+      allowed_images = ["ghcr.io/widgetshop/*", "postgres:*"]
+    }
+
+    allow "env_file" {
+      max = 3
+    }
+
+    allow "mcp_server" {
+      max = 5
+    }
+
+    # No workflow file exists in this fixture — required_resource_missing fires.
+    require "workflow" {
+      min = 1
+    }
+  }
+}
