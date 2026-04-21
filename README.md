@@ -179,7 +179,7 @@ comparison works regardless of who created what.
 - Breaking changes expected on both surfaces until v1.0. They'll be
   called out in release notes.
 
-→ [Roadmap](docs/ROADMAP.md) · [Open Questions](docs/OPEN-QUESTIONS.md) · [RFCs](docs/rfcs/)
+→ [Roadmap](docs/ROADMAP.md) · [RFCs](docs/rfcs/)
 
 ---
 

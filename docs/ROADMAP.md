@@ -1,7 +1,6 @@
 # Composit — Roadmap
 
-Public-facing list of what's open and what's deliberately not. For closed
-design questions see [`OPEN-QUESTIONS.md`](OPEN-QUESTIONS.md); for the
+Public-facing list of what's open and what's deliberately not. For
 formal specs see [`rfcs/`](rfcs/).
 
 This file is the contributor's "where can I help" entry point — each
@@ -50,10 +49,11 @@ a drive-by PR.
   with confidence. Covers `workspace`, `provider`, `budget`, `policy`,
   `require`, `allow`, `scan`.
 
-- **Scanner benchmark.** `composit-scanner-tests` runs composit against
-  a curated set of public repos and measures resource-coverage per
-  scanner. Surfaces regressions (a scanner silently stops detecting
-  Helm charts after a refactor) and drives the gap list below.
+- **Scanner benchmark.** A reproducible coverage benchmark across a
+  curated set of public repos — per-scanner resource counts and
+  regression alerts when a scanner silently stops detecting something
+  after a refactor. Skeleton exists internally; publishing the
+  harness so anyone can run it is the open work.
 
 ---
 
