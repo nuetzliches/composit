@@ -1,0 +1,38 @@
+# Composit Compositfile — the CLI project's own governance.
+#
+# Self-hosting proof: `composit scan + diff` runs on this repo in CI.
+# Test fixtures under tests/fixtures/ and demo workspaces under
+# examples/demo-drift/ are excluded via composit.config.yaml so the
+# inventory reflects real project infrastructure, not synthetic drift
+# scenarios shipped as part of the test suite.
+#
+# Current scan baseline (2026-04-21):
+#   2 workflows — ci.yml (cargo fmt/test gate) and pages.yml (docs site).
+#   No docker services, no providers, no env files.
+
+workspace "composit" {
+
+  # --- Approved Providers ---
+  # The CLI itself consumes no providers. Empty-but-present declares intent:
+  # anything that surfaces here in future scans is unapproved by default.
+
+  # (no provider blocks)
+
+  # --- Resource Constraints ---
+  # Calibrated to the actual scan — slack kept tight because new infra in
+  # a CLI-only project deserves an explicit Compositfile update.
+
+  resources {
+    max_total = 10
+
+    allow "workflow" {
+      max = 4
+    }
+
+    # CI is mandatory. If ci.yml disappears from a PR, `composit diff --strict`
+    # fails and the PR cannot merge.
+    require "workflow" {
+      min = 1
+    }
+  }
+}

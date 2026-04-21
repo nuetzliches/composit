@@ -48,3 +48,6 @@ jobs:
 
       - name: cargo test
         run: cargo test --verbose
+
+      - name: composit self-scan (governance gate)
+        run: bash docs/demo/self-scan.sh

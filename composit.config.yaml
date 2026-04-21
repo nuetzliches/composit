@@ -1,0 +1,8 @@
+# Composit scans itself. Exclude test fixtures and demo material so the
+# inventory reflects the actual infrastructure of the CLI project — not the
+# synthetic workspaces shipped under tests/fixtures/ and examples/.
+workspace: composit
+
+exclude_paths:
+  - tests/fixtures
+  - examples
