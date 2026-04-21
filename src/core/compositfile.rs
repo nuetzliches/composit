@@ -148,14 +148,8 @@ fn parse_budget_block(block: &hcl::Block) -> Result<BudgetRule> {
     let alert_at = get_string_attr(&block.body, "alert_at");
 
     if let Some(raw) = &alert_at {
-        validate_percentage(raw).map_err(|e| {
-            anyhow!(
-                "Budget '{}' has invalid alert_at \"{}\": {}",
-                scope,
-                raw,
-                e
-            )
-        })?;
+        validate_percentage(raw)
+            .map_err(|e| anyhow!("Budget '{}' has invalid alert_at \"{}\": {}", scope, raw, e))?;
     }
 
     Ok(BudgetRule {
@@ -593,7 +587,10 @@ mod tests {
         .unwrap_err()
         .to_string();
 
-        assert!(err.contains("%"), "error must mention percent suffix: {err}");
+        assert!(
+            err.contains("%"),
+            "error must mention percent suffix: {err}"
+        );
     }
 
     #[test]
@@ -610,8 +607,8 @@ mod tests {
                 "#,
                 value
             );
-            let gov = parse_hcl(&src)
-                .unwrap_or_else(|e| panic!("'{value}' should parse but got: {e}"));
+            let gov =
+                parse_hcl(&src).unwrap_or_else(|e| panic!("'{value}' should parse but got: {e}"));
             assert_eq!(gov.budgets[0].alert_at.as_deref(), Some(*value));
         }
     }

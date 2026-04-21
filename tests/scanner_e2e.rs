@@ -85,10 +85,16 @@ fn scan_sample_project_produces_valid_report() {
     assert!(report_path.exists(), "report file not written");
 
     let content = fs::read_to_string(&report_path).unwrap();
-    let report: serde_json::Value = serde_json::from_str(&content)
-        .unwrap_or_else(|e| panic!("report is not valid JSON: {e}"));
+    let report: serde_json::Value =
+        serde_json::from_str(&content).unwrap_or_else(|e| panic!("report is not valid JSON: {e}"));
 
-    for field in &["workspace", "generated", "scanner_version", "resources", "summary"] {
+    for field in &[
+        "workspace",
+        "generated",
+        "scanner_version",
+        "resources",
+        "summary",
+    ] {
         assert!(
             report.get(field).is_some(),
             "report missing required field: {field}"
@@ -138,12 +144,13 @@ fn scan_docker_fixture_finds_compose_services() {
         .iter()
         .filter(|r| r["type"].as_str() == Some("docker_service"))
         .collect();
-    assert_eq!(services.len(), 3, "expected 3 docker_service resources (api, worker, db)");
+    assert_eq!(
+        services.len(),
+        3,
+        "expected 3 docker_service resources (api, worker, db)"
+    );
 
-    let names: Vec<&str> = services
-        .iter()
-        .filter_map(|r| r["name"].as_str())
-        .collect();
+    let names: Vec<&str> = services.iter().filter_map(|r| r["name"].as_str()).collect();
     for expected in &["api", "worker", "db"] {
         assert!(names.contains(expected), "missing service: {expected}");
     }
@@ -169,7 +176,11 @@ fn scan_env_files_fixture_counts_vars() {
         .iter()
         .filter(|r| r["type"].as_str() == Some("env_file"))
         .collect();
-    assert_eq!(env_resources.len(), 2, "expected 2 env_file resources (.env and .env.staging)");
+    assert_eq!(
+        env_resources.len(),
+        2,
+        "expected 2 env_file resources (.env and .env.staging)"
+    );
 
     for r in &env_resources {
         let count = r["variables"]
@@ -255,8 +266,8 @@ fn demo_drift_surfaces_three_expected_errors() {
     }
 
     for expected in &[
-        "unapproved_provider",      // rogue-tools MCP server
-        "image_not_allowed",        // redis:latest
+        "unapproved_provider",       // rogue-tools MCP server
+        "image_not_allowed",         // redis:latest
         "required_resource_missing", // no workflow
     ] {
         assert!(
@@ -291,7 +302,10 @@ fn scan_kubernetes_fixture_finds_manifests_kustomize_and_helm() {
         2,
         "expected Deployment + Service from deployment.yaml"
     );
-    let names: Vec<&str> = manifests.iter().filter_map(|r| r["name"].as_str()).collect();
+    let names: Vec<&str> = manifests
+        .iter()
+        .filter_map(|r| r["name"].as_str())
+        .collect();
     assert!(names.contains(&"Deployment/api"));
     assert!(names.contains(&"Service/api"));
 

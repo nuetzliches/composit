@@ -52,10 +52,7 @@ impl Scanner for KubernetesScanner {
                     Err(_) => continue,
                 };
 
-                let file_name = entry
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("");
+                let file_name = entry.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
                 if file_name == "Chart.yaml" {
                     if let Some(r) = parse_helm_chart(&content, &display_path) {
@@ -365,10 +362,7 @@ bases:
 "#;
         let r = parse_kustomization(yaml, "./kustomization.yaml").unwrap();
         assert_eq!(r.resource_type, "kustomization");
-        assert_eq!(
-            r.extra.get("resources").and_then(|v| v.as_u64()),
-            Some(2)
-        );
+        assert_eq!(r.extra.get("resources").and_then(|v| v.as_u64()), Some(2));
         assert_eq!(r.extra.get("bases").and_then(|v| v.as_u64()), Some(1));
         assert_eq!(
             r.extra.get("namespace").and_then(|v| v.as_str()),
@@ -403,7 +397,9 @@ dependencies:
     #[test]
     fn test_should_skip_vendor_and_other_scanner_files() {
         assert!(should_skip(Path::new("/repo/node_modules/foo/bar.yaml")));
-        assert!(should_skip(Path::new("/repo/chart/templates/deployment.yaml")));
+        assert!(should_skip(Path::new(
+            "/repo/chart/templates/deployment.yaml"
+        )));
         assert!(should_skip(Path::new("/repo/docker-compose.yml")));
         assert!(should_skip(Path::new("/repo/prometheus.yml")));
         assert!(should_skip(Path::new("/repo/.github/workflows/ci.yml")));
