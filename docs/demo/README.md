@@ -1,7 +1,7 @@
 # Asciinema Recording — Composit Demo
 
 The HN-facing walkthrough. Shows `composit scan` and `composit diff` on
-the `examples/demo-drift/` workspace end-to-end in ~35 seconds.
+the `examples/demo-drift/` workspace end-to-end in ~11 seconds.
 
 ## Dependencies
 
@@ -51,12 +51,12 @@ recording. Re-inspect `examples/demo-drift/` and re-run.
 asciinema upload composit-demo.cast
 ```
 
-The returned URL embeds directly into the HN post body
-(`docs/HN-LAUNCH.md`) and the landing page.
+The returned URL is what you paste into the landing page
+(see `landing/index.html`) and any external post body.
 
 ## Why this is scripted, not hand-typed
 
 Hand-recording invites typos, variable pacing, and accidental shell
-history leaking. The script is deterministic: the same 35 seconds every
+history leaking. The script is deterministic: the same 11 seconds every
 time, identical terminal output, safe to re-record on demand when the
 diff rendering changes.

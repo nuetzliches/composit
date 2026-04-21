@@ -2,8 +2,13 @@
 name = "composit"
 version = "0.1.0"
 edition = "2021"
-description = "Visibility into agent-created infrastructure"
+description = "Governance-as-Code for AI-generated infrastructure — scan declarations, diff against a Compositfile, surface drift."
 license = "MIT"
+repository = "https://github.com/nuetzliches/composit"
+homepage = "https://nuetzliches.github.io/composit"
+readme = "README.md"
+keywords = ["governance", "iac", "mcp", "scanner", "compositfile"]
+categories = ["command-line-utilities", "development-tools", "config"]
 
 [[bin]]
 name = "composit"
