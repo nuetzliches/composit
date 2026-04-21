@@ -30,4 +30,10 @@ echo "▸ Scanning $REPO_ROOT"
 "$BIN" scan --dir . --no-providers --quiet
 
 echo
+# Regenerate the HTML diff at the repo root as an inspectable artefact
+# before the strict gate fires (so it exists even when diff exits 1 and
+# the terminal call below gets cut short in CI). Both files are
+# gitignored — they're local artefacts, not committed state.
+"$BIN" diff --offline --output html >/dev/null
+
 "$BIN" diff --offline --strict

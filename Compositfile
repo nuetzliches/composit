@@ -1,16 +1,27 @@
 # Composit Compositfile — the CLI project's own governance.
 #
 # Self-hosting proof: `composit scan + diff` runs on this repo in CI.
-# Test fixtures under tests/fixtures/ and demo workspaces under
-# examples/demo-drift/ are excluded via composit.config.yaml so the
-# inventory reflects real project infrastructure, not synthetic drift
-# scenarios shipped as part of the test suite.
+# Everything composit needs to know — governance AND scan tuning — lives
+# here in one reviewed HCL file. There is no separate composit.config.yaml.
 #
 # Current scan baseline (2026-04-21):
 #   2 workflows — ci.yml (cargo fmt/test gate) and pages.yml (docs site).
 #   No docker services, no providers, no env files.
 
 workspace "composit" {
+
+  # --- Scan Tuning ---
+  # Test fixtures under tests/fixtures/ and the synthetic demo workspaces
+  # under examples/demo-drift/ are part of the test suite, not of the
+  # project's real infrastructure. Exclude them so the inventory reflects
+  # what composit itself deploys.
+
+  scan {
+    exclude = [
+      "tests/fixtures",
+      "examples",
+    ]
+  }
 
   # --- Approved Providers ---
   # The CLI itself consumes no providers. Empty-but-present declares intent:

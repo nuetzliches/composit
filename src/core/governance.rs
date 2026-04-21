@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 /// The SHOULD-state: governance rules declared in a Compositfile.
@@ -9,6 +11,48 @@ pub struct Governance {
     pub budgets: Vec<BudgetRule>,
     pub policies: Vec<PolicyRule>,
     pub resources: Option<ResourceConstraints>,
+    /// Scanner-tuning knobs. Lives inside the Compositfile (as a `scan { … }`
+    /// block) so governance and "how to discover" ship together in one
+    /// reviewed file — there is no separate composit.config.yaml.
+    #[serde(default)]
+    pub scan: ScanSettings,
+}
+
+/// Tool-level scan configuration — which paths to skip, which custom file
+/// patterns to surface, which built-in scanners to disable. Empty defaults
+/// everywhere so an omitted `scan { }` block is identical to "no tuning".
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ScanSettings {
+    /// Paths (relative to the scan dir) the filesystem walk must skip.
+    /// Bare dir entries expand to `<dir>/**` so `.gitignore`-style habits
+    /// work; globs with `*`/`?`/`[` are used verbatim.
+    #[serde(default)]
+    pub exclude_paths: Vec<String>,
+
+    /// Extra glob patterns that surface as ad-hoc resources with a
+    /// user-chosen resource type. Parallels the built-in scanners for
+    /// domain-specific files the shipped scanners don't know about.
+    #[serde(default)]
+    pub extra_patterns: Vec<ExtraPattern>,
+
+    /// Per-scanner on/off override. Missing keys default to enabled.
+    #[serde(default)]
+    pub scanners: HashMap<String, bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExtraPattern {
+    #[serde(rename = "type")]
+    pub resource_type: String,
+    pub glob: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+impl ScanSettings {
+    pub fn is_scanner_enabled(&self, scanner_id: &str) -> bool {
+        self.scanners.get(scanner_id).copied().unwrap_or(true)
+    }
 }
 
 /// An approved provider with manifest URL, trust level, and compliance tags.

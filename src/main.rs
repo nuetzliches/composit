@@ -13,7 +13,7 @@ use colored::Colorize;
 
 use cli::{Cli, Commands, OutputFormat};
 use core::compositfile::parse_compositfile;
-use core::config::ScanConfig;
+use core::governance::Governance;
 use core::registry::ScannerRegistry;
 use core::report::{dedup_providers, dedup_resources};
 use core::scanner::{compile_exclude_patterns, ProviderTarget, ScanContext};
@@ -29,19 +29,10 @@ async fn main() -> Result<()> {
             output,
             providers,
             no_providers,
-            config,
             quiet,
         } => {
             let dir = fs::canonicalize(&dir)?;
-            run_scan(
-                &dir,
-                output,
-                providers,
-                no_providers,
-                config.as_deref(),
-                quiet,
-            )
-            .await?;
+            run_scan(&dir, output, providers, no_providers, quiet).await?;
         }
         Commands::Status { dir, live } => {
             let dir = fs::canonicalize(&dir)?;
@@ -78,76 +69,53 @@ async fn run_scan(
     format: OutputFormat,
     providers: Vec<String>,
     no_providers: bool,
-    config_path: Option<&Path>,
     quiet: bool,
 ) -> Result<()> {
-    // Load config
-    let config = ScanConfig::load(dir, config_path)?;
+    // The Compositfile is the single source of truth for governance AND
+    // scanner tuning (exclude_paths, extra_patterns, scanner toggles,
+    // provider list). Missing file is fine — scanner falls back to
+    // dirname-based workspace and no tuning.
+    let governance = load_governance(dir);
 
     let mut registry = ScannerRegistry::new();
     scanners::register_default_scanners(&mut registry);
 
-    // Register extra_patterns scanner if config has patterns
-    if let Some(cfg) = &config {
-        if !cfg.extra_patterns.is_empty() {
+    // Register extra_patterns scanner if the Compositfile declared any.
+    if let Some(gov) = &governance {
+        if !gov.scan.extra_patterns.is_empty() {
             registry.register(Box::new(scanners::extra_patterns::ExtraPatternsScanner {
-                patterns: cfg.extra_patterns.clone(),
+                patterns: gov.scan.extra_patterns.clone(),
             }));
         }
     }
 
-    // Build provider targets: Compositfile (if present, governs trust/auth)
-    // wins over CLI --providers, which wins over composit.config.yaml.
-    // URLs deduplicate across sources by first-seen.
+    // Build provider targets: Compositfile providers carry full trust/auth
+    // metadata; CLI --providers adds public-only overrides on top. URLs
+    // dedupe across sources by first-seen.
     let mut targets: Vec<ProviderTarget> = Vec::new();
     let mut seen_urls: std::collections::HashSet<String> = std::collections::HashSet::new();
 
-    // 1. Compositfile — carries trust + auth metadata for RFC 002 contract flows.
-    let compositfile_path = dir.join("Compositfile");
-    if compositfile_path.exists() {
-        match parse_compositfile(&compositfile_path) {
-            Ok(governance) => {
-                for rule in &governance.providers {
-                    if !seen_urls.insert(rule.manifest.clone()) {
-                        continue;
-                    }
-                    let (auth_type, auth_env) = match &rule.auth {
-                        Some(a) => (Some(a.auth_type.clone()), a.env.clone()),
-                        None => (None, None),
-                    };
-                    targets.push(ProviderTarget {
-                        url: rule.manifest.clone(),
-                        trust: Some(rule.trust.clone()),
-                        auth_type,
-                        auth_env,
-                    });
-                }
+    if let Some(gov) = &governance {
+        for rule in &gov.providers {
+            if !seen_urls.insert(rule.manifest.clone()) {
+                continue;
             }
-            Err(e) => {
-                // Don't abort the scan if the Compositfile is broken —
-                // the user can still want an inventory. Surface loudly.
-                eprintln!(
-                    "warning: Compositfile present at {} but could not be parsed: {}",
-                    compositfile_path.display(),
-                    e
-                );
-            }
+            let (auth_type, auth_env) = match &rule.auth {
+                Some(a) => (Some(a.auth_type.clone()), a.env.clone()),
+                None => (None, None),
+            };
+            targets.push(ProviderTarget {
+                url: rule.manifest.clone(),
+                trust: Some(rule.trust.clone()),
+                auth_type,
+                auth_env,
+            });
         }
     }
 
-    // 2. CLI --providers: public-only, no governance attached.
     for url in providers {
         if seen_urls.insert(url.clone()) {
             targets.push(ProviderTarget::public_only(url));
-        }
-    }
-
-    // 3. composit.config.yaml providers: public-only fallback.
-    if let Some(cfg) = &config {
-        for entry in &cfg.providers {
-            if seen_urls.insert(entry.url.clone()) {
-                targets.push(ProviderTarget::public_only(entry.url.clone()));
-            }
         }
     }
 
@@ -161,9 +129,9 @@ async fn run_scan(
         ScanMode::Online
     };
 
-    let exclude_patterns = config
+    let exclude_patterns = governance
         .as_ref()
-        .map(|c| compile_exclude_patterns(&c.exclude_paths))
+        .map(|g| compile_exclude_patterns(&g.scan.exclude_paths))
         .unwrap_or_default();
 
     let context = ScanContext {
@@ -173,12 +141,13 @@ async fn run_scan(
         exclude_patterns,
     };
 
-    let result = registry.run_all(&context, config.as_ref()).await?;
+    let scan_settings = governance.as_ref().map(|g| &g.scan);
+    let result = registry.run_all(&context, scan_settings).await?;
 
-    // Workspace name: config > directory name
-    let workspace = config
+    // Workspace name: Compositfile label > directory name.
+    let workspace = governance
         .as_ref()
-        .and_then(|c| c.workspace.clone())
+        .map(|g| g.workspace.clone())
         .unwrap_or_else(|| {
             dir.file_name()
                 .map(|n| n.to_string_lossy().to_string())
@@ -214,4 +183,26 @@ async fn run_scan(
     }
 
     Ok(())
+}
+
+/// Load the Compositfile at the scan root. A missing file is fine —
+/// governance is optional. A present-but-broken file is surfaced loudly
+/// so the operator notices, but the scan continues so they still get an
+/// inventory.
+fn load_governance(dir: &Path) -> Option<Governance> {
+    let path = dir.join("Compositfile");
+    if !path.exists() {
+        return None;
+    }
+    match parse_compositfile(&path) {
+        Ok(g) => Some(g),
+        Err(e) => {
+            eprintln!(
+                "warning: Compositfile present at {} but could not be parsed: {}",
+                path.display(),
+                e
+            );
+            None
+        }
+    }
 }

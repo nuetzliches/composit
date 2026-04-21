@@ -4,7 +4,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use glob::glob;
 
-use crate::core::config::ExtraPattern;
+use crate::core::governance::ExtraPattern;
 use crate::core::scanner::{ScanContext, ScanResult, Scanner};
 use crate::core::types::Resource;
 

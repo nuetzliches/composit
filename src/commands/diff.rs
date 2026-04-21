@@ -1201,13 +1201,14 @@ mod tests {
             }],
             policies: vec![],
             resources: None,
+            scan: crate::core::governance::ScanSettings::default(),
         }
     }
 
     #[test]
     fn test_workspace_name_mismatch_surfaces_as_info() {
-        // report.workspace (from composit.config.yaml or dirname) must match
-        // governance.workspace (the Compositfile label). A silent drift is
+        // report.workspace (from the scan — Compositfile label, fallback to
+        // dirname) must match governance.workspace. A silent drift is
         // confusing — the diff header prints one name while the report shows
         // another. Info severity so it signals without failing CI.
         let mut report = make_report(vec![], vec![], "0 EUR");

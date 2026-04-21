@@ -33,10 +33,6 @@ pub enum Commands {
         #[arg(long)]
         no_providers: bool,
 
-        /// Path to composit.config.yaml
-        #[arg(long)]
-        config: Option<PathBuf>,
-
         /// Only write report file, no terminal summary
         #[arg(long)]
         quiet: bool,

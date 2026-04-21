@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use super::config::ScanConfig;
+use super::governance::ScanSettings;
 use super::scanner::{ProviderTarget, ScanContext, ScanResult, Scanner};
 use super::types::{Provider, Resource};
 
@@ -24,7 +24,7 @@ impl ScannerRegistry {
     pub async fn run_all(
         &self,
         context: &ScanContext,
-        config: Option<&ScanConfig>,
+        scan: Option<&ScanSettings>,
     ) -> Result<ScanResult> {
         let mut all_resources: Vec<Resource> = Vec::new();
         let mut all_providers: Vec<Provider> = Vec::new();
@@ -34,7 +34,7 @@ impl ScannerRegistry {
             .scanners
             .iter()
             .filter(|s| !s.needs_network())
-            .filter(|s| config.map(|c| c.is_scanner_enabled(s.id())).unwrap_or(true))
+            .filter(|s| scan.map(|c| c.is_scanner_enabled(s.id())).unwrap_or(true))
             .map(|s| s.as_ref())
             .collect();
 
@@ -56,7 +56,7 @@ impl ScannerRegistry {
                 .scanners
                 .iter()
                 .filter(|s| s.needs_network())
-                .filter(|s| config.map(|c| c.is_scanner_enabled(s.id())).unwrap_or(true))
+                .filter(|s| scan.map(|c| c.is_scanner_enabled(s.id())).unwrap_or(true))
                 .map(|s| s.as_ref())
                 .collect();
 
@@ -69,15 +69,6 @@ impl ScannerRegistry {
             for p in &all_providers {
                 if !known_urls(&extended_providers, &p.endpoint) {
                     extended_providers.push(ProviderTarget::public_only(p.endpoint.clone()));
-                }
-            }
-
-            // Add providers from config
-            if let Some(cfg) = config {
-                for entry in &cfg.providers {
-                    if !known_urls(&extended_providers, &entry.url) {
-                        extended_providers.push(ProviderTarget::public_only(entry.url.clone()));
-                    }
                 }
             }
 

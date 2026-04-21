@@ -4,8 +4,8 @@ use anyhow::{anyhow, Context, Result};
 use hcl::Body;
 
 use crate::core::governance::{
-    AllowRule, AuthRef, BudgetRule, Governance, PolicyRule, ProviderRule, RequireRule,
-    ResourceConstraints,
+    AllowRule, AuthRef, BudgetRule, ExtraPattern, Governance, PolicyRule, ProviderRule,
+    RequireRule, ResourceConstraints, ScanSettings,
 };
 
 /// Parse a Compositfile (HCL governance document) into a Governance struct.
@@ -31,6 +31,7 @@ pub fn parse_compositfile(path: &Path) -> Result<Governance> {
     let mut budgets = Vec::new();
     let mut policies = Vec::new();
     let mut resources = None;
+    let mut scan = ScanSettings::default();
 
     for block in workspace_block.body.blocks() {
         match block.identifier.as_str() {
@@ -38,6 +39,7 @@ pub fn parse_compositfile(path: &Path) -> Result<Governance> {
             "budget" => budgets.push(parse_budget_block(block)?),
             "policy" => policies.push(parse_policy_block(block)?),
             "resources" => resources = Some(parse_resources_block(block)?),
+            "scan" => scan = parse_scan_block(block)?,
             other => {
                 eprintln!("Warning: unknown block type '{}' in Compositfile", other);
             }
@@ -50,7 +52,67 @@ pub fn parse_compositfile(path: &Path) -> Result<Governance> {
         budgets,
         policies,
         resources,
+        scan,
     })
+}
+
+/// Parse a `scan { exclude = [...]; extra_patterns { … }; scanners { prometheus = false } }`
+/// block. All sub-fields are optional — an empty `scan { }` block is a
+/// valid no-op.
+fn parse_scan_block(block: &hcl::Block) -> Result<ScanSettings> {
+    let exclude_paths = get_string_array_attr(&block.body, "exclude");
+
+    let mut extra_patterns = Vec::new();
+    for inner in block.body.blocks() {
+        match inner.identifier.as_str() {
+            "extra_patterns" => {
+                let resource_type = get_string_attr(&inner.body, "type")
+                    .ok_or_else(|| anyhow!("scan.extra_patterns block missing 'type' attribute"))?;
+                let glob = get_string_attr(&inner.body, "glob")
+                    .ok_or_else(|| anyhow!("scan.extra_patterns block missing 'glob' attribute"))?;
+                let description = get_string_attr(&inner.body, "description");
+                extra_patterns.push(ExtraPattern {
+                    resource_type,
+                    glob,
+                    description,
+                });
+            }
+            "scanners" => {
+                // handled below
+            }
+            other => {
+                eprintln!("Warning: unknown block type '{}' inside scan {{ }}", other);
+            }
+        }
+    }
+
+    // `scanners { prometheus = false }` maps each attribute to an on/off
+    // toggle. Missing keys default to "enabled" elsewhere.
+    let mut scanners = std::collections::HashMap::new();
+    if let Some(scanners_block) = block
+        .body
+        .blocks()
+        .find(|b| b.identifier.as_str() == "scanners")
+    {
+        for attr in scanners_block.body.attributes() {
+            if let Some(b) = attr_as_bool(&attr.expr) {
+                scanners.insert(attr.key.as_str().to_string(), b);
+            }
+        }
+    }
+
+    Ok(ScanSettings {
+        exclude_paths,
+        extra_patterns,
+        scanners,
+    })
+}
+
+fn attr_as_bool(expr: &hcl::Expression) -> Option<bool> {
+    match expr {
+        hcl::Expression::Bool(b) => Some(*b),
+        _ => None,
+    }
 }
 
 fn parse_provider_block(block: &hcl::Block) -> Result<ProviderRule> {
@@ -300,6 +362,7 @@ mod tests {
         let mut budgets = Vec::new();
         let mut policies = Vec::new();
         let mut resources = None;
+        let mut scan = ScanSettings::default();
 
         for block in workspace_block.body.blocks() {
             match block.identifier.as_str() {
@@ -307,6 +370,7 @@ mod tests {
                 "budget" => budgets.push(parse_budget_block(block)?),
                 "policy" => policies.push(parse_policy_block(block)?),
                 "resources" => resources = Some(parse_resources_block(block)?),
+                "scan" => scan = parse_scan_block(block)?,
                 _ => {}
             }
         }
@@ -317,6 +381,7 @@ mod tests {
             budgets,
             policies,
             resources,
+            scan,
         })
     }
 
@@ -611,5 +676,59 @@ mod tests {
                 parse_hcl(&src).unwrap_or_else(|e| panic!("'{value}' should parse but got: {e}"));
             assert_eq!(gov.budgets[0].alert_at.as_deref(), Some(*value));
         }
+    }
+
+    #[test]
+    fn test_scan_block_populates_exclude_patterns_and_extras() {
+        let gov = parse_hcl(
+            r#"
+            workspace "test" {
+              scan {
+                exclude = ["tests/fixtures", "examples", "**/*.generated.yaml"]
+
+                extra_patterns {
+                  type = "terraform_module"
+                  glob = "modules/**/*.tf"
+                }
+
+                scanners {
+                  prometheus = false
+                }
+              }
+            }
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            gov.scan.exclude_paths,
+            vec![
+                "tests/fixtures".to_string(),
+                "examples".to_string(),
+                "**/*.generated.yaml".to_string(),
+            ]
+        );
+        assert_eq!(gov.scan.extra_patterns.len(), 1);
+        assert_eq!(gov.scan.extra_patterns[0].resource_type, "terraform_module");
+        assert_eq!(gov.scan.extra_patterns[0].glob, "modules/**/*.tf");
+        assert_eq!(gov.scan.scanners.get("prometheus"), Some(&false));
+        assert!(gov.scan.is_scanner_enabled("docker"));
+    }
+
+    #[test]
+    fn test_missing_scan_block_yields_default_empty_settings() {
+        // A Compositfile without a scan block must still produce a valid
+        // Governance — governance and scan tuning are independently optional.
+        let gov = parse_hcl(
+            r#"
+            workspace "test" {
+              resources { max_total = 10 }
+            }
+            "#,
+        )
+        .unwrap();
+        assert!(gov.scan.exclude_paths.is_empty());
+        assert!(gov.scan.extra_patterns.is_empty());
+        assert!(gov.scan.scanners.is_empty());
     }
 }
