@@ -1,6 +1,6 @@
 # Composit — Next Steps
 
-Stand: 2026-04-20 (post-RFC-003, Public→Contract-Zyklus end-to-end)
+Stand: 2026-04-21 (Demo-Fixture, Asciinema-Script, K8s-Scanner gelandet)
 
 Basiert auf Business Validation Report (7.5/10, BUILD — re-assessment 2026-04-14).
 Zeitgebundene Sprints mit klarem ICP-Fokus: Platform Engineers + CTOs.
@@ -20,10 +20,12 @@ Erledigt: RFC 001-003 (Draft), Public/Contract-Split end-to-end inkl.
 
 **Blocker für Launch:**
 
-- [ ] **Live-Demo (public) bauen** — synthetisches Demo-Repo mit
-  Compositfile + bewusst eingebauter Drift. Sprint-2-Restposten,
-  Haupt-HN-Artefakt.
-- [ ] **Asciinema-Recording** für Show-HN-Post.
+- [x] **Live-Demo (public) bauen** — `examples/demo-drift/` (widgetshop
+  workspace, 3 deterministische Errors). README + Haupt-README-Link.
+- [x] **Asciinema-Recording-Script** — `docs/demo/record.sh` (35s,
+  deterministisch). Eigentliche Aufnahme muss noch gemacht werden.
+- [ ] **Asciinema-Recording aufnehmen + publishen** — mit obigem Script,
+  Ergebnis als `composit-demo.cast` auf asciinema.org + im HN-Post einbetten.
 - [ ] **Show-HN-Post** selbst (Woche-5/6 in Sprint 3).
 
 **Nicht-Blocker, aber auf der Liste:**
@@ -36,12 +38,17 @@ Erledigt: RFC 001-003 (Draft), Public/Contract-Split end-to-end inkl.
 - [ ] **Dogfood-Runs dokumentieren** — `composit scan` + `diff`-Artefakte
   aus nuts-infra, croniq, hookaido, powerbrain als Demo-Material.
 - [ ] **npx-Wrapper** für Zero-Install-Distribution (Sprint 3).
-- [ ] **Scanner-Tests nachziehen** für docker, env_files, cron,
-  mcp_config, mcp_provider + End-to-End-Test.
-- [ ] **Percentage-Validierung** im Compositfile-Parser (0-100% Range).
+- [x] **Scanner-Tests nachziehen** — inline Unit-Tests für docker,
+  env_files, cron, mcp_config, mcp_provider bestätigt; End-to-End-Suite
+  in `tests/scanner_e2e.rs` deckt scan + diff auf Fixture-Workspaces ab.
+- [x] **Percentage-Validierung** im Compositfile-Parser (0-100% Range,
+  inkl. Missing-`%`-Suffix + Decimal-Fällen).
 - [ ] **OPA Runtime-Evaluation** — Rego tatsächlich ausführen statt nur
   parsen.
-- [ ] **Scanner-Gaps Tier 1** — K8s Manifests, Kustomize, Helm Charts.
+- [x] **Scanner-Gaps Tier 1 — K8s Manifests, Kustomize, Helm Charts**:
+  `kubernetes`-Scanner emittiert `kubernetes_manifest`, `kustomization`,
+  `helm_chart`. Multi-Doc-YAML, `Kind/Name` qualifizierte Namen, skip
+  für `templates/`, vendor und andere Scanner-Pfade.
 - [ ] **Scanner-Benchmark** (`composit-scanner-tests`, Coverage-Metrik).
 
 **Spec-Folgearbeiten (keine Consumer-Blocker):**
@@ -132,7 +139,7 @@ Anstelle von 10-15 Interviews validieren wir über eigene Stacks:
 
 ### Scanner Status
 
-**Implementiert (9 Scanner):**
+**Implementiert (10 Scanner):**
 
 | Scanner | Resource-Typen | Status |
 |---------|---------------|--------|
@@ -143,6 +150,7 @@ Anstelle von 10-15 Interviews validieren wir über eigene Stacks:
 | workflows | workflow | ✅ GitHub Actions, Forgejo, Gitea, GitLab CI |
 | prometheus | prometheus_config, prometheus_rules | ✅ Scrape-Configs, Alert-Rules |
 | cron | cron_job | ✅ Crontab-Einträge |
+| kubernetes | kubernetes_manifest, kustomization, helm_chart | ✅ Multi-Doc-YAML, Kind/Name-qualifiziert, Kustomize + Helm Chart.yaml |
 | mcp_config | mcp_server | ✅ Claude Desktop, Cursor MCP-Config |
 | mcp_provider | (via API) | ✅ Remote Provider Discovery |
 
@@ -153,18 +161,18 @@ die in gescannten Repos existieren, aber von keinem Scanner erfasst werden.
 
 **Tier 1 — Höchste Priorität** (häufig, hohes Volumen):
 
-- [ ] **Kubernetes Manifests** (~100 Dateien in Test-Repos)
-  YAML mit `apiVersion:` — Deployments, Services, ConfigMaps, Ingress.
-  Resource-Typ + Namespace + Name extrahieren.
-  Erkennungsmuster: `apiVersion:` in YAML (nicht Workflow/Compose/Prometheus).
+- [x] **Kubernetes Manifests** (~100 Dateien in Test-Repos)
+  `kubernetes`-Scanner parsed Multi-Doc-YAML mit `apiVersion` + `kind`,
+  emittiert pro Document ein `kubernetes_manifest` mit Namespace + Kind.
 
-- [ ] **Kustomize** (22 Dateien in Test-Repos)
-  `kustomization.yaml` — Overlay-Struktur, referenzierte Bases und Resources.
-  Oft zusammen mit Kubernetes Manifests.
+- [x] **Kustomize** (22 Dateien in Test-Repos)
+  `kustomization.yaml`/`Kustomization` → `kustomization`-Resource mit
+  resource-/base-/component-Counts und Namespace.
 
-- [ ] **Helm Charts** (5 Dateien in Test-Repos)
-  `Chart.yaml` — Chart-Name, Version, Dependencies, Values.
-  Zusammen mit templates/ Verzeichnis.
+- [x] **Helm Charts** (5 Dateien in Test-Repos)
+  `Chart.yaml` → `helm_chart`-Resource mit Chart-Name, Version,
+  Dependency-Count. `templates/` wird übersprungen (Go-templated YAML
+  parst kaum sauber).
 
 **Tier 2 — Mittel** (vorhanden, moderates Volumen):
 
