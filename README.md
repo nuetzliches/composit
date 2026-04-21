@@ -157,6 +157,19 @@ whitelists, region restrictions, resource limits.
 
 → See [`examples/policies/`](examples/policies/)
 
+### Try it on the demo workspace
+
+A self-contained synthetic workspace shaped to surface three canonical
+drifts (`image_not_allowed`, `required_resource_missing`,
+`unapproved_provider`). No real infrastructure, no private endpoints.
+
+```bash
+composit scan --dir examples/demo-drift --no-providers
+composit diff --dir examples/demo-drift --offline
+```
+
+→ See [`examples/demo-drift/`](examples/demo-drift/) for the walkthrough.
+
 ---
 
 ## Business Model
