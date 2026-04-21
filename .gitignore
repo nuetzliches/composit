@@ -29,6 +29,7 @@ tests/artifacts/
 .env
 .env.local
 !tests/fixtures/**/.env
+!examples/**/.env
 
 # Private working docs (not published)
 VALIDATION.md
