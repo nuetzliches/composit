@@ -162,27 +162,26 @@ section .sub { color: var(--muted); margin-bottom: 2.5rem; max-width: 640px; }
 .qs-block pre .comment { color: var(--muted); }
 .qs-note { color: var(--muted); font-size: .85rem; margin-top: 1rem; }
 
-/* Features (with click tracking) */
+/* Feature interest buttons */
 .features {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 0.75rem;
 }
 .feature-btn {
+  display: block;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 1rem 1.25rem;
   text-align: left;
   color: var(--text);
-  cursor: pointer;
-  font-family: inherit;
+  text-decoration: none;
   font-size: 0.95rem;
   transition: border-color 0.15s, background 0.15s;
   width: 100%;
 }
 .feature-btn:hover { border-color: var(--accent); background: var(--surface-2); }
-.feature-btn.voted { border-color: var(--green); background: rgba(63,185,80,0.08); }
 .feature-btn strong { display: block; margin-bottom: 0.25rem; }
 .feature-btn span { color: var(--muted); font-size: 0.85rem; }
 .feature-note { color: var(--muted); font-size: 0.85rem; margin-top: 1rem; }
@@ -374,34 +373,34 @@ POLICIES (1 warning)
 <section>
   <div class="container">
     <h2>Which direction should composit take?</h2>
-    <p class="sub">The CLI stays free and open. Several capabilities could sit on top — which ones are worth building? Click what you'd actually use. One tap each, anonymous.</p>
+    <p class="sub">The CLI stays free and open. Several capabilities could sit on top — which ones are worth building? Click to open a GitHub Discussion and leave a 👍.</p>
     <div class="features" id="features">
-      <button type="button" class="feature-btn" data-feature="drift-alerts">
+      <a class="feature-btn" href="https://github.com/nuetzliches/composit/discussions/1" target="_blank" rel="noopener">
         <strong>Drift alerts</strong>
         <span>Slack / email when CI finds new violations.</span>
-      </button>
-      <button type="button" class="feature-btn" data-feature="cost-attribution">
+      </a>
+      <a class="feature-btn" href="https://github.com/nuetzliches/composit/discussions/2" target="_blank" rel="noopener">
         <strong>Cost attribution</strong>
         <span>Who (human or agent) is racking up the bill.</span>
-      </button>
-      <button type="button" class="feature-btn" data-feature="compliance">
+      </a>
+      <a class="feature-btn" href="https://github.com/nuetzliches/composit/discussions/3" target="_blank" rel="noopener">
         <strong>Compliance reports</strong>
         <span>SOC2 / GDPR exports. Audit trail.</span>
-      </button>
-      <button type="button" class="feature-btn" data-feature="multi-agent">
+      </a>
+      <a class="feature-btn" href="https://github.com/nuetzliches/composit/discussions/4" target="_blank" rel="noopener">
         <strong>Multi-agent visibility</strong>
         <span>Track what each agent platform created.</span>
-      </button>
-      <button type="button" class="feature-btn" data-feature="dashboard">
+      </a>
+      <a class="feature-btn" href="https://github.com/nuetzliches/composit/discussions/5" target="_blank" rel="noopener">
         <strong>Team dashboard</strong>
         <span>Cross-repo view for platform leads.</span>
-      </button>
-      <button type="button" class="feature-btn" data-feature="policy-runtime">
+      </a>
+      <a class="feature-btn" href="https://github.com/nuetzliches/composit/discussions/6" target="_blank" rel="noopener">
         <strong>OPA at commit time</strong>
         <span>Block PRs that break governance.</span>
-      </button>
+      </a>
     </div>
-    <p class="feature-note">Votes stay on your device (localStorage) and fire one anonymous pageless event per choice — no accounts, no cookies, no tracking across sites.</p>
+    <p class="feature-note">Opens GitHub Discussions — 👍 reactions are the signal. No accounts needed beyond GitHub.</p>
   </div>
 </section>
 
@@ -419,47 +418,6 @@ POLICIES (1 warning)
 </footer>
 
 <script>
-// ---- Feature interest UX ---------------------------------------------------
-// Pure client-side: localStorage dedupes per-browser so a visitor can't
-// double-vote. No backend, no tracking, no personal data.
-const STORAGE_KEY = "composit-voted-features";
-
-function getVoted() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function saveVoted(list) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-  } catch {
-    /* storage may be disabled — non-fatal */
-  }
-}
-
-function markVoted(btn) {
-  btn.classList.add("voted");
-  btn.disabled = true;
-}
-
-document.querySelectorAll(".feature-btn").forEach((btn) => {
-  const feature = btn.dataset.feature;
-  const voted = getVoted();
-  if (voted.includes(feature)) {
-    markVoted(btn);
-  }
-  btn.addEventListener("click", () => {
-    const current = getVoted();
-    if (current.includes(feature)) return;
-    current.push(feature);
-    saveVoted(current);
-    markVoted(btn);
-  });
-});
-
 // ---- Copy buttons ----------------------------------------------------------
 document.querySelectorAll(".qs-copy").forEach((btn) => {
   btn.addEventListener("click", async () => {

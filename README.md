@@ -4,6 +4,8 @@
 
 Know what you HAVE. Declare what you SHOULD have. Detect drift.
 
+**[→ composit landing page](https://nuetzliches.github.io/composit)**
+
 ---
 
 ## The Problem
