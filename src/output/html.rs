@@ -303,7 +303,7 @@ fn render_summary_cards(report: &Report) -> String {
             r.extra
                 .get("last_modified_by")
                 .and_then(|v| v.as_str())
-                .map_or(false, |lm| lm.starts_with("agent:"))
+                .is_some_and(|lm| lm.starts_with("agent:"))
         })
         .count();
 

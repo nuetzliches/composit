@@ -155,7 +155,7 @@ impl Report {
                 .filter(|r| {
                     r.created_by
                         .as_ref()
-                        .map_or(false, |c| c.starts_with("agent:"))
+                        .is_some_and(|c| c.starts_with("agent:"))
                 })
                 .count(),
             agent_assisted: resources
@@ -172,7 +172,7 @@ impl Report {
                 .filter(|r| {
                     r.created_by
                         .as_ref()
-                        .map_or(false, |c| c.starts_with("human:"))
+                        .is_some_and(|c| c.starts_with("human:"))
                         && !r
                             .extra
                             .get("agent_assisted")

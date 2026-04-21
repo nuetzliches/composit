@@ -8,7 +8,7 @@ use crate::core::governance::ExtraPattern;
 use crate::core::scanner::{ScanContext, ScanResult, Scanner};
 use crate::core::types::Resource;
 
-/// Dynamic scanner created from extra_patterns in composit.config.yaml
+/// Dynamic scanner created from a Compositfile `scan { extra_patterns { … } }` block
 pub struct ExtraPatternsScanner {
     pub patterns: Vec<ExtraPattern>,
 }
@@ -24,7 +24,7 @@ impl Scanner for ExtraPatternsScanner {
     }
 
     fn description(&self) -> &str {
-        "Scans for custom file patterns defined in composit.config.yaml"
+        "Scans for custom file patterns defined in the Compositfile `scan { extra_patterns { … } }` block"
     }
 
     fn needs_network(&self) -> bool {
@@ -36,37 +36,35 @@ impl Scanner for ExtraPatternsScanner {
 
         for pattern in &self.patterns {
             let full_pattern = context.dir.join(&pattern.glob);
-            for entry in glob(&full_pattern.to_string_lossy())? {
-                if let Ok(path) = entry {
-                    if context.is_excluded(&path) {
-                        continue;
-                    }
-                    let rel_path = path
-                        .strip_prefix(&context.dir)
-                        .unwrap_or(&path)
-                        .to_string_lossy()
-                        .to_string();
-
-                    let mut extra = HashMap::new();
-                    if let Some(desc) = &pattern.description {
-                        extra.insert(
-                            "description".to_string(),
-                            serde_json::Value::String(desc.clone()),
-                        );
-                    }
-
-                    resources.push(Resource {
-                        resource_type: pattern.resource_type.clone(),
-                        name: None,
-                        path: Some(format!("./{}", rel_path)),
-                        provider: None,
-                        created: None,
-                        created_by: None,
-                        detected_by: "extra_patterns".to_string(),
-                        estimated_cost: None,
-                        extra,
-                    });
+            for path in glob(&full_pattern.to_string_lossy())?.flatten() {
+                if context.is_excluded(&path) {
+                    continue;
                 }
+                let rel_path = path
+                    .strip_prefix(&context.dir)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .to_string();
+
+                let mut extra = HashMap::new();
+                if let Some(desc) = &pattern.description {
+                    extra.insert(
+                        "description".to_string(),
+                        serde_json::Value::String(desc.clone()),
+                    );
+                }
+
+                resources.push(Resource {
+                    resource_type: pattern.resource_type.clone(),
+                    name: None,
+                    path: Some(format!("./{}", rel_path)),
+                    provider: None,
+                    created: None,
+                    created_by: None,
+                    detected_by: "extra_patterns".to_string(),
+                    estimated_cost: None,
+                    extra,
+                });
             }
         }
 

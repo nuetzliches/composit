@@ -45,7 +45,7 @@ RESOURCES (2 errors)
   ERROR  required_resource_missing — Required resource type "workflow":
          0 found, minimum is 1
 
-  3 errors | 0 warnings | 0 info | 6 passed
+  3 errors | 0 warnings | 0 info | 7 passed
 ```
 
 ## The three drifts, explained

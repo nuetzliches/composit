@@ -39,7 +39,7 @@ asciinema play composit-demo.cast
 Must show:
 
 ```
-3 errors | 0 warnings | 0 info | 6 passed
+3 errors | 0 warnings | 0 info | 7 passed
 ```
 
 If the counts drift, do **not** upload — the fixture changed under the

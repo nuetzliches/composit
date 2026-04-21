@@ -117,16 +117,18 @@ Anstelle von 10-15 Interviews validieren wir über eigene Stacks:
 ### Implementiert
 
 - [x] **`composit scan`** — Rust CLI mit Plugin-ready Scanner-Architektur:
-  - 9 Built-in Scanner: docker, env_files, terraform, caddyfile, workflows, prometheus, cron, mcp_config, mcp_provider
+  - 13 Built-in Scanner: docker, env_files, terraform, caddyfile, nginx, workflows, prometheus, grafana, cron, kubernetes, opa_policy, mcp_config, mcp_provider
   - Deep Docker Scan: Einzelne Services mit Image, Ports, Volumes, Networks
   - Terraform HCL-Parsing: Deklarierte Resources, Module, Provider aus .tf Dateien (via hcl-rs)
-  - Caddyfile-Parsing: Site-Blöcke, reverse_proxy, file_server, TLS-Directives
+  - Caddyfile / nginx-Parsing: Site-Blöcke, reverse_proxy, upstream, TLS
   - CI/CD Workflows: GitHub Actions, Forgejo, Gitea, GitLab CI — Triggers, Jobs, Runner
-  - Prometheus: Scrape-Configs, Job-Namen, Alerting-Rules, Rule-Groups
+  - Prometheus + Grafana: Scrape-Configs, Alert-Rules, Dashboard-JSON, Provisioning-YAML
+  - Kubernetes + Kustomize + Helm: Multi-Doc-YAML, Kind/Name-qualifiziert, Chart.yaml
+  - OPA/Rego: Package, Rule-Count, allow/deny/violation-Entrypoints
   - Multi-Author Attribution: Co-Authored-By bewahrt menschlichen Autor, Agents als Flag (agent_assisted)
   - Last-Modified Attribution: Wer hat zuletzt geändert (erkennt Agent-Modifikationen)
   - 2-Phasen-Orchestrierung (Filesystem → Network)
-  - Deklarative Config (composit.config.yaml): extra_patterns, Scanner toggle, Provider
+  - Deklarative Scan-Config im `scan { }`-Block des Compositfile: exclude_paths, extra_patterns, Scanner toggle
   - Report-Deduplizierung, YAML/JSON/HTML Output, farbige Terminal-Ausgabe
   - Getestet gegen 17 Repos (5 bis 3399 Resources pro Repo), validiert via composit-scanner-tests
 
@@ -387,7 +389,7 @@ Ein zentraler Hub der eigenständig Scanner updated (à la GitHub Actions Market
 macht erst Sinn wenn 10+ externe Scanner existieren die wir nicht selbst pflegen.
 
 **Jetzt:** Scanner bleiben built-in (Qualitätskontrolle), Erweiterung via
-`extra_patterns` in `composit.config.yaml` reicht für Early Adopters.
+`scan { extra_patterns { … } }` im Compositfile reicht für Early Adopters.
 
 ### MCP für Composit Docs
 

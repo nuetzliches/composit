@@ -50,8 +50,9 @@ The spec establishes the standard. The CLI makes it useful day one.
 - **Governance-as-Code:** IS-state (scanner) vs. SHOULD-state (Compositfile)
 - **An open spec** for how providers declare capabilities and teams declare contracts
 - **Useful with or without AI agents** — governance gaps existed before AI
-- **A CLI tool:** 9 scanners (Docker, Terraform, Caddy, CI/CD Workflows,
-  Prometheus, Env, Cron, MCP Config, MCP Provider), HTML/YAML/JSON reports
+- **A CLI tool:** 13 scanners (Docker, Env, Terraform, Caddy, nginx,
+  CI/CD Workflows, Prometheus, Grafana, Cron, Kubernetes + Kustomize +
+  Helm, OPA/Rego, MCP Config, MCP Provider), HTML/YAML/JSON reports
 
 ## What composit IS NOT
 
@@ -209,7 +210,7 @@ open-source projects. They are composit providers, not composit dependencies.
 
 **Phase: CLI + Spec Draft.**
 
-Implemented: `composit scan` (9 scanners), `composit status`, `composit diff`
+Implemented: `composit scan` (13 scanners), `composit status`, `composit diff`
 (Compositfile parser, drift detection, HTML/YAML/JSON reports).
 
 ### Known Scanner Gaps

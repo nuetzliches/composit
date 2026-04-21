@@ -130,8 +130,8 @@ fn git_file_info(repo_dir: &Path, file_path: &str, first: bool) -> Option<GitFil
         .filter(|line| line.trim().to_lowercase().starts_with("co-authored-by:"))
         .map(|line| {
             line.trim()
-                .splitn(2, ':')
-                .nth(1)
+                .split_once(':')
+                .map(|x| x.1)
                 .unwrap_or("")
                 .trim()
                 .to_string()
@@ -286,7 +286,7 @@ mod tests {
         let (attribution, extra) = classify_commit(&info);
         assert_eq!(attribution, "human:sebastian");
         // No agent_assisted flag
-        assert!(extra.get("agent_assisted").is_none());
+        assert!(!extra.contains_key("agent_assisted"));
         // But co_authors list is populated
         let co_authors = extra
             .get("co_authors")

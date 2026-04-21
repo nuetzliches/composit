@@ -190,7 +190,7 @@ fn strip_inline_comment(line: &str) -> &str {
         let before = &line[..idx];
         // Avoid stripping inside a string: if an odd number of "
         // appeared before #, we're inside a string — leave as is.
-        if before.matches('"').count() % 2 == 0 {
+        if before.matches('"').count().is_multiple_of(2) {
             return before;
         }
     }

@@ -14,7 +14,7 @@ pub struct ScanContext {
     pub skip_providers: bool,
     /// Compiled exclusion globs, matched against paths relative to `dir`.
     /// Scanners that walk the filesystem should call `is_excluded` before
-    /// reading a file so a single composit.config.yaml `exclude_paths`
+    /// reading a file so a single Compositfile `scan.exclude_paths`
     /// entry suppresses the match for every scanner at once.
     pub exclude_patterns: Vec<glob::Pattern>,
 }

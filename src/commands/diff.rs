@@ -130,13 +130,13 @@ pub fn compute_diff_opts(
     base_dir: &Path,
     offline: bool,
 ) -> DiffReport {
-    let mut categories = Vec::new();
-
-    categories.push(check_workspace(governance, report));
-    categories.push(check_providers(governance, report, offline));
-    categories.push(check_budgets(governance, report));
-    categories.push(check_resources(governance, report));
-    categories.push(check_policies(governance, base_dir));
+    let categories = vec![
+        check_workspace(governance, report),
+        check_providers(governance, report, offline),
+        check_budgets(governance, report),
+        check_resources(governance, report),
+        check_policies(governance, base_dir),
+    ];
 
     let errors: usize = categories
         .iter()
@@ -170,11 +170,11 @@ pub fn compute_diff_opts(
 }
 
 /// Compares the Compositfile `workspace "<name>" { … }` label against the
-/// workspace the scanner recorded (from `composit.config.yaml::workspace`,
-/// falling back to the directory name). A silent mismatch is easy to produce
-/// — rename the Compositfile workspace, forget the config — and confusing
-/// later because the diff header reports one name while the report shows
-/// another. Surface it as Info so operators notice without failing CI.
+/// workspace the scanner recorded (the same label, falling back to the
+/// directory name when no Compositfile is present). A mismatch means
+/// `composit scan` ran somewhere other than where the Compositfile claims,
+/// or the Compositfile was renamed but the scan dir wasn't. Surface it as
+/// Info so operators notice without failing CI.
 fn check_workspace(governance: &Governance, report: &Report) -> ViolationCategory {
     let mut violations = Vec::new();
     let mut passed = 0;
@@ -190,8 +190,9 @@ fn check_workspace(governance: &Governance, report: &Report) -> ViolationCategor
                 governance.workspace, report.workspace
             ),
             details: Some(
-                "Align composit.config.yaml::workspace with the Compositfile label, \
-                 or rename one of them."
+                "Rename the Compositfile label or the scan directory so they \
+                 agree, or run composit scan from the directory whose name \
+                 matches the Compositfile workspace."
                     .to_string(),
             ),
         });
@@ -700,7 +701,7 @@ fn check_policies(governance: &Governance, base_dir: &Path) -> ViolationCategory
         let is_rego = policy_path
             .extension()
             .and_then(|e| e.to_str())
-            .map_or(false, |e| e.eq_ignore_ascii_case("rego"));
+            .is_some_and(|e| e.eq_ignore_ascii_case("rego"));
 
         if !policy_path.exists() {
             violations.push(Violation {
@@ -809,7 +810,7 @@ fn parse_percentage(s: &str) -> Option<f64> {
 fn matches_any_pattern(value: &str, patterns: &[String]) -> bool {
     patterns
         .iter()
-        .any(|p| glob::Pattern::new(p).map_or(false, |pat| pat.matches(value)))
+        .any(|p| glob::Pattern::new(p).is_ok_and(|pat| pat.matches(value)))
 }
 
 // ─────────────────────────────────────────────────────────
@@ -1106,7 +1107,7 @@ fn print_diff_terminal(diff: &DiffReport) {
         } else {
             "0 warnings".to_string()
         },
-        format!("{} info", diff.summary.info),
+        format_args!("{} info", diff.summary.info),
         diff.summary.passed_checks
     );
     println!();
@@ -1439,7 +1440,7 @@ mod tests {
             offline_unused[0]
                 .details
                 .as_deref()
-                .map_or(false, |d| d.contains("offline")),
+                .is_some_and(|d| d.contains("offline")),
             "offline details should mention the offline mode"
         );
     }
@@ -1507,7 +1508,7 @@ mod tests {
         assert!(
             v[0].details
                 .as_deref()
-                .map_or(false, |d| d.contains("TEST_KEY")),
+                .is_some_and(|d| d.contains("TEST_KEY")),
             "error should reference the env var name"
         );
     }
@@ -1564,7 +1565,7 @@ mod tests {
         assert!(
             v[0].details
                 .as_deref()
-                .map_or(false, |d| d.contains("offline")),
+                .is_some_and(|d| d.contains("offline")),
             "offline run should be mentioned in details"
         );
     }
@@ -1640,7 +1641,7 @@ mod tests {
         assert!(
             v[0].details
                 .as_deref()
-                .map_or(false, |d| d.contains("RFC 003")
+                .is_some_and(|d| d.contains("RFC 003")
                     || d.contains("contract.provider")
                     || d.contains("contract.{")),
             "details should point at the RFC 003 envelope requirement"

@@ -35,19 +35,17 @@ impl Scanner for TerraformScanner {
         // Phase 1: Parse .tf files grouped by directory
         let tf_pattern = context.dir.join("**/*.tf");
         let mut tf_files_by_dir: HashMap<String, Vec<std::path::PathBuf>> = HashMap::new();
-        for entry in glob(&tf_pattern.to_string_lossy())? {
-            if let Ok(path) = entry {
-                if context.is_excluded(&path) {
-                    continue;
-                }
-                if let Some(parent) = path.parent() {
-                    let rel_dir = parent
-                        .strip_prefix(&context.dir)
-                        .unwrap_or(parent)
-                        .to_string_lossy()
-                        .to_string();
-                    tf_files_by_dir.entry(rel_dir).or_default().push(path);
-                }
+        for path in glob(&tf_pattern.to_string_lossy())?.flatten() {
+            if context.is_excluded(&path) {
+                continue;
+            }
+            if let Some(parent) = path.parent() {
+                let rel_dir = parent
+                    .strip_prefix(&context.dir)
+                    .unwrap_or(parent)
+                    .to_string_lossy()
+                    .to_string();
+                tf_files_by_dir.entry(rel_dir).or_default().push(path);
             }
         }
 
@@ -59,49 +57,47 @@ impl Scanner for TerraformScanner {
 
         // Phase 2: Scan for .tfstate files (enrichment)
         let state_pattern = context.dir.join("**/*.tfstate");
-        for entry in glob(&state_pattern.to_string_lossy())? {
-            if let Ok(path) = entry {
-                if context.is_excluded(&path) {
-                    continue;
-                }
-                let rel_path = path
-                    .strip_prefix(&context.dir)
-                    .unwrap_or(&path)
-                    .to_string_lossy()
-                    .to_string();
+        for path in glob(&state_pattern.to_string_lossy())?.flatten() {
+            if context.is_excluded(&path) {
+                continue;
+            }
+            let rel_path = path
+                .strip_prefix(&context.dir)
+                .unwrap_or(&path)
+                .to_string_lossy()
+                .to_string();
 
-                let managed_count = if let Ok(content) = std::fs::read_to_string(&path) {
-                    if let Ok(state) = serde_json::from_str::<serde_json::Value>(&content) {
-                        state
-                            .get("resources")
-                            .and_then(|r| r.as_array())
-                            .map(|a| a.len())
-                            .unwrap_or(0)
-                    } else {
-                        0
-                    }
+            let managed_count = if let Ok(content) = std::fs::read_to_string(&path) {
+                if let Ok(state) = serde_json::from_str::<serde_json::Value>(&content) {
+                    state
+                        .get("resources")
+                        .and_then(|r| r.as_array())
+                        .map(|a| a.len())
+                        .unwrap_or(0)
                 } else {
                     0
-                };
+                }
+            } else {
+                0
+            };
 
-                let mut extra = HashMap::new();
-                extra.insert(
-                    "managed_resources".to_string(),
-                    serde_json::Value::Number(serde_json::Number::from(managed_count)),
-                );
+            let mut extra = HashMap::new();
+            extra.insert(
+                "managed_resources".to_string(),
+                serde_json::Value::Number(serde_json::Number::from(managed_count)),
+            );
 
-                resources.push(Resource {
-                    resource_type: "terraform_state".to_string(),
-                    name: None,
-                    path: Some(format!("./{}", rel_path)),
-                    provider: None,
-                    created: None,
-                    created_by: None,
-                    detected_by: "terraform".to_string(),
-                    estimated_cost: None,
-                    extra,
-                });
-            }
+            resources.push(Resource {
+                resource_type: "terraform_state".to_string(),
+                name: None,
+                path: Some(format!("./{}", rel_path)),
+                provider: None,
+                created: None,
+                created_by: None,
+                detected_by: "terraform".to_string(),
+                estimated_cost: None,
+                extra,
+            });
         }
 
         Ok(ScanResult {

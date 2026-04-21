@@ -63,28 +63,26 @@ impl Scanner for DockerScanner {
 
         // Scan for standalone Dockerfiles (not already covered by compose)
         let dockerfile_pattern = context.dir.join("**/Dockerfile*");
-        for entry in glob(&dockerfile_pattern.to_string_lossy())? {
-            if let Ok(path) = entry {
-                if context.is_excluded(&path) {
-                    continue;
-                }
-                let rel_path = path
-                    .strip_prefix(&context.dir)
-                    .unwrap_or(&path)
-                    .to_string_lossy()
-                    .to_string();
-                resources.push(Resource {
-                    resource_type: "dockerfile".to_string(),
-                    name: None,
-                    path: Some(format!("./{}", rel_path)),
-                    provider: None,
-                    created: None,
-                    created_by: None,
-                    detected_by: "docker".to_string(),
-                    estimated_cost: None,
-                    extra: HashMap::new(),
-                });
+        for path in glob(&dockerfile_pattern.to_string_lossy())?.flatten() {
+            if context.is_excluded(&path) {
+                continue;
             }
+            let rel_path = path
+                .strip_prefix(&context.dir)
+                .unwrap_or(&path)
+                .to_string_lossy()
+                .to_string();
+            resources.push(Resource {
+                resource_type: "dockerfile".to_string(),
+                name: None,
+                path: Some(format!("./{}", rel_path)),
+                provider: None,
+                created: None,
+                created_by: None,
+                detected_by: "docker".to_string(),
+                estimated_cost: None,
+                extra: HashMap::new(),
+            });
         }
 
         Ok(ScanResult {

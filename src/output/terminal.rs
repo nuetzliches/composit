@@ -94,12 +94,12 @@ pub fn print_summary(report: &Report) {
             r.extra
                 .get("last_modified_by")
                 .and_then(|v| v.as_str())
-                .map_or(false, |lm| {
+                .is_some_and(|lm| {
                     lm.starts_with("agent:")
                         && !r
                             .created_by
                             .as_deref()
-                            .map_or(false, |c| c.starts_with("agent:"))
+                            .is_some_and(|c| c.starts_with("agent:"))
                 })
         })
         .count();

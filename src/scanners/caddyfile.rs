@@ -31,111 +31,108 @@ impl Scanner for CaddyfileScanner {
         let mut resources = Vec::new();
 
         let pattern = context.dir.join("**/Caddyfile*");
-        for entry in glob(&pattern.to_string_lossy())? {
-            if let Ok(path) = entry {
-                if context.is_excluded(&path) {
+        for path in glob(&pattern.to_string_lossy())?.flatten() {
+            if context.is_excluded(&path) {
+                continue;
+            }
+            let rel_path = path
+                .strip_prefix(&context.dir)
+                .unwrap_or(&path)
+                .to_string_lossy()
+                .to_string();
+            let display_path = format!("./{}", rel_path);
+
+            let content = match std::fs::read_to_string(&path) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!(
+                        "warning: caddyfile scanner could not read {}: {}",
+                        path.display(),
+                        e
+                    );
                     continue;
                 }
-                let rel_path = path
-                    .strip_prefix(&context.dir)
-                    .unwrap_or(&path)
-                    .to_string_lossy()
-                    .to_string();
-                let display_path = format!("./{}", rel_path);
+            };
 
-                let content = match std::fs::read_to_string(&path) {
-                    Ok(c) => c,
-                    Err(e) => {
-                        eprintln!(
-                            "warning: caddyfile scanner could not read {}: {}",
-                            path.display(),
-                            e
-                        );
-                        continue;
-                    }
-                };
+            let sites = parse_site_blocks(&content);
+            let site_count = sites.len();
 
-                let sites = parse_site_blocks(&content);
-                let site_count = sites.len();
+            // Caddyfile-level resource
+            let mut extra = HashMap::new();
+            extra.insert(
+                "sites".to_string(),
+                serde_json::Value::Number(serde_json::Number::from(site_count)),
+            );
 
-                // Caddyfile-level resource
-                let mut extra = HashMap::new();
+            let domains: Vec<String> = sites.iter().map(|s| s.address.clone()).collect();
+            if !domains.is_empty() {
                 extra.insert(
-                    "sites".to_string(),
-                    serde_json::Value::Number(serde_json::Number::from(site_count)),
+                    "domains".to_string(),
+                    serde_json::Value::Array(
+                        domains
+                            .iter()
+                            .map(|d| serde_json::Value::String(d.clone()))
+                            .collect(),
+                    ),
                 );
+            }
 
-                let domains: Vec<String> = sites.iter().map(|s| s.address.clone()).collect();
-                if !domains.is_empty() {
-                    extra.insert(
-                        "domains".to_string(),
+            resources.push(Resource {
+                resource_type: "caddyfile".to_string(),
+                name: None,
+                path: Some(display_path.clone()),
+                provider: None,
+                created: None,
+                created_by: None,
+                detected_by: "caddyfile".to_string(),
+                estimated_cost: None,
+                extra,
+            });
+
+            // Individual site resources
+            for site in &sites {
+                let mut site_extra = HashMap::new();
+                site_extra.insert(
+                    "caddyfile".to_string(),
+                    serde_json::Value::String(display_path.clone()),
+                );
+                if let Some(ref upstream) = site.reverse_proxy {
+                    site_extra.insert(
+                        "reverse_proxy".to_string(),
+                        serde_json::Value::String(upstream.clone()),
+                    );
+                }
+                if site.file_server {
+                    site_extra.insert("file_server".to_string(), serde_json::Value::Bool(true));
+                }
+                if let Some(ref tls) = site.tls {
+                    site_extra.insert("tls".to_string(), serde_json::Value::String(tls.clone()));
+                }
+
+                let directives: Vec<String> = site.directives.clone();
+                if !directives.is_empty() {
+                    site_extra.insert(
+                        "directives".to_string(),
                         serde_json::Value::Array(
-                            domains
-                                .iter()
-                                .map(|d| serde_json::Value::String(d.clone()))
+                            directives
+                                .into_iter()
+                                .map(serde_json::Value::String)
                                 .collect(),
                         ),
                     );
                 }
 
                 resources.push(Resource {
-                    resource_type: "caddyfile".to_string(),
-                    name: None,
+                    resource_type: "caddy_site".to_string(),
+                    name: Some(site.address.clone()),
                     path: Some(display_path.clone()),
                     provider: None,
                     created: None,
                     created_by: None,
                     detected_by: "caddyfile".to_string(),
                     estimated_cost: None,
-                    extra,
+                    extra: site_extra,
                 });
-
-                // Individual site resources
-                for site in &sites {
-                    let mut site_extra = HashMap::new();
-                    site_extra.insert(
-                        "caddyfile".to_string(),
-                        serde_json::Value::String(display_path.clone()),
-                    );
-                    if let Some(ref upstream) = site.reverse_proxy {
-                        site_extra.insert(
-                            "reverse_proxy".to_string(),
-                            serde_json::Value::String(upstream.clone()),
-                        );
-                    }
-                    if site.file_server {
-                        site_extra.insert("file_server".to_string(), serde_json::Value::Bool(true));
-                    }
-                    if let Some(ref tls) = site.tls {
-                        site_extra
-                            .insert("tls".to_string(), serde_json::Value::String(tls.clone()));
-                    }
-
-                    let directives: Vec<String> = site.directives.clone();
-                    if !directives.is_empty() {
-                        site_extra.insert(
-                            "directives".to_string(),
-                            serde_json::Value::Array(
-                                directives
-                                    .into_iter()
-                                    .map(serde_json::Value::String)
-                                    .collect(),
-                            ),
-                        );
-                    }
-
-                    resources.push(Resource {
-                        resource_type: "caddy_site".to_string(),
-                        name: Some(site.address.clone()),
-                        path: Some(display_path.clone()),
-                        provider: None,
-                        created: None,
-                        created_by: None,
-                        detected_by: "caddyfile".to_string(),
-                        estimated_cost: None,
-                        extra: site_extra,
-                    });
-                }
             }
         }
 

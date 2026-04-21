@@ -189,7 +189,7 @@ mod tests {
             stdio.extra.get("source").and_then(|v| v.as_str()),
             Some("cursor")
         );
-        assert!(stdio.extra.get("args").is_some());
+        assert!(stdio.extra.contains_key("args"));
 
         // Only the URL-based server should appear as a provider
         assert_eq!(providers.len(), 1);

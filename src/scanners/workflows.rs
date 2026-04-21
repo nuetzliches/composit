@@ -42,100 +42,98 @@ impl Scanner for WorkflowScanner {
 
         for (pattern, platform) in WORKFLOW_PATTERNS {
             let full_pattern = context.dir.join(pattern);
-            for entry in glob(&full_pattern.to_string_lossy())? {
-                if let Ok(path) = entry {
-                    if context.is_excluded(&path) {
+            for path in glob(&full_pattern.to_string_lossy())?.flatten() {
+                if context.is_excluded(&path) {
+                    continue;
+                }
+                let rel_path = path
+                    .strip_prefix(&context.dir)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .to_string();
+                let display_path = format!("./{}", rel_path);
+
+                let content = match std::fs::read_to_string(&path) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        eprintln!(
+                            "warning: workflows scanner could not read {}: {}",
+                            path.display(),
+                            e
+                        );
                         continue;
                     }
-                    let rel_path = path
-                        .strip_prefix(&context.dir)
-                        .unwrap_or(&path)
-                        .to_string_lossy()
-                        .to_string();
-                    let display_path = format!("./{}", rel_path);
+                };
 
-                    let content = match std::fs::read_to_string(&path) {
-                        Ok(c) => c,
-                        Err(e) => {
-                            eprintln!(
-                                "warning: workflows scanner could not read {}: {}",
-                                path.display(),
-                                e
-                            );
-                            continue;
-                        }
-                    };
-
-                    let yaml: serde_yaml::Value = match serde_yaml::from_str(&content) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            eprintln!(
-                                "warning: workflows scanner could not parse {}: {}",
-                                path.display(),
-                                e
-                            );
-                            continue;
-                        }
-                    };
-
-                    let workflow_name = yaml
-                        .get("name")
-                        .and_then(|n| n.as_str())
-                        .unwrap_or("unnamed")
-                        .to_string();
-
-                    let mut extra = HashMap::new();
-                    extra.insert(
-                        "platform".to_string(),
-                        serde_json::Value::String(platform.to_string()),
-                    );
-
-                    // Extract triggers
-                    let triggers = extract_triggers(&yaml);
-                    if !triggers.is_empty() {
-                        extra.insert(
-                            "triggers".to_string(),
-                            serde_json::Value::Array(
-                                triggers
-                                    .into_iter()
-                                    .map(serde_json::Value::String)
-                                    .collect(),
-                            ),
+                let yaml: serde_yaml::Value = match serde_yaml::from_str(&content) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        eprintln!(
+                            "warning: workflows scanner could not parse {}: {}",
+                            path.display(),
+                            e
                         );
+                        continue;
                     }
+                };
 
-                    // Extract job names
-                    let jobs = extract_jobs(&yaml);
+                let workflow_name = yaml
+                    .get("name")
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("unnamed")
+                    .to_string();
+
+                let mut extra = HashMap::new();
+                extra.insert(
+                    "platform".to_string(),
+                    serde_json::Value::String(platform.to_string()),
+                );
+
+                // Extract triggers
+                let triggers = extract_triggers(&yaml);
+                if !triggers.is_empty() {
                     extra.insert(
-                        "jobs".to_string(),
-                        serde_json::Value::Number(serde_json::Number::from(jobs.len())),
+                        "triggers".to_string(),
+                        serde_json::Value::Array(
+                            triggers
+                                .into_iter()
+                                .map(serde_json::Value::String)
+                                .collect(),
+                        ),
                     );
-                    if !jobs.is_empty() {
-                        extra.insert(
-                            "job_names".to_string(),
-                            serde_json::Value::Array(
-                                jobs.into_iter().map(serde_json::Value::String).collect(),
-                            ),
-                        );
-                    }
-
-                    // Extract runner
-                    if let Some(runner) = extract_first_runner(&yaml) {
-                        extra.insert("runs_on".to_string(), serde_json::Value::String(runner));
-                    }
-
-                    resources.push(Resource {
-                        resource_type: "workflow".to_string(),
-                        name: Some(workflow_name),
-                        path: Some(display_path),
-                        provider: None,
-                        created: None,
-                        created_by: None,
-                        detected_by: "workflows".to_string(),
-                        estimated_cost: None,
-                        extra,
-                    });
                 }
+
+                // Extract job names
+                let jobs = extract_jobs(&yaml);
+                extra.insert(
+                    "jobs".to_string(),
+                    serde_json::Value::Number(serde_json::Number::from(jobs.len())),
+                );
+                if !jobs.is_empty() {
+                    extra.insert(
+                        "job_names".to_string(),
+                        serde_json::Value::Array(
+                            jobs.into_iter().map(serde_json::Value::String).collect(),
+                        ),
+                    );
+                }
+
+                // Extract runner
+                if let Some(runner) = extract_first_runner(&yaml) {
+                    extra.insert("runs_on".to_string(), serde_json::Value::String(runner));
+                }
+
+                resources.push(Resource {
+                    resource_type: "workflow".to_string(),
+                    name: Some(workflow_name),
+                    path: Some(display_path),
+                    provider: None,
+                    created: None,
+                    created_by: None,
+                    detected_by: "workflows".to_string(),
+                    estimated_cost: None,
+                    extra,
+                });
             }
         }
 

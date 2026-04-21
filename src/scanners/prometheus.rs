@@ -33,130 +33,128 @@ impl Scanner for PrometheusScanner {
         // Scan for prometheus.yml / prometheus.yaml
         for pattern in &["**/prometheus.yml", "**/prometheus.yaml"] {
             let full_pattern = context.dir.join(pattern);
-            for entry in glob(&full_pattern.to_string_lossy())? {
-                if let Ok(path) = entry {
-                    if context.is_excluded(&path) {
+            for path in glob(&full_pattern.to_string_lossy())?.flatten() {
+                if context.is_excluded(&path) {
+                    continue;
+                }
+                let rel_path = path
+                    .strip_prefix(&context.dir)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .to_string();
+                let display_path = format!("./{}", rel_path);
+
+                let content = match std::fs::read_to_string(&path) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        eprintln!(
+                            "warning: prometheus scanner could not read {}: {}",
+                            path.display(),
+                            e
+                        );
                         continue;
                     }
-                    let rel_path = path
-                        .strip_prefix(&context.dir)
-                        .unwrap_or(&path)
-                        .to_string_lossy()
-                        .to_string();
-                    let display_path = format!("./{}", rel_path);
+                };
 
-                    let content = match std::fs::read_to_string(&path) {
-                        Ok(c) => c,
-                        Err(e) => {
-                            eprintln!(
-                                "warning: prometheus scanner could not read {}: {}",
-                                path.display(),
-                                e
-                            );
-                            continue;
-                        }
-                    };
+                let yaml: serde_yaml::Value = match serde_yaml::from_str(&content) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        eprintln!(
+                            "warning: prometheus scanner could not parse {}: {}",
+                            path.display(),
+                            e
+                        );
+                        continue;
+                    }
+                };
 
-                    let yaml: serde_yaml::Value = match serde_yaml::from_str(&content) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            eprintln!(
-                                "warning: prometheus scanner could not parse {}: {}",
-                                path.display(),
-                                e
-                            );
-                            continue;
-                        }
-                    };
+                let mut extra = HashMap::new();
 
-                    let mut extra = HashMap::new();
+                // Extract scrape configs
+                let scrape_configs = yaml
+                    .get("scrape_configs")
+                    .and_then(|s| s.as_sequence())
+                    .map(|s| s.len())
+                    .unwrap_or(0);
+                extra.insert(
+                    "scrape_configs".to_string(),
+                    serde_json::Value::Number(serde_json::Number::from(scrape_configs)),
+                );
 
-                    // Extract scrape configs
-                    let scrape_configs = yaml
-                        .get("scrape_configs")
-                        .and_then(|s| s.as_sequence())
-                        .map(|s| s.len())
-                        .unwrap_or(0);
+                // Extract job names
+                let job_names: Vec<String> = yaml
+                    .get("scrape_configs")
+                    .and_then(|s| s.as_sequence())
+                    .map(|configs| {
+                        configs
+                            .iter()
+                            .filter_map(|c| {
+                                c.get("job_name")
+                                    .and_then(|j| j.as_str())
+                                    .map(|s| s.to_string())
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                if !job_names.is_empty() {
                     extra.insert(
-                        "scrape_configs".to_string(),
-                        serde_json::Value::Number(serde_json::Number::from(scrape_configs)),
+                        "job_names".to_string(),
+                        serde_json::Value::Array(
+                            job_names
+                                .into_iter()
+                                .map(serde_json::Value::String)
+                                .collect(),
+                        ),
                     );
-
-                    // Extract job names
-                    let job_names: Vec<String> = yaml
-                        .get("scrape_configs")
-                        .and_then(|s| s.as_sequence())
-                        .map(|configs| {
-                            configs
-                                .iter()
-                                .filter_map(|c| {
-                                    c.get("job_name")
-                                        .and_then(|j| j.as_str())
-                                        .map(|s| s.to_string())
-                                })
-                                .collect()
-                        })
-                        .unwrap_or_default();
-                    if !job_names.is_empty() {
-                        extra.insert(
-                            "job_names".to_string(),
-                            serde_json::Value::Array(
-                                job_names
-                                    .into_iter()
-                                    .map(serde_json::Value::String)
-                                    .collect(),
-                            ),
-                        );
-                    }
-
-                    // Extract rule files
-                    let rule_files: Vec<String> = yaml
-                        .get("rule_files")
-                        .and_then(|r| r.as_sequence())
-                        .map(|files| {
-                            files
-                                .iter()
-                                .filter_map(|f| f.as_str().map(|s| s.to_string()))
-                                .collect()
-                        })
-                        .unwrap_or_default();
-                    if !rule_files.is_empty() {
-                        extra.insert(
-                            "rule_files".to_string(),
-                            serde_json::Value::Array(
-                                rule_files
-                                    .into_iter()
-                                    .map(serde_json::Value::String)
-                                    .collect(),
-                            ),
-                        );
-                    }
-
-                    // Detect alertmanager config
-                    if yaml.get("alerting").is_some() {
-                        extra.insert("alerting".to_string(), serde_json::Value::Bool(true));
-                    }
-
-                    // Detect remote write/read
-                    if yaml.get("remote_write").is_some() {
-                        extra.insert("remote_write".to_string(), serde_json::Value::Bool(true));
-                    }
-                    if yaml.get("remote_read").is_some() {
-                        extra.insert("remote_read".to_string(), serde_json::Value::Bool(true));
-                    }
-
-                    resources.push(Resource {
-                        resource_type: "prometheus_config".to_string(),
-                        name: None,
-                        path: Some(display_path),
-                        provider: None,
-                        created: None,
-                        created_by: None,
-                        detected_by: "prometheus".to_string(),
-                        estimated_cost: None,
-                        extra,
-                    });
                 }
+
+                // Extract rule files
+                let rule_files: Vec<String> = yaml
+                    .get("rule_files")
+                    .and_then(|r| r.as_sequence())
+                    .map(|files| {
+                        files
+                            .iter()
+                            .filter_map(|f| f.as_str().map(|s| s.to_string()))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                if !rule_files.is_empty() {
+                    extra.insert(
+                        "rule_files".to_string(),
+                        serde_json::Value::Array(
+                            rule_files
+                                .into_iter()
+                                .map(serde_json::Value::String)
+                                .collect(),
+                        ),
+                    );
+                }
+
+                // Detect alertmanager config
+                if yaml.get("alerting").is_some() {
+                    extra.insert("alerting".to_string(), serde_json::Value::Bool(true));
+                }
+
+                // Detect remote write/read
+                if yaml.get("remote_write").is_some() {
+                    extra.insert("remote_write".to_string(), serde_json::Value::Bool(true));
+                }
+                if yaml.get("remote_read").is_some() {
+                    extra.insert("remote_read".to_string(), serde_json::Value::Bool(true));
+                }
+
+                resources.push(Resource {
+                    resource_type: "prometheus_config".to_string(),
+                    name: None,
+                    path: Some(display_path),
+                    provider: None,
+                    created: None,
+                    created_by: None,
+                    detected_by: "prometheus".to_string(),
+                    estimated_cost: None,
+                    extra,
+                });
             }
         }
 
@@ -170,87 +168,85 @@ impl Scanner for PrometheusScanner {
             "**/rules/*.yaml",
         ] {
             let full_pattern = context.dir.join(pattern);
-            for entry in glob(&full_pattern.to_string_lossy())? {
-                if let Ok(path) = entry {
-                    if context.is_excluded(&path) {
-                        continue;
-                    }
-                    let rel_path = path
-                        .strip_prefix(&context.dir)
-                        .unwrap_or(&path)
-                        .to_string_lossy()
-                        .to_string();
-                    let display_path = format!("./{}", rel_path);
-
-                    let content = match std::fs::read_to_string(&path) {
-                        Ok(c) => c,
-                        Err(e) => {
-                            eprintln!(
-                                "warning: prometheus rules scanner could not read {}: {}",
-                                path.display(),
-                                e
-                            );
-                            continue;
-                        }
-                    };
-
-                    let yaml: serde_yaml::Value = match serde_yaml::from_str(&content) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            eprintln!(
-                                "warning: prometheus rules scanner could not parse {}: {}",
-                                path.display(),
-                                e
-                            );
-                            continue;
-                        }
-                    };
-
-                    // Only process if it looks like a Prometheus rules file
-                    if yaml.get("groups").is_none() {
-                        continue;
-                    }
-
-                    let groups = yaml
-                        .get("groups")
-                        .and_then(|g| g.as_sequence())
-                        .map(|g| g.len())
-                        .unwrap_or(0);
-
-                    let rule_count: usize = yaml
-                        .get("groups")
-                        .and_then(|g| g.as_sequence())
-                        .map(|groups| {
-                            groups
-                                .iter()
-                                .filter_map(|g| g.get("rules").and_then(|r| r.as_sequence()))
-                                .map(|r| r.len())
-                                .sum()
-                        })
-                        .unwrap_or(0);
-
-                    let mut extra = HashMap::new();
-                    extra.insert(
-                        "groups".to_string(),
-                        serde_json::Value::Number(serde_json::Number::from(groups)),
-                    );
-                    extra.insert(
-                        "rules".to_string(),
-                        serde_json::Value::Number(serde_json::Number::from(rule_count)),
-                    );
-
-                    resources.push(Resource {
-                        resource_type: "prometheus_rules".to_string(),
-                        name: None,
-                        path: Some(display_path),
-                        provider: None,
-                        created: None,
-                        created_by: None,
-                        detected_by: "prometheus".to_string(),
-                        estimated_cost: None,
-                        extra,
-                    });
+            for path in glob(&full_pattern.to_string_lossy())?.flatten() {
+                if context.is_excluded(&path) {
+                    continue;
                 }
+                let rel_path = path
+                    .strip_prefix(&context.dir)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .to_string();
+                let display_path = format!("./{}", rel_path);
+
+                let content = match std::fs::read_to_string(&path) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        eprintln!(
+                            "warning: prometheus rules scanner could not read {}: {}",
+                            path.display(),
+                            e
+                        );
+                        continue;
+                    }
+                };
+
+                let yaml: serde_yaml::Value = match serde_yaml::from_str(&content) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        eprintln!(
+                            "warning: prometheus rules scanner could not parse {}: {}",
+                            path.display(),
+                            e
+                        );
+                        continue;
+                    }
+                };
+
+                // Only process if it looks like a Prometheus rules file
+                if yaml.get("groups").is_none() {
+                    continue;
+                }
+
+                let groups = yaml
+                    .get("groups")
+                    .and_then(|g| g.as_sequence())
+                    .map(|g| g.len())
+                    .unwrap_or(0);
+
+                let rule_count: usize = yaml
+                    .get("groups")
+                    .and_then(|g| g.as_sequence())
+                    .map(|groups| {
+                        groups
+                            .iter()
+                            .filter_map(|g| g.get("rules").and_then(|r| r.as_sequence()))
+                            .map(|r| r.len())
+                            .sum()
+                    })
+                    .unwrap_or(0);
+
+                let mut extra = HashMap::new();
+                extra.insert(
+                    "groups".to_string(),
+                    serde_json::Value::Number(serde_json::Number::from(groups)),
+                );
+                extra.insert(
+                    "rules".to_string(),
+                    serde_json::Value::Number(serde_json::Number::from(rule_count)),
+                );
+
+                resources.push(Resource {
+                    resource_type: "prometheus_rules".to_string(),
+                    name: None,
+                    path: Some(display_path),
+                    provider: None,
+                    created: None,
+                    created_by: None,
+                    detected_by: "prometheus".to_string(),
+                    estimated_cost: None,
+                    extra,
+                });
             }
         }
 
