@@ -1,6 +1,6 @@
 # Composit — Next Steps
 
-Stand: 2026-04-21 (Demo-Fixture, Asciinema-Script, K8s-Scanner gelandet)
+Stand: 2026-04-21 (Self-Hosting gelandet; Tier-1 + Tier-2 Scanner komplett)
 
 Basiert auf Business Validation Report (7.5/10, BUILD — re-assessment 2026-04-14).
 Zeitgebundene Sprints mit klarem ICP-Fokus: Platform Engineers + CTOs.
@@ -139,7 +139,7 @@ Anstelle von 10-15 Interviews validieren wir über eigene Stacks:
 
 ### Scanner Status
 
-**Implementiert (10 Scanner):**
+**Implementiert (13 Scanner):**
 
 | Scanner | Resource-Typen | Status |
 |---------|---------------|--------|
@@ -147,10 +147,13 @@ Anstelle von 10-15 Interviews validieren wir über eigene Stacks:
 | env_files | env_file | ✅ Variable-Count |
 | terraform | terraform_config, terraform_resource, terraform_module, terraform_state | ✅ HCL-Parsing via hcl-rs |
 | caddyfile | caddyfile, caddy_site | ✅ Site-Blöcke, reverse_proxy, TLS |
+| nginx | nginx_config | ✅ Server-Blöcke, Upstreams, Proxies, SSL |
 | workflows | workflow | ✅ GitHub Actions, Forgejo, Gitea, GitLab CI |
 | prometheus | prometheus_config, prometheus_rules | ✅ Scrape-Configs, Alert-Rules |
+| grafana | grafana_dashboard, grafana_datasource, grafana_dashboard_provider | ✅ Dashboard-JSON, Provisioning-YAML |
 | cron | cron_job | ✅ Crontab-Einträge |
 | kubernetes | kubernetes_manifest, kustomization, helm_chart | ✅ Multi-Doc-YAML, Kind/Name-qualifiziert, Kustomize + Helm Chart.yaml |
+| opa_policy | opa_policy | ✅ Package, Rule-Count, allow/deny/violation-Entrypoints |
 | mcp_config | mcp_server | ✅ Claude Desktop, Cursor MCP-Config |
 | mcp_provider | (via API) | ✅ Remote Provider Discovery |
 
@@ -176,15 +179,19 @@ die in gescannten Repos existieren, aber von keinem Scanner erfasst werden.
 
 **Tier 2 — Mittel** (vorhanden, moderates Volumen):
 
-- [ ] **nginx** (10 Dateien in Test-Repos)
-  `nginx.conf` — Server-Blöcke, Upstreams, Locations.
-  Ähnlich wie Caddyfile: Reverse-Proxy-Topologie.
+- [x] **nginx** — `nginx`-Scanner. Fingerprint-basiert (erkennt echte
+  nginx-Config an `server {` / `upstream` / `proxy_pass`, nicht an der
+  Datei-Endung) um andere `.conf`-Tools nicht fälschlich zu matchen.
 
-- [ ] **OPA/Rego Policies** (in internen Stacks)
-  Security-Policies, Zugriffsregeln.
+- [x] **OPA/Rego Policies** — `opa_policy`-Scanner emittiert pro `.rego`
+  ein `opa_policy` mit Package, Rule-Count und allow/deny/violation-
+  Entrypoints. Orthogonal zu RFC-001 `policy`-Referenzen im Compositfile
+  — findet freie Policies im Repo, nicht nur die explizit deklarierten.
 
-- [ ] **Grafana Config** (2 Dateien in Test-Repos + interne Stacks)
-  Dashboard-JSON, Datasource-Konfiguration.
+- [x] **Grafana Config** — `grafana`-Scanner erkennt Dashboards über
+  `schemaVersion + panels` (shape-basiert, Pfad egal) und Provisioning-
+  YAML nur unter `**/provisioning/{dashboards,datasources}/*.yaml` um
+  Kollision mit docker-compose/K8s-Scans zu vermeiden.
 
 - [ ] **Deploy Scripts** (in internen Stacks)
   Deployment-Automation: Bootstrap, Deploy, Sync.

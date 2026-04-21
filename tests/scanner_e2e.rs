@@ -330,6 +330,97 @@ fn scan_kubernetes_fixture_finds_manifests_kustomize_and_helm() {
 }
 
 #[test]
+fn scan_nginx_fixture_finds_config_and_upstreams() {
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("nginx", tmp.path());
+
+    let out = run_scan(tmp.path());
+    assert!(out.status.success());
+
+    let content = fs::read_to_string(tmp.path().join("composit-report.json")).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let resources = report["resources"].as_array().unwrap();
+
+    let nginx: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("nginx_config"))
+        .collect();
+    assert_eq!(nginx.len(), 1, "expected one nginx_config resource");
+    assert_eq!(
+        nginx[0]["server_blocks"].as_u64(),
+        Some(2),
+        "two server blocks in fixture"
+    );
+    assert_eq!(nginx[0]["upstreams"].as_u64(), Some(1));
+    assert_eq!(nginx[0]["proxy_pass"].as_bool(), Some(true));
+    assert_eq!(nginx[0]["ssl"].as_bool(), Some(true));
+}
+
+#[test]
+fn scan_opa_policy_fixture_finds_package_and_entrypoints() {
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("opa_policy", tmp.path());
+
+    let out = run_scan(tmp.path());
+    assert!(out.status.success());
+
+    let content = fs::read_to_string(tmp.path().join("composit-report.json")).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let resources = report["resources"].as_array().unwrap();
+
+    let policies: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("opa_policy"))
+        .collect();
+    assert_eq!(policies.len(), 1);
+    assert_eq!(policies[0]["name"].as_str(), Some("widgetshop.access"));
+    let entrypoints = policies[0]["entrypoints"].as_array().unwrap();
+    let names: Vec<&str> = entrypoints.iter().filter_map(|v| v.as_str()).collect();
+    assert!(names.contains(&"allow"));
+    assert!(names.contains(&"deny"));
+}
+
+#[test]
+fn scan_grafana_fixture_finds_dashboard_datasources_and_providers() {
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("grafana", tmp.path());
+
+    let out = run_scan(tmp.path());
+    assert!(out.status.success());
+
+    let content = fs::read_to_string(tmp.path().join("composit-report.json")).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let resources = report["resources"].as_array().unwrap();
+
+    let dashboards: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("grafana_dashboard"))
+        .collect();
+    assert_eq!(dashboards.len(), 1);
+    assert_eq!(dashboards[0]["name"].as_str(), Some("API Latency"));
+    assert_eq!(dashboards[0]["panels"].as_u64(), Some(3));
+
+    let datasources: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("grafana_datasource"))
+        .collect();
+    assert_eq!(datasources.len(), 2);
+    let ds_names: Vec<&str> = datasources
+        .iter()
+        .filter_map(|r| r["name"].as_str())
+        .collect();
+    assert!(ds_names.contains(&"Prometheus"));
+    assert!(ds_names.contains(&"Loki"));
+
+    let providers: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("grafana_dashboard_provider"))
+        .collect();
+    assert_eq!(providers.len(), 1);
+    assert_eq!(providers[0]["name"].as_str(), Some("default"));
+}
+
+#[test]
 fn demo_drift_exits_nonzero_in_strict_mode() {
     // `--strict` is the CI gate: errors must fail the pipeline. Guards
     // against a regression where the diff report lists errors but the

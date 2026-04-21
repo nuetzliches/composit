@@ -1,0 +1,11 @@
+{
+  "title": "API Latency",
+  "uid": "api-latency",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    { "id": 1, "type": "timeseries", "title": "p95" },
+    { "id": 2, "type": "timeseries", "title": "p99" },
+    { "id": 3, "type": "stat", "title": "Error rate" }
+  ]
+}
