@@ -147,11 +147,40 @@ fn parse_budget_block(block: &hcl::Block) -> Result<BudgetRule> {
         .ok_or_else(|| anyhow!("Budget '{}' missing 'max_monthly' attribute", scope))?;
     let alert_at = get_string_attr(&block.body, "alert_at");
 
+    if let Some(raw) = &alert_at {
+        validate_percentage(raw).map_err(|e| {
+            anyhow!(
+                "Budget '{}' has invalid alert_at \"{}\": {}",
+                scope,
+                raw,
+                e
+            )
+        })?;
+    }
+
     Ok(BudgetRule {
         scope,
         max_monthly,
         alert_at,
     })
+}
+
+/// Validate that a percentage literal is well-formed and in the `0-100%` range.
+/// Matches the runtime parser in `commands::diff::parse_percentage` so a value
+/// that survives `parse_compositfile` will also be honoured at diff time
+/// instead of silently collapsing to `None`.
+fn validate_percentage(s: &str) -> Result<(), String> {
+    let trimmed = s.trim();
+    let digits = trimmed
+        .strip_suffix('%')
+        .ok_or_else(|| "must end with '%' (e.g. \"80%\")".to_string())?;
+    let value: f64 = digits
+        .parse()
+        .map_err(|_| format!("\"{}\" is not a number", digits))?;
+    if !(0.0..=100.0).contains(&value) {
+        return Err(format!("{}% is outside the 0-100% range", value));
+    }
+    Ok(())
 }
 
 fn parse_policy_block(block: &hcl::Block) -> Result<PolicyRule> {
@@ -523,5 +552,67 @@ mod tests {
 
         assert_eq!(gov.budgets[0].scope, "session");
         assert!(gov.budgets[0].alert_at.is_none());
+    }
+
+    #[test]
+    fn test_budget_rejects_out_of_range_alert_at() {
+        // "150%" used to be accepted silently — parse succeeded, diff quietly
+        // dropped it. Parser now rejects at load time so authors see the bug
+        // when they write the Compositfile, not weeks later.
+        let err = parse_hcl(
+            r#"
+            workspace "test" {
+              budget "workspace" {
+                max_monthly = "500 EUR"
+                alert_at    = "150%"
+              }
+            }
+            "#,
+        )
+        .unwrap_err()
+        .to_string();
+
+        assert!(
+            err.contains("alert_at") && err.contains("150"),
+            "expected error to name alert_at and the bad value, got: {err}"
+        );
+    }
+
+    #[test]
+    fn test_budget_rejects_alert_at_without_percent_suffix() {
+        let err = parse_hcl(
+            r#"
+            workspace "test" {
+              budget "workspace" {
+                max_monthly = "500 EUR"
+                alert_at    = "80"
+              }
+            }
+            "#,
+        )
+        .unwrap_err()
+        .to_string();
+
+        assert!(err.contains("%"), "error must mention percent suffix: {err}");
+    }
+
+    #[test]
+    fn test_budget_accepts_edge_percentages() {
+        for value in &["0%", "100%", "42.5%"] {
+            let src = format!(
+                r#"
+                workspace "test" {{
+                  budget "workspace" {{
+                    max_monthly = "500 EUR"
+                    alert_at    = "{}"
+                  }}
+                }}
+                "#,
+                value
+            );
+            let gov = parse_hcl(&src)
+                .unwrap_or_else(|e| panic!("'{value}' should parse but got: {e}"));
+            assert_eq!(gov.budgets[0].alert_at.as_deref(), Some(*value));
+        }
     }
 }
