@@ -174,10 +174,17 @@ async fn run_scan(
 
     if !quiet {
         output::terminal::print_summary(&report);
+        // Show the path relative to CWD when possible — keeps the terminal
+        // output short and, crucially, doesn't leak $HOME into asciinema
+        // recordings or HN screenshots.
+        let display_path = std::env::current_dir()
+            .ok()
+            .and_then(|cwd| report_path.strip_prefix(&cwd).ok().map(|p| p.to_path_buf()))
+            .unwrap_or_else(|| report_path.clone());
         println!(
             "  {} {}",
             "Report written to:".dimmed(),
-            report_path.display()
+            display_path.display()
         );
         println!();
     }

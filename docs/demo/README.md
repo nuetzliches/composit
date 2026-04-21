@@ -15,8 +15,13 @@ the `examples/demo-drift/` workspace end-to-end in ~35 seconds.
 
 ```bash
 cargo build                                                # if not installed
-asciinema rec composit-demo.cast -c "bash docs/demo/record.sh"
+asciinema rec composit-demo.cast --cols 100 --rows 30 \
+  -c "bash docs/demo/record.sh"
 ```
+
+`--cols 100` matters — the default 80-col width wraps the scan/diff output
+(the `docker-compose.yml` row, the `unapproved_provider` error) and makes
+the recording look sloppy. 100×30 fits every line without wrapping.
 
 Press `Ctrl-D` or wait for the script to finish. A `composit-demo.cast`
 file appears in the current directory.

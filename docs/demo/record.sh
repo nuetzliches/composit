@@ -3,31 +3,44 @@
 # Paced walkthrough of `composit scan` + `composit diff` on the demo-drift
 # workspace. Designed to be the inner command for an asciinema recording:
 #
-#   asciinema rec composit-demo.cast -c "bash docs/demo/record.sh"
+#   asciinema rec composit-demo.cast --cols 100 --rows 30 \
+#     -c "bash docs/demo/record.sh"
 #
-# Total runtime: ~35s. Three governance errors must surface — if the output
-# drifts from the reference in examples/demo-drift/README.md, the HN artefact
-# has regressed and the recording should not ship.
+# 100x30 is important — the default 80x24 wraps the scan/diff output and
+# leaks $HOME via the "Report written to:" line. This script runs from the
+# repo root and uses relative paths so the recorded output stays pristine.
+#
+# Total runtime: ~11s (short on purpose — HN attention spans). Three
+# governance errors must surface; if the output drifts from the reference
+# in examples/demo-drift/README.md, the HN artefact has regressed and the
+# recording should not ship.
 
 set -euo pipefail
 
-# Resolve the composit binary:
-#   1. $COMPOSIT override wins (useful in CI).
-#   2. `composit` on $PATH (the HN-realistic path: user installed it).
-#   3. Fallback to the debug build inside this repo.
+# Resolve the composit binary — prefer the build tree so demos of the
+# composit repo itself always exercise the current working source, not
+# whatever version was last `cargo install`ed into $PATH.
+#   1. $COMPOSIT override wins (useful in CI or when recording against
+#      a released binary on purpose).
+#   2. Local debug build — the dogfooding default.
+#   3. `composit` on $PATH as a last resort (no build tree: you're
+#      recording someone else's checkout).
 if [[ -n "${COMPOSIT:-}" ]]; then
   BIN="$COMPOSIT"
+elif [[ -x "$(git rev-parse --show-toplevel)/target/debug/composit" ]]; then
+  BIN="$(git rev-parse --show-toplevel)/target/debug/composit"
 elif command -v composit >/dev/null 2>&1; then
   BIN="composit"
 else
-  BIN="$(git rev-parse --show-toplevel)/target/debug/composit"
-  if [[ ! -x "$BIN" ]]; then
-    echo "composit binary not found. Run 'cargo build' or install composit first." >&2
-    exit 1
-  fi
+  echo "composit binary not found. Run 'cargo build' or install composit first." >&2
+  exit 1
 fi
 
-DEMO_DIR="$(git rev-parse --show-toplevel)/examples/demo-drift"
+# Always cd to the repo root so relative paths in both the prompt text
+# and the actual commands match — and so the "Report written to:" line
+# prints a short relative path instead of the user's absolute $HOME.
+cd "$(git rev-parse --show-toplevel)"
+DEMO_DIR="examples/demo-drift"
 
 # Mimic a human typing the command, then execute it.
 prompt() {
@@ -49,7 +62,7 @@ section() {
 # ── Act I: the workspace ───────────────────────────────────────────────
 
 section "A synthetic widgetshop — one compose file, a Compositfile, a rogue MCP"
-prompt "ls examples/demo-drift/"
+prompt "ls $DEMO_DIR/"
 (cd "$DEMO_DIR" && ls -A)
 sleep 2
 
