@@ -24,8 +24,10 @@ Erledigt: RFC 001-003 (Draft), Public/Contract-Split end-to-end inkl.
   workspace, 3 deterministische Errors). README + Haupt-README-Link.
 - [x] **Asciinema-Recording-Script** — `docs/demo/record.sh` (35s,
   deterministisch). Eigentliche Aufnahme muss noch gemacht werden.
-- [ ] **Asciinema-Recording aufnehmen + publishen** — mit obigem Script,
-  Ergebnis als `composit-demo.cast` auf asciinema.org + im HN-Post einbetten.
+- [x] **Asciinema-Recording aufnehmen + publishen** — 150×30, 11s,
+  drei deterministische Errors. Live unter
+  <https://asciinema.org/a/EOPTSBcM0k3wGbvh>, verlinkt aus Haupt-README
+  und `examples/demo-drift/README.md`.
 - [ ] **Show-HN-Post** selbst (Woche-5/6 in Sprint 3).
 
 **Nicht-Blocker, aber auf der Liste:**

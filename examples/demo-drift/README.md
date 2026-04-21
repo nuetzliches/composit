@@ -4,6 +4,8 @@ A synthetic "widgetshop" workspace shaped so `composit scan` followed by
 `composit diff` surfaces exactly three governance errors. No real
 infrastructure, no private endpoints — safe to clone, fork, or record.
 
+▶ **[Watch the 11-second asciinema demo](https://asciinema.org/a/EOPTSBcM0k3wGbvh)** — the exact `scan + diff` run this README describes.
+
 This is the reference fixture for the Show-HN demo and the regression
 guard behind `tests/scanner_e2e.rs::demo_drift_surfaces_three_expected_errors`.
 

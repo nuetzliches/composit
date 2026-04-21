@@ -165,6 +165,8 @@ A self-contained synthetic workspace shaped to surface three canonical
 drifts (`image_not_allowed`, `required_resource_missing`,
 `unapproved_provider`). No real infrastructure, no private endpoints.
 
+▶ **[Watch the 11-second demo](https://asciinema.org/a/EOPTSBcM0k3wGbvh)** — `scan + diff` end-to-end.
+
 ```bash
 composit scan --dir examples/demo-drift --no-providers
 composit diff --dir examples/demo-drift --offline
