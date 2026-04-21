@@ -267,6 +267,55 @@ fn demo_drift_surfaces_three_expected_errors() {
 }
 
 #[test]
+fn scan_kubernetes_fixture_finds_manifests_kustomize_and_helm() {
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("kubernetes", tmp.path());
+
+    let out = run_scan(tmp.path());
+    assert!(
+        out.status.success(),
+        "composit scan failed:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let content = fs::read_to_string(tmp.path().join("composit-report.json")).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let resources = report["resources"].as_array().unwrap();
+
+    let manifests: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("kubernetes_manifest"))
+        .collect();
+    assert_eq!(
+        manifests.len(),
+        2,
+        "expected Deployment + Service from deployment.yaml"
+    );
+    let names: Vec<&str> = manifests.iter().filter_map(|r| r["name"].as_str()).collect();
+    assert!(names.contains(&"Deployment/api"));
+    assert!(names.contains(&"Service/api"));
+
+    let kustomizations: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("kustomization"))
+        .collect();
+    assert_eq!(kustomizations.len(), 1);
+    assert_eq!(
+        kustomizations[0]["namespace"].as_str(),
+        Some("widgetshop"),
+        "kustomization carries namespace"
+    );
+
+    let charts: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("helm_chart"))
+        .collect();
+    assert_eq!(charts.len(), 1);
+    assert_eq!(charts[0]["name"].as_str(), Some("widgetshop"));
+    assert_eq!(charts[0]["chart_version"].as_str(), Some("0.3.1"));
+}
+
+#[test]
 fn demo_drift_exits_nonzero_in_strict_mode() {
     // `--strict` is the CI gate: errors must fail the pipeline. Guards
     // against a regression where the diff report lists errors but the
