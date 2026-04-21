@@ -17,12 +17,8 @@ and do they match our contracts?"
 AI makes this urgent. Agents spin up cron jobs, wire webhooks, provision
 databases, call APIs — in minutes. The solutions work. But they accumulate
 outside any governance framework. After a few weeks, nobody knows the full
-picture.
-
-The numbers are real:
-- Only 25% of CIOs report full visibility into all agents operating in their org
-- 223 shadow-AI incidents per month at the average enterprise
-- 78% of IT leaders report unexpected costs from AI agent usage
+picture: which services run, who created them, what they cost, which
+agents have keys to what.
 
 Every company will use AI. The question is how they keep control.
 
@@ -177,23 +173,6 @@ composit diff --dir examples/demo-drift --offline
 
 ---
 
-## Business Model
-
-Primary ICP is **platform engineers and CTOs** at teams using AI coding
-agents (5-50 devs). Solo devs get the free CLI and drive adoption — they
-are not the paying segment.
-
-| Tier | Target (adoption / paying) | Features |
-|------|----------------------------|----------|
-| **Free CLI** | All users — adoption funnel | `composit scan`, `composit status`, `composit diff`, report generator, local provider integrations |
-| **Team** ($29-99/mo) | **Paying:** platform engineers, 5-50 dev teams | Multi-team dashboard, drift alerts, cost attribution, Slack/Teams integration |
-| **Enterprise** ($199+/mo) | **Paying:** compliance-driven orgs | Audit trail, SOC2/GDPR reporting, managed manifest registry, SSO, SLA |
-
-The reference providers (croniq, hookaido, powerbrain) remain independent
-open-source projects. They are composit providers, not composit dependencies.
-
----
-
 ## Prior Art & Positioning
 
 | Tool            | What it does                     | How composit differs                   |
@@ -215,13 +194,14 @@ Implemented: `composit scan` (13 scanners), `composit status`, `composit diff`
 
 ### Known Scanner Gaps
 
-Validated against 17 public + internal repos. Not yet scanned:
+Validated against 17 public + internal repos. Still open:
 
-**Tier 1 (high volume):** Kubernetes manifests, Kustomize, Helm charts.
-**Tier 2:** nginx, OPA/Rego, Grafana, deploy scripts, DB migrations.
+**Tier 2 remaining:** deploy scripts, DB migrations.
 **Tier 3:** fly.toml, render.yaml, vercel.json, Skaffold, Traefik, protobuf.
 
-See [ROADMAP.md](docs/ROADMAP.md) for prioritization.
+Kubernetes + Kustomize + Helm (Tier 1) and nginx + OPA/Rego + Grafana
+(Tier 2) are implemented. See [ROADMAP.md](docs/ROADMAP.md) for the
+rest.
 
 → [Roadmap](docs/ROADMAP.md) | [Open Questions](docs/OPEN-QUESTIONS.md) | [RFCs](docs/rfcs/)
 
