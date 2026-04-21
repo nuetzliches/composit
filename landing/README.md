@@ -5,7 +5,7 @@ to GitHub-Stars, the Quick-Start, and anonymous feature-interest votes.
 
 Single file, no build step, no framework. Works when served from:
 
-- Caddy (the production target: `composit.nuetzliche.it` on nuts-infra)
+- GitHub Pages (production: `nuetzliches.github.io/composit`, deployed via `.github/workflows/pages.yml`)
 - Any static host (GitHub Pages, Cloudflare Pages, Netlify, plain nginx)
 - Opened directly (`file://`) for local preview
 

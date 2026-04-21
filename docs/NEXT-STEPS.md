@@ -301,7 +301,7 @@ kein Analytics. composit ist OSS — es gibt keinen "Launch" zu announcen.
 GitHub-Stars sind das externe Signal, alles andere ist UX.
 
 - [ ] **Landing-Page online** (VOR HN, nicht parallel) — statische Seite
-  auf `composit.nuetzliche.it`, self-hosted via Caddy auf nuts-infra.
+  auf `nuetzliches.github.io/composit` (GitHub Pages, `landing/` via Actions).
   Primary CTA: **★ Star on GitHub**. Quick-Start mit Copy-Buttons.
 - [ ] **Feature-Voting-UX** — Klicks auf "Drift Alerts",
   "Cost Attribution", "Compliance Reports", "Multi-Agent Visibility",
