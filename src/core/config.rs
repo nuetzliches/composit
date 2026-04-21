@@ -16,6 +16,13 @@ pub struct ScanConfig {
 
     #[serde(default)]
     pub scanners: HashMap<String, bool>,
+
+    /// Paths (relative to the scan dir) to skip during filesystem walks.
+    /// Entries without glob metacharacters are treated as directory
+    /// subtrees — "tests/fixtures" expands to "tests/fixtures/**".
+    /// Patterns like "**/*.generated.yaml" are used verbatim.
+    #[serde(default)]
+    pub exclude_paths: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

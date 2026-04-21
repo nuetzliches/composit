@@ -35,6 +35,9 @@ impl Scanner for EnvFilesScanner {
             let full_pattern = context.dir.join("**").join(pattern);
             for entry in glob(&full_pattern.to_string_lossy())? {
                 if let Ok(path) = entry {
+                    if context.is_excluded(&path) {
+                        continue;
+                    }
                     // Skip .env files inside node_modules, target, .git etc.
                     let path_str = path.to_string_lossy();
                     if path_str.contains("node_modules")
@@ -134,6 +137,7 @@ QUOTED="hello world"
             dir: dir.path().to_path_buf(),
             providers: vec![],
             skip_providers: true,
+            exclude_patterns: vec![],
         };
         let result = scanner.scan(&ctx).await.unwrap();
         assert_eq!(result.resources.len(), 2);

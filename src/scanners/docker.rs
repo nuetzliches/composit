@@ -42,6 +42,9 @@ impl Scanner for DockerScanner {
             let pattern_str = full_pattern.to_string_lossy().to_string();
             for entry in glob(&pattern_str)? {
                 let Ok(path) = entry else { continue };
+                if context.is_excluded(&path) {
+                    continue;
+                }
                 match scan_compose_file(&path, &context.dir) {
                     Ok((compose_resource, service_resources)) => {
                         resources.push(compose_resource);
@@ -62,6 +65,9 @@ impl Scanner for DockerScanner {
         let dockerfile_pattern = context.dir.join("**/Dockerfile*");
         for entry in glob(&dockerfile_pattern.to_string_lossy())? {
             if let Ok(path) = entry {
+                if context.is_excluded(&path) {
+                    continue;
+                }
                 let rel_path = path
                     .strip_prefix(&context.dir)
                     .unwrap_or(&path)

@@ -37,6 +37,9 @@ impl Scanner for TerraformScanner {
         let mut tf_files_by_dir: HashMap<String, Vec<std::path::PathBuf>> = HashMap::new();
         for entry in glob(&tf_pattern.to_string_lossy())? {
             if let Ok(path) = entry {
+                if context.is_excluded(&path) {
+                    continue;
+                }
                 if let Some(parent) = path.parent() {
                     let rel_dir = parent
                         .strip_prefix(&context.dir)
@@ -58,6 +61,9 @@ impl Scanner for TerraformScanner {
         let state_pattern = context.dir.join("**/*.tfstate");
         for entry in glob(&state_pattern.to_string_lossy())? {
             if let Ok(path) = entry {
+                if context.is_excluded(&path) {
+                    continue;
+                }
                 let rel_path = path
                     .strip_prefix(&context.dir)
                     .unwrap_or(&path)

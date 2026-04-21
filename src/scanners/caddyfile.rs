@@ -33,6 +33,9 @@ impl Scanner for CaddyfileScanner {
         let pattern = context.dir.join("**/Caddyfile*");
         for entry in glob(&pattern.to_string_lossy())? {
             if let Ok(path) = entry {
+                if context.is_excluded(&path) {
+                    continue;
+                }
                 let rel_path = path
                     .strip_prefix(&context.dir)
                     .unwrap_or(&path)

@@ -44,6 +44,9 @@ impl Scanner for WorkflowScanner {
             let full_pattern = context.dir.join(pattern);
             for entry in glob(&full_pattern.to_string_lossy())? {
                 if let Ok(path) = entry {
+                    if context.is_excluded(&path) {
+                        continue;
+                    }
                     let rel_path = path
                         .strip_prefix(&context.dir)
                         .unwrap_or(&path)
@@ -138,7 +141,7 @@ impl Scanner for WorkflowScanner {
 
         // Also detect .gitlab-ci.yml (single file, different format)
         let gitlab_ci = context.dir.join(".gitlab-ci.yml");
-        if gitlab_ci.exists() {
+        if gitlab_ci.exists() && !context.is_excluded(&gitlab_ci) {
             if let Ok(content) = std::fs::read_to_string(&gitlab_ci) {
                 if let Ok(yaml) = serde_yaml::from_str::<serde_yaml::Value>(&content) {
                     let stages = yaml

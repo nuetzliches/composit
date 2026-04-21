@@ -38,6 +38,9 @@ impl Scanner for ExtraPatternsScanner {
             let full_pattern = context.dir.join(&pattern.glob);
             for entry in glob(&full_pattern.to_string_lossy())? {
                 if let Ok(path) = entry {
+                    if context.is_excluded(&path) {
+                        continue;
+                    }
                     let rel_path = path
                         .strip_prefix(&context.dir)
                         .unwrap_or(&path)

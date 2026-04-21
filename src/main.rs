@@ -16,7 +16,7 @@ use core::compositfile::parse_compositfile;
 use core::config::ScanConfig;
 use core::registry::ScannerRegistry;
 use core::report::{dedup_providers, dedup_resources};
-use core::scanner::{ProviderTarget, ScanContext};
+use core::scanner::{compile_exclude_patterns, ProviderTarget, ScanContext};
 use core::types::{Report, ScanMode};
 
 #[tokio::main]
@@ -161,10 +161,16 @@ async fn run_scan(
         ScanMode::Online
     };
 
+    let exclude_patterns = config
+        .as_ref()
+        .map(|c| compile_exclude_patterns(&c.exclude_paths))
+        .unwrap_or_default();
+
     let context = ScanContext {
         dir: dir.to_path_buf(),
         providers: targets,
         skip_providers: no_providers,
+        exclude_patterns,
     };
 
     let result = registry.run_all(&context, config.as_ref()).await?;

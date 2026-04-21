@@ -85,6 +85,7 @@ impl ScannerRegistry {
                 dir: context.dir.clone(),
                 providers: extended_providers,
                 skip_providers: false,
+                exclude_patterns: context.exclude_patterns.clone(),
             };
 
             for scanner in &net_scanners {

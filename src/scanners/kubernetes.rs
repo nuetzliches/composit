@@ -36,7 +36,7 @@ impl Scanner for KubernetesScanner {
         for pattern in &["**/*.yaml", "**/*.yml"] {
             let full_pattern = context.dir.join(pattern);
             for entry in glob(&full_pattern.to_string_lossy())?.flatten() {
-                if should_skip(&entry) {
+                if should_skip(&entry) || context.is_excluded(&entry) {
                     continue;
                 }
 
