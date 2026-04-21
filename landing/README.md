@@ -9,9 +9,6 @@ Single file, no build step, no framework. Works when served from:
 - Any static host (GitHub Pages, Cloudflare Pages, Netlify, plain nginx)
 - Opened directly (`file://`) for local preview
 
-See [`docs/NEXT-STEPS.md`](../docs/NEXT-STEPS.md) for the
-go-live plan.
-
 ## Structure
 
 - `index.html` — the whole page. Inline CSS, inline JS, no dependencies.
@@ -23,27 +20,18 @@ available now. The page drives visitors toward:
 
 1. **GitHub stars** (primary CTA, direct link)
 2. **Quick-start copy actions** (copy-paste-ready install line)
-3. **Feature-interest votes** (client-side UX only)
+3. **Asciinema demo** (embedded player, 11s)
+4. **Feature-interest links** — each button deep-links to a GitHub
+   Discussion so a 👍 reaction is the signal
 
-GitHub stars are the primary external signal; the rest are lightweight
-UX to make the page feel alive. A real Waitlist can come later if/when
-a team-tier SaaS materialises with a concrete beta to sign up for.
+No tracking, no localStorage state, no backend.
 
-## Feature slugs
+## Feature discussions
 
+Each feature button links to its own discussion under
+`github.com/nuetzliches/composit/discussions`:
 `drift-alerts`, `cost-attribution`, `compliance`, `multi-agent`,
 `dashboard`, `policy-runtime`.
-
-Votes are persisted in `localStorage` so a visitor can't double-vote
-from the same browser. No tracking, no network call — purely local UX.
-
-## Signal benchmarks
-
-From [`docs/NEXT-STEPS.md`](../docs/NEXT-STEPS.md), 30 days post HN-Launch:
-
-| Metric        | Green | Yellow  | Red  |
-|---------------|------:|--------:|-----:|
-| GitHub stars  | ≥300  | 100–300 | <100 |
 
 ## Editing
 

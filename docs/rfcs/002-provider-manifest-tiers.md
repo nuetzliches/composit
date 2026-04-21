@@ -43,15 +43,14 @@ describes everything a provider offers. Running `composit` against the
   relationship. There is no declared "contract URL", no stated auth
   method, no next step.
 
-Authenticated access is the whole point of the Contract Trust idea in
-`docs/STRATEGY.md`:
+Authenticated access is the point of the Contract Trust idea:
 
 > Contract Trust — after a business relationship is established,
 > authenticated access unlocks concrete endpoints, SLAs, and pricing.
 > Machine-readable B2B.
 
-That paragraph has been a bullet in the strategy doc, not a protocol.
-This RFC fills in the protocol.
+This RFC fills in the protocol that turns that idea into something a
+client and a provider can implement against.
 
 ## Non-goals
 

@@ -221,9 +221,9 @@ Validated against 17 public + internal repos. Not yet scanned:
 **Tier 2:** nginx, OPA/Rego, Grafana, deploy scripts, DB migrations.
 **Tier 3:** fly.toml, render.yaml, vercel.json, Skaffold, Traefik, protobuf.
 
-See [NEXT-STEPS.md](docs/NEXT-STEPS.md) for prioritization.
+See [ROADMAP.md](docs/ROADMAP.md) for prioritization.
 
-→ [Next Steps](docs/NEXT-STEPS.md) | [Strategy](docs/STRATEGY.md) | [Open Questions](docs/OPEN-QUESTIONS.md)
+→ [Roadmap](docs/ROADMAP.md) | [Open Questions](docs/OPEN-QUESTIONS.md) | [RFCs](docs/rfcs/)
 
 ---
 
