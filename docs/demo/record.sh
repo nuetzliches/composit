@@ -3,12 +3,14 @@
 # Paced walkthrough of `composit scan` + `composit diff` on the demo-drift
 # workspace. Designed to be the inner command for an asciinema recording:
 #
-#   asciinema rec composit-demo.cast --cols 100 --rows 30 \
+#   asciinema rec composit-demo.cast --cols 150 --rows 30 \
 #     -c "bash docs/demo/record.sh"
 #
-# 100x30 is important — the default 80x24 wraps the scan/diff output and
-# leaks $HOME via the "Report written to:" line. This script runs from the
-# repo root and uses relative paths so the recorded output stays pristine.
+# 150x30 is important — the scan summary row for each docker_service runs
+# up to ~147 chars (path + 40-col pad, attribution + last-modified
+# arrow, image + ports + networks inline). Narrower terminals wrap
+# mid-line. The script also runs from the repo root with relative paths
+# so the recording doesn't leak $HOME via "Report written to:".
 #
 # Total runtime: ~11s (short on purpose — HN attention spans). Three
 # governance errors must surface; if the output drifts from the reference

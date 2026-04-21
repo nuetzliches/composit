@@ -39,7 +39,12 @@ impl Scanner for McpConfigScanner {
 
         for config_path in claude_config_paths.into_iter().flatten() {
             if config_path.exists() {
-                if let Ok((r, p)) = parse_mcp_config(&config_path, "claude_desktop") {
+                // Claude Desktop's config lives under $XDG_CONFIG_HOME, which
+                // is outside the scan dir — we surface just the basename so
+                // the report doesn't leak $HOME paths into diffs, dashboards,
+                // or asciinema recordings. The `source: claude_desktop` in
+                // extra keeps the origin clear.
+                if let Ok((r, p)) = parse_mcp_config(&config_path, "claude_desktop", None) {
                     resources.extend(r);
                     providers.extend(p);
                 }
@@ -49,7 +54,7 @@ impl Scanner for McpConfigScanner {
         // Check Cursor config in project dir
         let cursor_config = context.dir.join(".cursor").join("mcp.json");
         if cursor_config.exists() {
-            if let Ok((r, p)) = parse_mcp_config(&cursor_config, "cursor") {
+            if let Ok((r, p)) = parse_mcp_config(&cursor_config, "cursor", Some(&context.dir)) {
                 resources.extend(r);
                 providers.extend(p);
             }
@@ -66,9 +71,25 @@ fn dirs_config_path(app: &str, file: &str) -> Option<PathBuf> {
     dirs::config_dir().map(|d| d.join(app).join(file))
 }
 
-fn parse_mcp_config(path: &PathBuf, source: &str) -> Result<(Vec<Resource>, Vec<Provider>)> {
+fn parse_mcp_config(
+    path: &PathBuf,
+    source: &str,
+    base_dir: Option<&std::path::Path>,
+) -> Result<(Vec<Resource>, Vec<Provider>)> {
     let content = std::fs::read_to_string(path)?;
     let config: serde_json::Value = serde_json::from_str(&content)?;
+
+    // Render the path relative to the scan dir where possible so the report
+    // stays portable (no $HOME leaks, diff-friendly). Out-of-tree configs
+    // (Claude Desktop in $XDG_CONFIG_HOME) collapse to their basename; the
+    // `source` field in extra preserves the origin.
+    let display_path = match base_dir.and_then(|b| path.strip_prefix(b).ok()) {
+        Some(rel) => format!("./{}", rel.display()),
+        None => path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| path.to_string_lossy().to_string()),
+    };
 
     let mut resources = Vec::new();
     let mut providers = Vec::new();
@@ -96,7 +117,7 @@ fn parse_mcp_config(path: &PathBuf, source: &str) -> Result<(Vec<Resource>, Vec<
             resources.push(Resource {
                 resource_type: "mcp_server".to_string(),
                 name: Some(name.clone()),
-                path: Some(path.to_string_lossy().to_string()),
+                path: Some(display_path.clone()),
                 provider: None,
                 created: None,
                 created_by: None,
@@ -150,7 +171,8 @@ mod tests {
         }"#;
         std::fs::write(&config_path, config_json).unwrap();
 
-        let (resources, providers) = parse_mcp_config(&config_path, "cursor").unwrap();
+        let (resources, providers) =
+            parse_mcp_config(&config_path, "cursor", Some(dir.path())).unwrap();
         assert_eq!(resources.len(), 2);
 
         // Resource-level assertions
@@ -182,7 +204,8 @@ mod tests {
         let config_path = dir.path().join("mcp.json");
         std::fs::write(&config_path, r#"{"other": {}}"#).unwrap();
 
-        let (resources, providers) = parse_mcp_config(&config_path, "claude_desktop").unwrap();
+        let (resources, providers) =
+            parse_mcp_config(&config_path, "claude_desktop", None).unwrap();
         assert!(resources.is_empty());
         assert!(providers.is_empty());
     }
@@ -193,7 +216,7 @@ mod tests {
         let config_path = dir.path().join("mcp.json");
         std::fs::write(&config_path, "not json").unwrap();
 
-        let result = parse_mcp_config(&config_path, "cursor");
+        let result = parse_mcp_config(&config_path, "cursor", Some(dir.path()));
         assert!(result.is_err());
     }
 }

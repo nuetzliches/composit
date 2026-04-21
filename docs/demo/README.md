@@ -15,13 +15,17 @@ the `examples/demo-drift/` workspace end-to-end in ~35 seconds.
 
 ```bash
 cargo build                                                # if not installed
-asciinema rec composit-demo.cast --cols 100 --rows 30 \
+asciinema rec composit-demo.cast --cols 150 --rows 30 \
   -c "bash docs/demo/record.sh"
 ```
 
-`--cols 100` matters — the default 80-col width wraps the scan/diff output
-(the `docker-compose.yml` row, the `unapproved_provider` error) and makes
-the recording look sloppy. 100×30 fits every line without wrapping.
+`--cols 150` matters — the scan summary row for each docker service runs
+up to ~147 chars (path + attribution + image + ports + networks inline).
+Narrower terminals wrap mid-line. 150×30 fits every line unbroken.
+
+The asciinema player auto-scales in the browser so this width is fine for
+HN / the landing page. Shrinking the terminal output itself to fit 100
+cols is a future polish task, not a blocker.
 
 Press `Ctrl-D` or wait for the script to finish. A `composit-demo.cast`
 file appears in the current directory.
