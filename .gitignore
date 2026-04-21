@@ -33,3 +33,6 @@ tests/artifacts/
 
 # Private working docs (not published)
 VALIDATION.md
+
+# Agent tooling scratch space (Claude Code, etc.) — local only, never public
+.claude/
