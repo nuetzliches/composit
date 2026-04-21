@@ -1,0 +1,30 @@
+services:
+  api:
+    image: ghcr.io/example/api:2.1.0
+    ports:
+      - "8080:8080"
+    volumes:
+      - api_data:/var/lib/api
+    networks:
+      - internal
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+
+  worker:
+    image: ghcr.io/example/worker:2.1.0
+    networks:
+      - internal
+
+  db:
+    image: postgres:16-alpine
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - internal
+
+networks:
+  internal:
+
+volumes:
+  api_data:
+  db_data:

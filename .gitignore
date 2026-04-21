@@ -19,9 +19,11 @@ composit-report.json
 composit-report.html
 composit-diff.html
 !examples/demo/composit-diff.html
+tests/fixtures/**/composit-report.*
 
 # Local artifacts (untracked)
 .artifacts/
+tests/artifacts/
 
 # Environment
 .env
