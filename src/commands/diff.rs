@@ -132,6 +132,7 @@ pub fn compute_diff_opts(
 ) -> DiffReport {
     let mut categories = Vec::new();
 
+    categories.push(check_workspace(governance, report));
     categories.push(check_providers(governance, report, offline));
     categories.push(check_budgets(governance, report));
     categories.push(check_resources(governance, report));
@@ -165,6 +166,41 @@ pub fn compute_diff_opts(
             info,
             passed_checks: passed,
         },
+    }
+}
+
+/// Compares the Compositfile `workspace "<name>" { … }` label against the
+/// workspace the scanner recorded (from `composit.config.yaml::workspace`,
+/// falling back to the directory name). A silent mismatch is easy to produce
+/// — rename the Compositfile workspace, forget the config — and confusing
+/// later because the diff header reports one name while the report shows
+/// another. Surface it as Info so operators notice without failing CI.
+fn check_workspace(governance: &Governance, report: &Report) -> ViolationCategory {
+    let mut violations = Vec::new();
+    let mut passed = 0;
+
+    if governance.workspace == report.workspace {
+        passed += 1;
+    } else {
+        violations.push(Violation {
+            severity: Severity::Info,
+            rule: "workspace_name_mismatch".to_string(),
+            message: format!(
+                "Compositfile workspace \"{}\" does not match scan report workspace \"{}\"",
+                governance.workspace, report.workspace
+            ),
+            details: Some(
+                "Align composit.config.yaml::workspace with the Compositfile label, \
+                 or rename one of them."
+                    .to_string(),
+            ),
+        });
+    }
+
+    ViolationCategory {
+        name: "workspace".to_string(),
+        violations,
+        passed,
     }
 }
 
@@ -1131,6 +1167,17 @@ mod tests {
         }
     }
 
+    /// Look up a category by name — robust against reordering of the fixed
+    /// category list in `compute_diff_opts`. Prefer this over `categories[idx]`
+    /// in tests so adding a new check at the front doesn't cascade into a
+    /// sea of unrelated failures.
+    fn find_category<'a>(diff: &'a DiffReport, name: &str) -> &'a ViolationCategory {
+        diff.categories
+            .iter()
+            .find(|c| c.name == name)
+            .unwrap_or_else(|| panic!("diff category '{name}' not present"))
+    }
+
     fn make_governance(providers: Vec<&str>, max_monthly: &str) -> Governance {
         Governance {
             workspace: "test".to_string(),
@@ -1158,6 +1205,48 @@ mod tests {
     }
 
     #[test]
+    fn test_workspace_name_mismatch_surfaces_as_info() {
+        // report.workspace (from composit.config.yaml or dirname) must match
+        // governance.workspace (the Compositfile label). A silent drift is
+        // confusing — the diff header prints one name while the report shows
+        // another. Info severity so it signals without failing CI.
+        let mut report = make_report(vec![], vec![], "0 EUR");
+        report.workspace = "renamed".to_string();
+        let governance = make_governance(vec![], "1000 EUR");
+
+        let diff = compute_diff(&governance, &report, Path::new("."));
+
+        let workspace_cat = diff
+            .categories
+            .iter()
+            .find(|c| c.name == "workspace")
+            .expect("workspace category present");
+        assert_eq!(workspace_cat.violations.len(), 1);
+        let v = &workspace_cat.violations[0];
+        assert_eq!(v.rule, "workspace_name_mismatch");
+        assert_eq!(v.severity, Severity::Info);
+        assert!(v.message.contains("renamed") && v.message.contains("test"));
+        assert_eq!(diff.summary.errors, 0);
+        assert_eq!(diff.summary.info, 1);
+    }
+
+    #[test]
+    fn test_workspace_name_match_passes() {
+        let report = make_report(vec![], vec![], "0 EUR");
+        let governance = make_governance(vec![], "1000 EUR");
+
+        let diff = compute_diff(&governance, &report, Path::new("."));
+
+        let workspace_cat = diff
+            .categories
+            .iter()
+            .find(|c| c.name == "workspace")
+            .expect("workspace category present");
+        assert!(workspace_cat.violations.is_empty());
+        assert_eq!(workspace_cat.passed, 1);
+    }
+
+    #[test]
     fn test_unapproved_provider() {
         let report = make_report(
             vec![make_provider("croniq"), make_provider("rogue")],
@@ -1167,8 +1256,7 @@ mod tests {
         let gov = make_governance(vec!["croniq"], "500 EUR");
         let diff = compute_diff(&gov, &report, Path::new("."));
 
-        let prov_cat = &diff.categories[0];
-        assert_eq!(prov_cat.name, "providers");
+        let prov_cat = find_category(&diff, "providers");
         let errors: Vec<_> = prov_cat
             .violations
             .iter()
@@ -1185,7 +1273,7 @@ mod tests {
         let gov = make_governance(vec![], "500 EUR");
         let diff = compute_diff(&gov, &report, Path::new("."));
 
-        let budget_cat = &diff.categories[1];
+        let budget_cat = find_category(&diff, "budgets");
         let errors: Vec<_> = budget_cat
             .violations
             .iter()
@@ -1201,7 +1289,7 @@ mod tests {
         let gov = make_governance(vec![], "500 EUR");
         let diff = compute_diff(&gov, &report, Path::new("."));
 
-        let budget_cat = &diff.categories[1];
+        let budget_cat = find_category(&diff, "budgets");
         let warnings: Vec<_> = budget_cat
             .violations
             .iter()
@@ -1223,7 +1311,7 @@ mod tests {
         });
 
         let diff = compute_diff(&gov, &report, Path::new("."));
-        let res_cat = &diff.categories[2];
+        let res_cat = find_category(&diff, "resources");
         let errors: Vec<_> = res_cat
             .violations
             .iter()
@@ -1248,7 +1336,7 @@ mod tests {
         });
 
         let diff = compute_diff(&gov, &report, Path::new("."));
-        let res_cat = &diff.categories[2];
+        let res_cat = find_category(&diff, "resources");
         let errors: Vec<_> = res_cat
             .violations
             .iter()
@@ -1272,7 +1360,7 @@ mod tests {
         });
 
         let diff = compute_diff(&gov, &report, Path::new("."));
-        let res_cat = &diff.categories[2];
+        let res_cat = find_category(&diff, "resources");
         let errors: Vec<_> = res_cat
             .violations
             .iter()
@@ -1328,7 +1416,7 @@ mod tests {
         let gov = make_governance(vec!["croniq"], "500 EUR");
 
         let online = compute_diff_opts(&gov, &report, Path::new("."), false);
-        let online_prov = &online.categories[0];
+        let online_prov = find_category(&online, "providers");
         let online_unused: Vec<_> = online_prov
             .violations
             .iter()
@@ -1338,7 +1426,7 @@ mod tests {
         assert_eq!(online_unused[0].severity, Severity::Warning);
 
         let offline = compute_diff_opts(&gov, &report, Path::new("."), true);
-        let offline_prov = &offline.categories[0];
+        let offline_prov = find_category(&offline, "providers");
         let offline_unused: Vec<_> = offline_prov
             .violations
             .iter()
