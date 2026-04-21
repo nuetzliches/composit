@@ -68,7 +68,7 @@ preserving room for provider-specific extensions.
       "type": "scheduling",
       "product": "croniq",
       "protocol": "mcp",
-      "endpoint": "https://mcp.public-schloss.nuetzliche.it/croniq",
+      "endpoint": "https://mcp.nuetzliche.it/croniq",
       "tools": 12,
       "rate_limit": { "requests_per_minute": 120 },
       "regions": ["eu-central-1"]

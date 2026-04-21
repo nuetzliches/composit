@@ -69,6 +69,13 @@ Solo Devs finden composit über die Open-Source-CLI und Community-Channels.
 
 **Score: 7.5/10 — BUILD** (April 2026, re-validated 2026-04-14)
 
+**Key market numbers (from initial validation, April 2026):**
+- 223 shadow-AI incidents/month on average at enterprises; top quartile: 2,100+/month
+- Only 25% of CIOs have full visibility into agents in production
+- 48.9% of organizations completely blind to machine-to-machine traffic
+- 88% of organizations reported confirmed or suspected AI agent security incidents
+- 78% of IT leaders report unexpected costs from AI agent usage
+
 | Dimension           | Score | Signal  | Notiz |
 |---------------------|-------|---------|-------|
 | Problem Severity    | 8     | Stark   | 78% Shadow AI, Drift #1 Pain (HashiCorp Survey), 35 CVEs aus AI-Code (März 2026) |

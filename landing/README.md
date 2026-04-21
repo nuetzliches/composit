@@ -5,11 +5,11 @@ to GitHub-Stars, the Quick-Start, and anonymous feature-interest votes.
 
 Single file, no build step, no framework. Works when served from:
 
-- Caddy (the production target: `composit.public-schloss.nuetzliche.it` on nuts-infra)
+- Caddy (the production target: `composit.nuetzliche.it` on nuts-infra)
 - Any static host (GitHub Pages, Cloudflare Pages, Netlify, plain nginx)
 - Opened directly (`file://`) for local preview
 
-See [`docs/LANDING-ROLLOUT.md`](../docs/LANDING-ROLLOUT.md) for the
+See [`docs/NEXT-STEPS.md`](../docs/NEXT-STEPS.md) for the
 go-live plan.
 
 ## Structure

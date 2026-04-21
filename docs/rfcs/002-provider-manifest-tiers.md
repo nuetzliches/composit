@@ -32,8 +32,8 @@ describes everything a provider offers. Running `composit` against the
 
 - `nuetzliche.it/.well-known/composit.json` declares capability slots
   for croniq, hookaido, powerbrain.
-- The actual product endpoints (`mcp.public-schloss.nuetzliche.it`,
-  `hooks.public-schloss.nuetzliche.it`, …) sit behind an Authentik
+- The actual product endpoints (`mcp.nuetzliche.it`,
+  `hooks.nuetzliche.it`, …) sit behind an Authentik
   gate — they only work once a business relationship is established.
 - The current manifest therefore *leaks* information — concrete
   endpoints, tool counts, descriptions — that a prospect can read but
@@ -208,7 +208,7 @@ caller:
       "type": "scheduling",
       "product": "croniq",
       "protocol": "mcp",
-      "endpoint": "https://mcp.public-schloss.nuetzliche.it/croniq",
+      "endpoint": "https://mcp.nuetzliche.it/croniq",
       "tools": 12,
       "rate_limit": { "requests_per_minute": 120 },
       "regions": ["eu-central-1"]
