@@ -61,7 +61,9 @@ impl MigrationDetector {
             if !entry.is_file() {
                 continue;
             }
-            if exclude.iter().any(|p| p.matches_path(&entry)) {
+            let rel = entry.strip_prefix(dir).unwrap_or(&entry);
+            let rel_str = rel.to_string_lossy();
+            if exclude.iter().any(|p| p.matches(&rel_str)) {
                 continue;
             }
             if let Some(guard) = self.file_guard {
