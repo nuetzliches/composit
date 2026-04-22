@@ -1,0 +1,31 @@
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: widgetshop
+
+build:
+  artifacts:
+    - image: gcr.io/widgetshop/api
+      docker:
+        dockerfile: Dockerfile
+    - image: gcr.io/widgetshop/worker
+      docker:
+        dockerfile: worker/Dockerfile
+
+deploy:
+  helm:
+    releases:
+      - name: widgetshop
+        chartPath: charts/widgetshop
+
+profiles:
+  - name: staging
+    patches:
+      - op: replace
+        path: /deploy/helm/releases/0/namespace
+        value: staging
+  - name: production
+    patches:
+      - op: replace
+        path: /deploy/helm/releases/0/namespace
+        value: production

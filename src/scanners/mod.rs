@@ -1,8 +1,11 @@
 pub mod caddyfile;
 pub mod cron;
+pub mod db_migrations;
+pub mod deploy_scripts;
 pub mod docker;
 pub mod env_files;
 pub mod extra_patterns;
+pub mod fly_toml;
 pub mod grafana;
 pub mod kubernetes;
 pub mod mcp_config;
@@ -10,7 +13,13 @@ pub mod mcp_provider;
 pub mod nginx;
 pub mod opa_policy;
 pub mod prometheus;
+pub mod proto;
+pub mod render_yaml;
+pub mod skaffold;
+pub mod tempo;
 pub mod terraform;
+pub mod traefik;
+pub mod vercel_json;
 pub mod workflows;
 
 use crate::core::registry::ScannerRegistry;
@@ -29,4 +38,13 @@ pub fn register_default_scanners(registry: &mut ScannerRegistry) {
     registry.register(Box::new(opa_policy::OpaPolicyScanner));
     registry.register(Box::new(mcp_config::McpConfigScanner));
     registry.register(Box::new(mcp_provider::McpProviderScanner));
+    registry.register(Box::new(fly_toml::FlyTomlScanner));
+    registry.register(Box::new(render_yaml::RenderYamlScanner));
+    registry.register(Box::new(vercel_json::VercelJsonScanner));
+    registry.register(Box::new(skaffold::SkaffoldScanner));
+    registry.register(Box::new(traefik::TraefikScanner));
+    registry.register(Box::new(proto::ProtoScanner));
+    registry.register(Box::new(tempo::TempoScanner));
+    registry.register(Box::new(db_migrations::DbMigrationsScanner));
+    registry.register(Box::new(deploy_scripts::DeployScriptsScanner));
 }

@@ -1,0 +1,15 @@
+services:
+  api:
+    image: ghcr.io/widgetshop/api:1.4.2
+    ports:
+      - "8080:8080"
+
+  worker:
+    image: ghcr.io/widgetshop/worker:latest
+    environment:
+      QUEUE_URL: amqp://rabbitmq:5672
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: widgetshop

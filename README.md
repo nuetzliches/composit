@@ -14,7 +14,7 @@ the gap. Works with or without AI agents; the agent angle just makes
 the gap urgent, because agents produce declarations faster than humans
 review them.
 
-▶ **[Watch the 11-second demo](https://asciinema.org/a/EOPTSBcM0k3wGbvh)** — `scan` + `diff` end-to-end on a synthetic workspace.
+**[nuetzliches.github.io/composit](https://nuetzliches.github.io/composit)** — landing page with overview and demo.
 
 ---
 

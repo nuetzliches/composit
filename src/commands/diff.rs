@@ -135,7 +135,7 @@ pub fn compute_diff_opts(
         check_providers(governance, report, offline),
         check_budgets(governance, report),
         check_resources(governance, report),
-        check_policies(governance, base_dir),
+        check_policies(governance, base_dir, report),
     ];
 
     let errors: usize = categories
@@ -687,8 +687,13 @@ fn check_resources(governance: &Governance, report: &Report) -> ViolationCategor
     }
 }
 
-fn check_policies(governance: &Governance, base_dir: &Path) -> ViolationCategory {
+fn check_policies(governance: &Governance, base_dir: &Path, report: &Report) -> ViolationCategory {
+    use crate::core::opa_eval::{eval_policy, PolicyOutcome};
     use crate::core::rego::{parse_rego, RegoIssue};
+
+    // Serialise the scan report once; every policy evaluates against the
+    // same input so we only pay the serialisation cost once.
+    let input_json = serde_json::to_string(report).unwrap_or_else(|_| "{}".to_string());
 
     let mut violations = Vec::new();
     let mut passed = 0;
@@ -736,33 +741,8 @@ fn check_policies(governance: &Governance, base_dir: &Path) -> ViolationCategory
             }
         };
 
-        match parse_rego(&content) {
-            Ok(meta) => {
-                passed += 1;
-                let entrypoints = match (meta.has_default_allow, meta.has_deny) {
-                    (true, true) => "allow + deny",
-                    (true, false) => "allow",
-                    (false, true) => "deny",
-                    (false, false) => "none",
-                };
-                violations.push(Violation {
-                    severity: Severity::Info,
-                    rule: "policy_parsed".to_string(),
-                    message: format!(
-                        "Policy \"{}\" ({}): package `{}`, {} rule(s), entrypoints: {}",
-                        policy.name,
-                        policy.source,
-                        meta.package,
-                        meta.rules.len(),
-                        entrypoints
-                    ),
-                    details: if meta.rules.is_empty() {
-                        None
-                    } else {
-                        Some(format!("rules: {}", meta.rules.join(", ")))
-                    },
-                });
-            }
+        let meta = match parse_rego(&content) {
+            Ok(m) => m,
             Err(issue) => {
                 let rule = match issue {
                     RegoIssue::MissingPackage => "policy_missing_package",
@@ -778,7 +758,99 @@ fn check_policies(governance: &Governance, base_dir: &Path) -> ViolationCategory
                     ),
                     details: None,
                 });
+                continue;
             }
+        };
+
+        // ── Runtime evaluation ───────────────────────────────────────────
+        // Policies that declare deny or allow entrypoints are evaluated
+        // against the full scan report. Policies with neither entrypoint
+        // are informational (e.g. documentation stubs) and skip eval.
+        let can_eval = meta.has_deny || meta.has_default_allow;
+        if can_eval {
+            let outcome = eval_policy(
+                &policy.source,
+                &content,
+                &meta.package,
+                meta.has_deny,
+                meta.has_default_allow,
+                &input_json,
+            );
+
+            match outcome {
+                PolicyOutcome::Clean => {
+                    passed += 1;
+                    violations.push(Violation {
+                        severity: Severity::Info,
+                        rule: "policy_passed".to_string(),
+                        message: format!(
+                            "Policy \"{}\" ({}): all checks passed",
+                            policy.name, policy.source
+                        ),
+                        details: None,
+                    });
+                }
+                PolicyOutcome::Denials(msgs) => {
+                    // Each deny message becomes a separate Error so CI gates
+                    // on individual violations rather than a single policy blob.
+                    for msg in msgs {
+                        violations.push(Violation {
+                            severity: Severity::Error,
+                            rule: "policy_violation".to_string(),
+                            message: format!(
+                                "Policy \"{}\" ({}): {}",
+                                policy.name, policy.source, msg
+                            ),
+                            details: None,
+                        });
+                    }
+                }
+                PolicyOutcome::NotAllowed => {
+                    violations.push(Violation {
+                        severity: Severity::Error,
+                        rule: "policy_not_allowed".to_string(),
+                        message: format!(
+                            "Policy \"{}\" ({}): allow evaluated to false",
+                            policy.name, policy.source
+                        ),
+                        details: None,
+                    });
+                }
+                PolicyOutcome::EvalError(e) => {
+                    // Evaluation errors (unsupported features, runtime panics)
+                    // are surfaced as warnings rather than errors so a single
+                    // Rego feature gap doesn't fail CI.
+                    violations.push(Violation {
+                        severity: Severity::Warning,
+                        rule: "policy_eval_error".to_string(),
+                        message: format!(
+                            "Policy \"{}\" ({}) could not be evaluated: {}",
+                            policy.name, policy.source, e
+                        ),
+                        details: None,
+                    });
+                }
+            }
+        } else {
+            // No executable entrypoint — keep the legacy policy_parsed info
+            // so the diff report still acknowledges the file exists.
+            passed += 1;
+            violations.push(Violation {
+                severity: Severity::Info,
+                rule: "policy_parsed".to_string(),
+                message: format!(
+                    "Policy \"{}\" ({}): package `{}`, {} rule(s) — no deny/allow entrypoint",
+                    policy.name,
+                    policy.source,
+                    meta.package,
+                    meta.rules.len(),
+                ),
+                details: if meta.rules.is_empty() {
+                    None
+                } else {
+                    Some(format!("rules: {}", meta.rules.join(", ")))
+                },
+            });
         }
     }
 

@@ -1,0 +1,17 @@
+services:
+  - name: api
+    type: web
+    env: docker
+    plan: starter
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+
+  - name: worker
+    type: worker
+    env: docker
+    plan: starter
+
+  - name: scheduler
+    type: cron
+    env: python
+    schedule: "0 * * * *"

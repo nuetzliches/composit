@@ -421,6 +421,336 @@ fn scan_grafana_fixture_finds_dashboard_datasources_and_providers() {
 }
 
 #[test]
+fn scan_fly_toml_fixture_finds_app_and_region() {
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("fly_toml", tmp.path());
+
+    let out = run_scan(tmp.path());
+    assert!(out.status.success());
+
+    let content = fs::read_to_string(tmp.path().join("composit-report.json")).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let resources = report["resources"].as_array().unwrap();
+
+    let apps: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("fly_app"))
+        .collect();
+    assert_eq!(apps.len(), 1, "expected one fly_app resource");
+    assert_eq!(apps[0]["name"].as_str(), Some("my-api"));
+    assert_eq!(apps[0]["primary_region"].as_str(), Some("fra"));
+    assert_eq!(apps[0]["http_service"].as_bool(), Some(true));
+}
+
+#[test]
+fn scan_render_yaml_fixture_finds_services() {
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("render_yaml", tmp.path());
+
+    let out = run_scan(tmp.path());
+    assert!(out.status.success());
+
+    let content = fs::read_to_string(tmp.path().join("composit-report.json")).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let resources = report["resources"].as_array().unwrap();
+
+    let services: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("render_service"))
+        .collect();
+    assert_eq!(services.len(), 3, "expected 3 render_service resources");
+
+    let names: Vec<&str> = services.iter().filter_map(|r| r["name"].as_str()).collect();
+    assert!(names.contains(&"api"));
+    assert!(names.contains(&"worker"));
+    assert!(names.contains(&"scheduler"));
+
+    let types: Vec<&str> = services
+        .iter()
+        .filter_map(|r| r["service_type"].as_str())
+        .collect();
+    assert!(types.contains(&"web"));
+    assert!(types.contains(&"worker"));
+    assert!(types.contains(&"cron"));
+}
+
+#[test]
+fn scan_vercel_json_fixture_finds_config() {
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("vercel_json", tmp.path());
+
+    let out = run_scan(tmp.path());
+    assert!(out.status.success());
+
+    let content = fs::read_to_string(tmp.path().join("composit-report.json")).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let resources = report["resources"].as_array().unwrap();
+
+    let configs: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("vercel_config"))
+        .collect();
+    assert_eq!(configs.len(), 1, "expected one vercel_config resource");
+    assert_eq!(configs[0]["framework"].as_str(), Some("nextjs"));
+    assert_eq!(configs[0]["rewrites"].as_u64(), Some(1));
+    assert_eq!(configs[0]["redirects"].as_u64(), Some(2));
+    assert_eq!(configs[0]["headers"].as_u64(), Some(1));
+    assert_eq!(configs[0]["functions"].as_u64(), Some(2));
+}
+
+#[test]
+fn scan_skaffold_fixture_finds_config() {
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("skaffold", tmp.path());
+
+    let out = run_scan(tmp.path());
+    assert!(out.status.success());
+
+    let content = fs::read_to_string(tmp.path().join("composit-report.json")).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let resources = report["resources"].as_array().unwrap();
+
+    let configs: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("skaffold_config"))
+        .collect();
+    assert_eq!(configs.len(), 1, "expected one skaffold_config resource");
+    assert_eq!(configs[0]["name"].as_str(), Some("widgetshop"));
+    assert_eq!(configs[0]["artifacts"].as_u64(), Some(2));
+    assert_eq!(configs[0]["profiles"].as_u64(), Some(2));
+    assert_eq!(configs[0]["deploy_type"].as_str(), Some("helm"));
+}
+
+#[test]
+fn scan_traefik_fixture_finds_config() {
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("traefik", tmp.path());
+
+    let out = run_scan(tmp.path());
+    assert!(out.status.success());
+
+    let content = fs::read_to_string(tmp.path().join("composit-report.json")).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let resources = report["resources"].as_array().unwrap();
+
+    let configs: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("traefik_config"))
+        .collect();
+    assert_eq!(configs.len(), 1, "expected one traefik_config resource");
+
+    let entrypoints = configs[0]["entrypoints"].as_array().unwrap();
+    let ep_names: Vec<&str> = entrypoints.iter().filter_map(|v| v.as_str()).collect();
+    assert!(ep_names.contains(&"web"));
+    assert!(ep_names.contains(&"websecure"));
+    assert_eq!(configs[0]["dashboard"].as_bool(), Some(true));
+    assert_eq!(configs[0]["tls"].as_bool(), Some(true));
+}
+
+#[test]
+fn scan_proto_fixture_finds_file() {
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("proto", tmp.path());
+
+    let out = run_scan(tmp.path());
+    assert!(out.status.success());
+
+    let content = fs::read_to_string(tmp.path().join("composit-report.json")).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let resources = report["resources"].as_array().unwrap();
+
+    let protos: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("proto_file"))
+        .collect();
+    assert_eq!(protos.len(), 1, "expected one proto_file resource");
+    assert_eq!(protos[0]["name"].as_str(), Some("widgetshop.v1"));
+    assert_eq!(protos[0]["syntax"].as_str(), Some("proto3"));
+    assert_eq!(protos[0]["services"].as_u64(), Some(1));
+    assert_eq!(protos[0]["messages"].as_u64(), Some(4));
+    assert_eq!(protos[0]["rpcs"].as_u64(), Some(3));
+}
+
+#[test]
+fn scan_tempo_fixture_finds_config() {
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("tempo", tmp.path());
+
+    let out = run_scan(tmp.path());
+    assert!(out.status.success());
+
+    let content = fs::read_to_string(tmp.path().join("composit-report.json")).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let resources = report["resources"].as_array().unwrap();
+
+    let configs: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("tempo_config"))
+        .collect();
+    assert_eq!(configs.len(), 1, "expected one tempo_config resource");
+    assert_eq!(configs[0]["storage_backend"].as_str(), Some("s3"));
+
+    let receivers = configs[0]["receivers"].as_array().unwrap();
+    let names: Vec<&str> = receivers.iter().filter_map(|v| v.as_str()).collect();
+    assert!(names.contains(&"otlp"));
+    assert!(names.contains(&"jaeger"));
+}
+
+#[test]
+fn scan_db_migrations_fixture_finds_alembic_and_prisma() {
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("db_migrations", tmp.path());
+
+    let out = run_scan(tmp.path());
+    assert!(out.status.success());
+
+    let content = fs::read_to_string(tmp.path().join("composit-report.json")).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let resources = report["resources"].as_array().unwrap();
+
+    let migrations: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("db_migrations"))
+        .collect();
+    assert!(migrations.len() >= 2, "expected alembic and prisma resources");
+
+    let frameworks: Vec<&str> = migrations.iter().filter_map(|r| r["name"].as_str()).collect();
+    assert!(frameworks.contains(&"alembic"), "missing alembic");
+    assert!(frameworks.contains(&"prisma"), "missing prisma");
+
+    let alembic = migrations.iter().find(|r| r["name"].as_str() == Some("alembic")).unwrap();
+    assert_eq!(alembic["migration_count"].as_u64(), Some(2));
+}
+
+#[test]
+fn scan_deploy_scripts_fixture_finds_scripts() {
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("deploy_scripts", tmp.path());
+
+    let out = run_scan(tmp.path());
+    assert!(out.status.success());
+
+    let content = fs::read_to_string(tmp.path().join("composit-report.json")).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let resources = report["resources"].as_array().unwrap();
+
+    let scripts: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("deploy_script"))
+        .collect();
+    assert!(scripts.len() >= 2, "expected deploy.sh and bootstrap.sh");
+
+    let names: Vec<&str> = scripts.iter().filter_map(|r| r["name"].as_str()).collect();
+    assert!(names.contains(&"deploy.sh"));
+    assert!(names.contains(&"bootstrap.sh"));
+
+    let bootstrap = scripts.iter().find(|r| r["name"].as_str() == Some("bootstrap.sh")).unwrap();
+    assert_eq!(bootstrap["kind"].as_str(), Some("bootstrap"));
+}
+
+#[test]
+fn opa_policy_eval_fires_deny_for_latest_tag() {
+    // Full scan → diff pipeline: a deny rule that checks for :latest tags
+    // must produce a policy_violation Error for the offending service.
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("opa-policy-eval", tmp.path());
+
+    let scan = run_scan_yaml(tmp.path());
+    assert!(
+        scan.status.success(),
+        "scan failed:\n{}",
+        String::from_utf8_lossy(&scan.stderr)
+    );
+
+    let diff = run_diff_json(tmp.path(), false);
+    assert!(
+        diff.status.success(),
+        "diff failed:\n{}",
+        String::from_utf8_lossy(&diff.stderr)
+    );
+
+    let stdout = String::from_utf8(diff.stdout).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|e| panic!("diff JSON parse failed: {e}\nstdout:\n{stdout}"));
+
+    // Collect all violations across categories.
+    let mut violations: Vec<serde_json::Value> = Vec::new();
+    for cat in report["categories"].as_array().unwrap() {
+        for v in cat["violations"].as_array().unwrap() {
+            violations.push(v.clone());
+        }
+    }
+
+    let policy_violations: Vec<_> = violations
+        .iter()
+        .filter(|v| v["rule"].as_str() == Some("policy_violation"))
+        .collect();
+
+    assert_eq!(
+        policy_violations.len(),
+        1,
+        "expected exactly one policy_violation (worker uses :latest); got: {:#?}",
+        policy_violations
+    );
+
+    let msg = policy_violations[0]["message"].as_str().unwrap_or("");
+    assert!(
+        msg.contains("worker"),
+        "violation message should name the offending service; got: {msg}"
+    );
+    assert!(
+        msg.contains(":latest"),
+        "violation message should mention :latest; got: {msg}"
+    );
+
+    // A policy that produced violations must NOT also emit policy_passed.
+    let passed: Vec<_> = violations
+        .iter()
+        .filter(|v| v["rule"].as_str() == Some("policy_passed"))
+        .collect();
+    assert!(
+        passed.is_empty(),
+        "a policy that fired violations must not also emit policy_passed"
+    );
+}
+
+#[test]
+fn opa_policy_eval_clean_when_all_images_pinned() {
+    use std::fs;
+
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("opa-policy-eval", tmp.path());
+
+    // Overwrite docker-compose.yml with all services pinned.
+    fs::write(
+        tmp.path().join("docker-compose.yml"),
+        "services:\n  api:\n    image: ghcr.io/widgetshop/api:1.4.2\n  db:\n    image: postgres:16\n",
+    )
+    .unwrap();
+
+    assert!(run_scan_yaml(tmp.path()).status.success());
+
+    let diff = run_diff_json(tmp.path(), false);
+    let stdout = String::from_utf8(diff.stdout).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|e| panic!("diff JSON parse failed: {e}\nstdout:\n{stdout}"));
+
+    let violations: Vec<_> = report["categories"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|c| c["violations"].as_array().unwrap().iter())
+        .filter(|v| v["rule"].as_str() == Some("policy_violation"))
+        .collect();
+
+    assert!(
+        violations.is_empty(),
+        "expected no policy_violation when all images are pinned; got: {:#?}",
+        violations
+    );
+}
+
+#[test]
 fn demo_drift_exits_nonzero_in_strict_mode() {
     // `--strict` is the CI gate: errors must fail the pipeline. Guards
     // against a regression where the diff report lists errors but the

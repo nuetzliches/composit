@@ -1,0 +1,8 @@
+workspace "widgetshop-opa" {
+
+  policy "docker-checks" {
+    source      = "policies/docker-checks.rego"
+    description = "Enforce image pinning: no :latest tags on docker services"
+  }
+
+}

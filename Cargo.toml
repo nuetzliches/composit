@@ -28,6 +28,7 @@ async-trait = "0.1"
 colored = "2"
 dirs = "6"
 hcl-rs = "0.18"
+regorus = { version = "0.2", default-features = false, features = ["arc"] }
 
 [dev-dependencies]
 tempfile = "3"

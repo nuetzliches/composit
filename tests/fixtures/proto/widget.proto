@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package widgetshop.v1;
+
+import "google/protobuf/timestamp.proto";
+
+message Widget {
+  string id = 1;
+  string name = 2;
+  int32 price_cents = 3;
+  google.protobuf.Timestamp created_at = 4;
+}
+
+message ListWidgetsRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListWidgetsResponse {
+  repeated Widget widgets = 1;
+  string next_page_token = 2;
+}
+
+message GetWidgetRequest {
+  string id = 1;
+}
+
+service WidgetService {
+  rpc GetWidget(GetWidgetRequest) returns (Widget);
+  rpc ListWidgets(ListWidgetsRequest) returns (ListWidgetsResponse);
+  rpc CreateWidget(Widget) returns (Widget);
+}

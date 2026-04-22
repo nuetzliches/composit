@@ -1,6 +1,7 @@
 pub mod attribution;
 pub mod compositfile;
 pub mod governance;
+pub mod opa_eval;
 pub mod registry;
 pub mod rego;
 pub mod report;
