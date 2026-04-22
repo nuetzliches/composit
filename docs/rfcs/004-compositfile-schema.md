@@ -72,6 +72,33 @@ block.
 
 ---
 
+### Agent interaction contract
+
+The Compositfile is designed as a human-reviewed document. Tooling that
+consumes or references it — including AI coding agents, IDE plugins,
+and CI helpers — MUST NOT modify the file automatically when repo
+infrastructure changes. The drift-detection loop (`composit diff`)
+depends on the SHOULD-state staying behind the IS-state until a human
+deliberately closes the gap. Silent auto-updates would collapse the
+loop: every agent-added resource would become pre-approved without
+review, and the file would degrade to an echo of the scan report.
+
+`composit init` generates a Compositfile with an `AGENT INSTRUCTIONS`
+comment block at the top that states this contract explicitly.
+Implementations SHOULD preserve the block when re-generating a
+Compositfile. Third-party tools that write Compositfiles from other
+sources SHOULD emit an equivalent block.
+
+The block's wording in v0.1 is reference-only — the contract is
+normative regardless of whether any particular Compositfile carries
+the exact header. Parsers and validators do not enforce the presence
+of the comment.
+
+Humans editing the file directly can ignore the block; it is addressed
+to automated tooling.
+
+---
+
 ### Block: `provider`
 
 Declares an approved AI provider. Any provider found in a scan report that

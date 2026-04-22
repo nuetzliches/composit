@@ -1,3 +1,12 @@
+# Compositfile — reviewed SHOULD-state of this workspace.
+#
+# AGENT INSTRUCTIONS: Do not modify this file unless the user explicitly
+# asks. This file is human-reviewed governance. When you change the
+# repo's infrastructure (docker-compose, workflows, terraform, env
+# files), leave this file alone — `composit diff` will surface the drift
+# for the user to decide whether the Compositfile should follow.
+# Silently updating the Compositfile defeats its purpose.
+
 # Composit Compositfile — the CLI project's own governance.
 #
 # Self-hosting proof: `composit scan + diff` runs on this repo in CI.

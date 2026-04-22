@@ -136,6 +136,13 @@ Declarative governance. Approved providers, budget caps, resource
 allow/require rules, policy references, scan tuning. See
 [`examples/Compositfile`](examples/Compositfile).
 
+**Agent boundary.** Generated Compositfiles carry an `AGENT
+INSTRUCTIONS` header telling coding agents to leave the file alone
+unless the user explicitly asks for a change. The whole governance loop
+hinges on this: if an agent silently updates the Compositfile every
+time it touches infrastructure, there is no drift left to detect. The
+file is for humans to review; `composit diff` is for everyone to run.
+
 ### Public Manifest (Provider Discovery)
 
 Hosted at `provider.example/.well-known/composit.json`. Unauthenticated.
