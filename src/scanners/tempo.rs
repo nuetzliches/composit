@@ -149,7 +149,7 @@ fn detect_storage(doc: &Value) -> Option<String> {
     let traces = doc.get("storage").and_then(|v| v.get("trace"))?;
     if let Some(mapping) = traces.as_mapping() {
         for backend in &backends {
-            if mapping.contains_key(&Value::String(backend.to_string())) {
+            if mapping.contains_key(Value::String(backend.to_string())) {
                 return Some(backend.to_string());
             }
         }
