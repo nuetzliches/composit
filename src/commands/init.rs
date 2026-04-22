@@ -50,6 +50,26 @@ pub fn run_init(dir: &Path, workspace_name: Option<String>, report: Option<&Repo
         "Compositfile written:".green().bold(),
         display_path.display()
     );
+    if report.is_some() {
+        // composit init also writes composit-report.yaml when a scan ran
+        // (main.rs handles the actual write); surface it so the user knows
+        // `composit diff` will find it without an extra scan step.
+        let report_path = dir.join("composit-report.yaml");
+        let display_report = std::env::current_dir()
+            .ok()
+            .and_then(|cwd| {
+                report_path
+                    .strip_prefix(&cwd)
+                    .ok()
+                    .map(|p| p.to_path_buf())
+            })
+            .unwrap_or(report_path);
+        println!(
+            "  {}         {}",
+            "Scan report:".green().bold(),
+            display_report.display()
+        );
+    }
     println!("  {} {}", "Workspace:".dimmed(), workspace.bold());
     if let Some(r) = report {
         println!(

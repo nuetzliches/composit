@@ -68,6 +68,13 @@ async fn main() -> Result<()> {
                 None
             };
 
+            // Persist the scan report alongside the Compositfile so the
+            // advertised `composit init` → `composit diff` flow works
+            // without an intermediate `composit scan` step.
+            if let Some(r) = &report {
+                fs::write(dir.join("composit-report.yaml"), output::yaml::to_yaml(r)?)?;
+            }
+
             commands::init::run_init(&dir, workspace, report.as_ref())?;
         }
         Commands::Diff {
