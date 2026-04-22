@@ -1,8 +1,8 @@
 {
   "name": "composit",
-  "image": "mcr.microsoft.com/devcontainers/rust:latest",
+  "image": "mcr.microsoft.com/devcontainers/rust:1-bullseye",
   "onCreateCommand": "cargo install --path .",
-  "postStartCommand": "echo '\n  composit is ready — run: composit scan\n'",
+  "postStartCommand": "echo 'composit is ready. Try: composit init'",
   "customizations": {
     "vscode": {
       "extensions": ["rust-lang.rust-analyzer"]
