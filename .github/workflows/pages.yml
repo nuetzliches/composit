@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'landing/**'
+      - 'install/install.sh'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -28,6 +29,11 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
+
+      # Serve install.sh at nuetzliches.github.io/composit/install.sh so the
+      # one-liner on the landing page (`curl … install.sh | sh`) resolves.
+      - name: Stage install.sh alongside landing page
+        run: cp install/install.sh landing/install.sh
 
       - name: Upload landing artifact
         uses: actions/upload-pages-artifact@v3
