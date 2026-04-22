@@ -59,6 +59,15 @@ a drive-by PR.
   after a refactor. Skeleton exists internally; publishing the
   harness so anyone can run it is the open work.
 
+- **GitHub Actions Node 24 migration.** `actions/checkout@v4`,
+  `actions/upload-artifact@v4`, `actions/download-artifact@v4`, and
+  `actions/cache@v4` still run on Node 20, which GitHub forces off the
+  runners on 2026-06-02. Newer majors are already published
+  (`checkout@v6`, `upload-artifact@v7`, `download-artifact@v8`) and are
+  drop-in for our usage. Audit and bump before the cutover; revisit
+  `actions/configure-pages`, `actions/deploy-pages`, and the docker/*
+  actions while at it.
+
 ---
 
 ## Scanner gaps
