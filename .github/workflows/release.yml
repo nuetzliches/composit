@@ -129,16 +129,21 @@ jobs:
     runs-on: ubuntu-latest
     needs: release
     # Requires a PAT with write access to nuetzliches/homebrew-tap stored
-    # as the secret HOMEBREW_TAP_TOKEN. Job is skipped if the secret is absent,
-    # so the rest of the release still completes when the tap isn't wired up yet.
-    if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
+    # as the secret HOMEBREW_TAP_TOKEN. The step-level guard below skips
+    # the update when the secret is absent, so the rest of the release
+    # still completes when the tap isn't wired up yet.
+    env:
+      TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        if: env.TAP_TOKEN != ''
       - uses: actions/download-artifact@v4
+        if: env.TAP_TOKEN != ''
         with:
           pattern: composit-*
           path: artifacts
       - name: Compute SHA256s and rewrite formula
+        if: env.TAP_TOKEN != ''
         shell: bash
         run: |
           set -euo pipefail
@@ -165,9 +170,8 @@ jobs:
           PY
 
       - name: Push updated formula to tap
+        if: env.TAP_TOKEN != ''
         shell: bash
-        env:
-          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
           set -euo pipefail
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/nuetzliches/homebrew-tap.git" tap
