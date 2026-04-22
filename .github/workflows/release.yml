@@ -21,19 +21,14 @@ jobs:
         include:
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
-            cross: true
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
-            cross: true
           - target: x86_64-apple-darwin
             os: macos-latest
-            cross: false
           - target: aarch64-apple-darwin
             os: macos-latest
-            cross: false
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            cross: false
     steps:
       - uses: actions/checkout@v4
 
@@ -46,17 +41,17 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: Install cross (linux musl)
-        if: matrix.cross
+        if: contains(matrix.target, '-linux-musl')
         uses: taiki-e/install-action@v2
         with:
           tool: cross
 
       - name: Build (cross)
-        if: matrix.cross
+        if: contains(matrix.target, '-linux-musl')
         run: cross build --release --target ${{ matrix.target }}
 
       - name: Build (native)
-        if: ${{ !matrix.cross }}
+        if: contains(matrix.target, '-linux-musl') == false
         shell: bash
         run: cargo build --release --target ${{ matrix.target }}
 
