@@ -253,7 +253,7 @@ fn attribution_stats(resources: &[Resource]) -> Vec<(String, String, usize)> {
 
     // Agent modifiers first (most important signal)
     let mut mods: Vec<_> = modified_by.into_iter().collect();
-    mods.sort_by(|a, b| b.1.cmp(&a.1));
+    mods.sort_by_key(|b| std::cmp::Reverse(b.1));
     for (author, count) in mods {
         result.push((
             format!("{} (last modified)", author),
@@ -264,7 +264,7 @@ fn attribution_stats(resources: &[Resource]) -> Vec<(String, String, usize)> {
 
     // Agent assistants
     let mut assists: Vec<_> = assisted_by.into_iter().collect();
-    assists.sort_by(|a, b| b.1.cmp(&a.1));
+    assists.sort_by_key(|b| std::cmp::Reverse(b.1));
     for (agent, count) in assists {
         result.push((
             format!("{} (co-authored)", agent),
@@ -275,7 +275,7 @@ fn attribution_stats(resources: &[Resource]) -> Vec<(String, String, usize)> {
 
     // Then creators
     let mut creators: Vec<_> = created_by.into_iter().collect();
-    creators.sort_by(|a, b| b.1.cmp(&a.1));
+    creators.sort_by_key(|b| std::cmp::Reverse(b.1));
     for (author, count) in creators {
         let tag = if author.starts_with("agent:") {
             "tag-agent"
