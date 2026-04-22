@@ -21,15 +21,32 @@ review them.
 ## Install
 
 ```bash
-cargo install --git https://github.com/nuetzliches/composit
+brew install nuetzliches/tap/composit                        # macOS / Linux
+cargo install --git https://github.com/nuetzliches/composit  # any platform with a Rust toolchain
+docker pull ghcr.io/nuetzliches/composit                     # CI / no-toolchain
 ```
 
-Rust toolchain required. An `npx`-wrapped distribution is on the
-[roadmap](docs/ROADMAP.md).
+Prefer zero-install? **[Open in Codespaces](https://codespaces.new/nuetzliches/composit)** — `composit` is on `PATH` after the prebuild. An `npx`-wrapped distribution is on the [roadmap](docs/ROADMAP.md).
 
 ---
 
-## Try it
+## Quickstart
+
+Point it at your own repo:
+
+```bash
+composit init    # scaffolds a Compositfile from a scan of the current directory
+composit diff    # surfaces governance violations
+```
+
+`init` runs a scan, writes a `Compositfile` seeded with every detected
+resource type (sensible headroom on the limits) and every discovered
+provider. Review the file, tighten the limits, then `composit diff`
+flags any drift.
+
+---
+
+## Try the demo
 
 ```bash
 composit scan --dir examples/demo-drift --no-providers
@@ -59,7 +76,8 @@ Three artifacts, one comparison:
    `composit scan`. Inventory of what exists: services, configs,
    providers, who created what.
 2. **`Compositfile`** — the SHOULD-state. Reviewed HCL: approved
-   providers, budgets, resource limits, policies, scan tuning.
+   providers, budgets, resource limits, policies, scan tuning. Scaffold
+   one with `composit init`, then edit to match your governance.
 3. **`composit diff`** — the gap. Emits terminal, JSON, YAML, or a
    standalone HTML report. `--strict` exits non-zero on errors so it
    works as a CI gate.
@@ -174,11 +192,11 @@ comparison works regardless of who created what.
 
 **Phase: CLI + Spec Draft.**
 
-- CLI: `composit scan`, `composit status`, `composit diff`. Rust,
-  MIT, ~130 tests, `cargo install`able today.
-- Spec: RFCs 001–003 draft (report format, provider manifest tiers,
-  contract envelope). RFC 004 (Compositfile) pending — the current
-  parser is the de-facto spec.
+- CLI: `composit init`, `composit scan`, `composit status`, `composit diff`.
+  Rust, MIT, ~175 tests, installable via `brew`, `cargo`, `docker`, or
+  Codespaces today.
+- Spec: RFCs 001–004 draft (report format, provider manifest tiers,
+  contract envelope, Compositfile schema).
 - Breaking changes expected on both surfaces until v1.0. They'll be
   called out in release notes.
 
