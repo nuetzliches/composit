@@ -71,18 +71,21 @@ files. It reads declarations out of the tree and compares.
 
 ## What it scans
 
-13 built-in scanners, each with fixtures under `tests/fixtures/` and
-an E2E test in `tests/scanner_e2e.rs`:
+22 built-in scanners with fixtures under `tests/fixtures/` and E2E
+coverage in `tests/scanner_e2e.rs`:
 
-| Category              | Scanners                                                         |
-|-----------------------|------------------------------------------------------------------|
-| **Containers**        | `docker` (compose, Dockerfile), `kubernetes` (manifests, Kustomize, Helm) |
-| **Config as code**    | `terraform`, `env_files`                                         |
-| **Ingress**           | `caddyfile`, `nginx`                                             |
-| **CI/CD**             | `workflows` (GitHub Actions, Forgejo, Gitea, GitLab CI), `cron`  |
-| **Observability**     | `prometheus`, `grafana`                                          |
-| **Policy**            | `opa_policy`                                                     |
-| **Agent tooling**     | `mcp_config`, `mcp_provider`                                     |
+| Category              | Scanners                                                                   |
+|-----------------------|----------------------------------------------------------------------------|
+| **Containers**        | `docker` (compose, Dockerfile), `kubernetes` (manifests, Kustomize, Helm), `skaffold` |
+| **PaaS / hosting**    | `fly_toml`, `render_yaml`, `vercel_json`                                   |
+| **Config as code**    | `terraform`, `env_files`                                                   |
+| **Ingress**           | `caddyfile`, `nginx`, `traefik`                                            |
+| **CI/CD**             | `workflows` (GitHub Actions, Forgejo, Gitea, GitLab CI), `cron`, `deploy_scripts` |
+| **Observability**     | `prometheus`, `grafana`, `tempo`                                           |
+| **Data**              | `db_migrations`                                                            |
+| **APIs**              | `proto`                                                                    |
+| **Policy**            | `opa_policy`                                                               |
+| **Agent tooling**     | `mcp_config`, `mcp_provider`                                               |
 
 Custom file patterns via a `scan { extra_patterns { … } }` block in
 the Compositfile. New scanner? [`src/scanners/nginx.rs`](src/scanners/nginx.rs)
