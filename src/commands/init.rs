@@ -57,12 +57,7 @@ pub fn run_init(dir: &Path, workspace_name: Option<String>, report: Option<&Repo
         let report_path = dir.join("composit-report.yaml");
         let display_report = std::env::current_dir()
             .ok()
-            .and_then(|cwd| {
-                report_path
-                    .strip_prefix(&cwd)
-                    .ok()
-                    .map(|p| p.to_path_buf())
-            })
+            .and_then(|cwd| report_path.strip_prefix(&cwd).ok().map(|p| p.to_path_buf()))
             .unwrap_or(report_path);
         println!(
             "  {}         {}",
