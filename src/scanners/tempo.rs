@@ -32,7 +32,12 @@ impl Scanner for TempoScanner {
     async fn scan(&self, context: &ScanContext) -> Result<ScanResult> {
         let mut resources = Vec::new();
 
-        for pattern in &["**/tempo.yml", "**/tempo.yaml", "**/tempo/**/*.yml", "**/tempo/**/*.yaml"] {
+        for pattern in &[
+            "**/tempo.yml",
+            "**/tempo.yaml",
+            "**/tempo/**/*.yml",
+            "**/tempo/**/*.yaml",
+        ] {
             let full_pattern = context.dir.join(pattern);
             for entry in glob(&full_pattern.to_string_lossy())?.flatten() {
                 if context.is_excluded(&entry) || !entry.is_file() {
@@ -74,7 +79,10 @@ fn parse_tempo(path: &Path, base_dir: &Path) -> Option<Resource> {
         extra.insert(
             "receivers".to_string(),
             serde_json::Value::Array(
-                receivers.into_iter().map(serde_json::Value::String).collect(),
+                receivers
+                    .into_iter()
+                    .map(serde_json::Value::String)
+                    .collect(),
             ),
         );
     }
@@ -101,7 +109,14 @@ fn parse_tempo(path: &Path, base_dir: &Path) -> Option<Resource> {
 fn looks_like_tempo(doc: &Value) -> bool {
     // Tempo configs always have a `distributor` or `storage` top-level key
     // together with `server` or `ingester`. Two known keys required.
-    let known = ["distributor", "storage", "ingester", "compactor", "querier", "server"];
+    let known = [
+        "distributor",
+        "storage",
+        "ingester",
+        "compactor",
+        "querier",
+        "server",
+    ];
     known.iter().filter(|k| doc.get(k).is_some()).count() >= 2
 }
 
@@ -152,7 +167,9 @@ mod tests {
 
     #[test]
     fn fingerprint_requires_two_known_keys() {
-        assert!(!looks_like_tempo(&doc("server:\n  http_listen_port: 3200\n")));
+        assert!(!looks_like_tempo(&doc(
+            "server:\n  http_listen_port: 3200\n"
+        )));
         assert!(looks_like_tempo(&doc(
             "server:\n  http_listen_port: 3200\ndistributor:\n  receivers: {}\n"
         )));

@@ -51,7 +51,14 @@ pub fn eval_policy(
     has_allow: bool,
     input_json: &str,
 ) -> PolicyOutcome {
-    match try_eval(filename, rego_source, package_path, has_deny, has_allow, input_json) {
+    match try_eval(
+        filename,
+        rego_source,
+        package_path,
+        has_deny,
+        has_allow,
+        input_json,
+    ) {
         Ok(o) => o,
         Err(e) => PolicyOutcome::EvalError(e.to_string()),
     }
@@ -254,7 +261,7 @@ allow if {
         assert!(matches!(outcome, PolicyOutcome::Clean));
     }
 
-#[test]
+    #[test]
     fn bad_rego_returns_eval_error() {
         let outcome = eval_policy(
             "bad.rego",

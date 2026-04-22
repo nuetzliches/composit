@@ -64,10 +64,7 @@ fn parse_fly_toml(path: &Path, base_dir: &Path) -> Option<Resource> {
     let app = app?;
 
     let mut extra = HashMap::new();
-    extra.insert(
-        "app".to_string(),
-        serde_json::Value::String(app.clone()),
-    );
+    extra.insert("app".to_string(), serde_json::Value::String(app.clone()));
     if let Some(r) = &region {
         extra.insert(
             "primary_region".to_string(),

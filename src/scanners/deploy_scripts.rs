@@ -82,10 +82,7 @@ fn build_resource(path: &Path, base_dir: &Path) -> Option<Resource> {
 
     let kind = classify(&file_name);
     let mut extra = HashMap::new();
-    extra.insert(
-        "kind".to_string(),
-        serde_json::Value::String(kind),
-    );
+    extra.insert("kind".to_string(), serde_json::Value::String(kind));
 
     Some(Resource {
         resource_type: "deploy_script".to_string(),

@@ -67,10 +67,7 @@ fn parse_proto_file(path: &Path, base_dir: &Path) -> Option<Resource> {
 
     let mut extra = HashMap::new();
     if let Some(ref s) = syntax {
-        extra.insert(
-            "syntax".to_string(),
-            serde_json::Value::String(s.clone()),
-        );
+        extra.insert("syntax".to_string(), serde_json::Value::String(s.clone()));
     }
     extra.insert(
         "services".to_string(),
