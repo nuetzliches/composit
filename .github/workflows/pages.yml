@@ -25,10 +25,10 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Configure Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       # Serve install.sh at nuetzliches.github.io/composit/install.sh so the
       # one-liner on the landing page (`curl … install.sh | sh`) resolves.
@@ -36,10 +36,10 @@ jobs:
         run: cp install/install.sh landing/install.sh
 
       - name: Upload landing artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: landing
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
