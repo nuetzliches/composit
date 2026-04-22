@@ -5,6 +5,7 @@ mod output;
 mod scanners;
 
 use std::fs;
+use std::io::{self, Write};
 use std::path::Path;
 
 use anyhow::Result;
@@ -37,6 +38,37 @@ async fn main() -> Result<()> {
         Commands::Status { dir, live } => {
             let dir = fs::canonicalize(&dir)?;
             commands::status::run_status(&dir, live).await?;
+        }
+        Commands::Init {
+            dir,
+            workspace,
+            minimal,
+        } => {
+            let dir = fs::canonicalize(&dir)?;
+
+            // Check before the expensive scan — abort early if user declines overwrite.
+            let compositfile_path = dir.join("Compositfile");
+            if compositfile_path.exists() {
+                print!(
+                    "  {} Compositfile already exists. Overwrite? [y/N] ",
+                    "!".yellow()
+                );
+                io::stdout().flush()?;
+                let mut input = String::new();
+                io::stdin().read_line(&mut input)?;
+                if !input.trim().eq_ignore_ascii_case("y") {
+                    println!("  {}", "Aborted.".yellow());
+                    return Ok(());
+                }
+            }
+
+            let report = if !minimal {
+                Some(build_report(&dir, vec![], false).await?)
+            } else {
+                None
+            };
+
+            commands::init::run_init(&dir, workspace, report.as_ref())?;
         }
         Commands::Diff {
             dir,
@@ -71,6 +103,39 @@ async fn run_scan(
     no_providers: bool,
     quiet: bool,
 ) -> Result<()> {
+    let report = build_report(dir, providers, no_providers).await?;
+
+    let (content, filename) = match format {
+        OutputFormat::Yaml => (output::yaml::to_yaml(&report)?, "composit-report.yaml"),
+        OutputFormat::Json => (output::json::to_json(&report)?, "composit-report.json"),
+        OutputFormat::Html => (output::html::to_html(&report)?, "composit-report.html"),
+    };
+
+    let report_path = dir.join(filename);
+    fs::write(&report_path, &content)?;
+
+    if !quiet {
+        output::terminal::print_summary(&report);
+        // Show the path relative to CWD when possible — keeps the terminal
+        // output short and, crucially, doesn't leak $HOME into asciinema
+        // recordings or HN screenshots.
+        let display_path = std::env::current_dir()
+            .ok()
+            .and_then(|cwd| report_path.strip_prefix(&cwd).ok().map(|p| p.to_path_buf()))
+            .unwrap_or_else(|| report_path.clone());
+        println!(
+            "  {} {}",
+            "Report written to:".dimmed(),
+            display_path.display()
+        );
+        println!();
+    }
+
+    Ok(())
+}
+
+/// Run all scanners and return the Report without writing anything to disk.
+async fn build_report(dir: &Path, providers: Vec<String>, no_providers: bool) -> Result<Report> {
     // The Compositfile is the single source of truth for governance AND
     // scanner tuning (exclude_paths, extra_patterns, scanner toggles,
     // provider list). Missing file is fine — scanner falls back to
@@ -160,36 +225,7 @@ async fn run_scan(
     // Enrich with git-blame attribution
     core::attribution::enrich_attribution(&mut resources, dir);
 
-    let report = Report::build(workspace, providers, resources, scan_mode);
-
-    // Write report file
-    let (content, filename) = match format {
-        OutputFormat::Yaml => (output::yaml::to_yaml(&report)?, "composit-report.yaml"),
-        OutputFormat::Json => (output::json::to_json(&report)?, "composit-report.json"),
-        OutputFormat::Html => (output::html::to_html(&report)?, "composit-report.html"),
-    };
-
-    let report_path = dir.join(filename);
-    fs::write(&report_path, &content)?;
-
-    if !quiet {
-        output::terminal::print_summary(&report);
-        // Show the path relative to CWD when possible — keeps the terminal
-        // output short and, crucially, doesn't leak $HOME into asciinema
-        // recordings or HN screenshots.
-        let display_path = std::env::current_dir()
-            .ok()
-            .and_then(|cwd| report_path.strip_prefix(&cwd).ok().map(|p| p.to_path_buf()))
-            .unwrap_or_else(|| report_path.clone());
-        println!(
-            "  {} {}",
-            "Report written to:".dimmed(),
-            display_path.display()
-        );
-        println!();
-    }
-
-    Ok(())
+    Ok(Report::build(workspace, providers, resources, scan_mode))
 }
 
 /// Load the Compositfile at the scan root. A missing file is fine —
