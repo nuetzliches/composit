@@ -38,16 +38,20 @@ a drive-by PR.
   "deny if `docker_service.image` ends with `:latest`") rather than
   the request-shaped inputs most existing Rego libraries expect.
 
-- **npx wrapper.** Zero-install distribution via
-  `npx @composit/cli scan`. Pattern from biome / esbuild / turbo:
+- **npm publish pipeline.** Zero-install distribution via
+  `npx @composit/cli init`. Pattern from biome / esbuild / turbo:
   a meta package plus one optional-dependency platform package per
-  target (linux-x64, darwin-arm64, etc.). Blocker is the CI
-  cross-compilation matrix, not the Rust.
+  target (linux-x64, darwin-arm64, etc.). The release workflow (v0.2.0)
+  already produces the five platform tarballs; remaining work is
+  claiming the `@composit` npm scope, generating the per-platform
+  sub-packages from the release artifacts, and a publish step in the
+  release workflow.
 
-- **Compositfile RFC (RFC 004).** The HCL schema is currently the
-  parser; the RFC documents it so third parties can write Compositfiles
-  with confidence. Covers `workspace`, `provider`, `budget`, `policy`,
-  `require`, `allow`, `scan`.
+- **Version-sync automation.** Releases currently require manually
+  bumping `Cargo.toml`, the npm `package.json`, and the brew formula
+  template in lockstep. `cargo-release` with a release hook that
+  rewrites the matching lines would collapse this into a single
+  `cargo release 0.3.0` invocation.
 
 - **Scanner benchmark.** A reproducible coverage benchmark across a
   curated set of public repos — per-scanner resource counts and
@@ -59,27 +63,14 @@ a drive-by PR.
 
 ## Scanner gaps
 
-Sorted by how often the file appears in the sampled repos.
+No active backlog — the Tier 2 and Tier 3 scanners (deploy scripts,
+DB migrations, `fly.toml`, `render.yaml`, `vercel.json`, `skaffold.yaml`,
+`traefik.yml`, protobuf, tempo) all shipped with v0.2.0.
 
-**Tier 2 (remaining)**
-- **Deploy scripts** — bespoke bootstrap/deploy/sync scripts. Hard to
-  generalise; realistic approach is pattern matching on shell script
-  names under `scripts/` or `deploy/`.
-- **DB migrations** — schema-state counter (how many migrations,
-  which framework). Alembic, sqlx, Flyway, Prisma.
-
-**Tier 3 (low volume, specific)**
-- `fly.toml` — Fly.io deployment.
-- `render.yaml` — Render.com deployment.
-- `vercel.json` — Vercel deployment config.
-- `skaffold.yaml` — Skaffold K8s dev loop.
-- `traefik.yml` / `traefik.toml` — Traefik reverse-proxy config.
-- Protobuf / gRPC definitions — service surface.
-- Tempo tracing config.
-
-Each of these is roughly one file to add under `src/scanners/`, a
-fixture under `tests/fixtures/`, and one entry in the E2E test file.
-The `nginx` and `opa_policy` scanners are good references.
+New scanner ideas welcome. Each scanner is roughly one file under
+`src/scanners/`, a fixture under `tests/fixtures/`, and one entry in
+`tests/scanner_e2e.rs`. The `nginx` and `opa_policy` scanners are the
+leanest references.
 
 ---
 
