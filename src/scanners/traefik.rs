@@ -132,7 +132,10 @@ fn build_resource(
         extra.insert(
             "entrypoints".to_string(),
             serde_json::Value::Array(
-                entrypoints.into_iter().map(serde_json::Value::String).collect(),
+                entrypoints
+                    .into_iter()
+                    .map(serde_json::Value::String)
+                    .collect(),
             ),
         );
     }
@@ -140,7 +143,10 @@ fn build_resource(
         extra.insert(
             "providers".to_string(),
             serde_json::Value::Array(
-                providers.into_iter().map(serde_json::Value::String).collect(),
+                providers
+                    .into_iter()
+                    .map(serde_json::Value::String)
+                    .collect(),
             ),
         );
     }
@@ -176,11 +182,7 @@ fn looks_like_traefik_yaml(doc: &Value) -> bool {
         "tracing",
         "ping",
     ];
-    known_keys
-        .iter()
-        .filter(|k| doc.get(k).is_some())
-        .count()
-        >= 2
+    known_keys.iter().filter(|k| doc.get(k).is_some()).count() >= 2
 }
 
 fn looks_like_traefik_toml(content: &str) -> bool {
@@ -234,13 +236,15 @@ mod tests {
 
     #[test]
     fn yaml_fingerprint_requires_two_known_keys() {
-        let doc: Value = serde_yaml::from_str("entryPoints:\n  web:\n    address: ':80'\n").unwrap();
+        let doc: Value =
+            serde_yaml::from_str("entryPoints:\n  web:\n    address: ':80'\n").unwrap();
         // only one key — should fail
         assert!(!looks_like_traefik_yaml(&doc));
 
-        let doc2: Value =
-            serde_yaml::from_str("entryPoints:\n  web:\n    address: ':80'\napi:\n  dashboard: true\n")
-                .unwrap();
+        let doc2: Value = serde_yaml::from_str(
+            "entryPoints:\n  web:\n    address: ':80'\napi:\n  dashboard: true\n",
+        )
+        .unwrap();
         assert!(looks_like_traefik_yaml(&doc2));
     }
 

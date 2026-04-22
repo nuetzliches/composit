@@ -57,14 +57,13 @@ impl MigrationDetector {
         let mut count = 0usize;
         let mut migration_dir: Option<String> = None;
 
-        for entry in glob(&full_pattern.to_string_lossy())
-            .ok()?
-            .flatten()
-        {
+        for entry in glob(&full_pattern.to_string_lossy()).ok()?.flatten() {
             if !entry.is_file() {
                 continue;
             }
-            if exclude.iter().any(|p| p.matches_path(&entry)) {
+            let rel = entry.strip_prefix(dir).unwrap_or(&entry);
+            let rel_str = rel.to_string_lossy();
+            if exclude.iter().any(|p| p.matches(&rel_str)) {
                 continue;
             }
             if let Some(guard) = self.file_guard {

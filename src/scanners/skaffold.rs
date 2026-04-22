@@ -97,10 +97,7 @@ fn parse_skaffold(path: &Path, base_dir: &Path) -> Option<Resource> {
         serde_json::Value::Number(serde_json::Number::from(profiles)),
     );
     if let Some(dt) = deploy_type {
-        extra.insert(
-            "deploy_type".to_string(),
-            serde_json::Value::String(dt),
-        );
+        extra.insert("deploy_type".to_string(), serde_json::Value::String(dt));
     }
 
     Some(Resource {
@@ -145,9 +142,7 @@ mod tests {
 
     #[test]
     fn detects_helm_deploy() {
-        let doc = make_doc(
-            "apiVersion: skaffold/v4beta11\ndeploy:\n  helm:\n    releases: []\n",
-        );
+        let doc = make_doc("apiVersion: skaffold/v4beta11\ndeploy:\n  helm:\n    releases: []\n");
         assert_eq!(detect_deploy_type(&doc), Some("helm".to_string()));
     }
 

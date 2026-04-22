@@ -54,10 +54,10 @@ impl Scanner for DeployScriptsScanner {
                     continue;
                 }
                 // Makefiles are common; only include if they contain deploy targets
-                if entry.file_name().and_then(|n| n.to_str()) == Some("Makefile") {
-                    if !has_deploy_target(&entry) {
-                        continue;
-                    }
+                if entry.file_name().and_then(|n| n.to_str()) == Some("Makefile")
+                    && !has_deploy_target(&entry)
+                {
+                    continue;
                 }
                 if let Some(r) = build_resource(&entry, &context.dir) {
                     resources.push(r);
@@ -82,10 +82,7 @@ fn build_resource(path: &Path, base_dir: &Path) -> Option<Resource> {
 
     let kind = classify(&file_name);
     let mut extra = HashMap::new();
-    extra.insert(
-        "kind".to_string(),
-        serde_json::Value::String(kind),
-    );
+    extra.insert("kind".to_string(), serde_json::Value::String(kind));
 
     Some(Resource {
         resource_type: "deploy_script".to_string(),

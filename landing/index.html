@@ -293,6 +293,121 @@ pre.sample .warn { color: var(--yellow); }
 pre.sample .ok { color: var(--green); }
 pre.sample .dim { color: var(--muted); }
 
+/* Tab visual separation: install vs. use */
+.tab-section { border-top: 1px solid var(--border); }
+.tab-section:first-of-type { border-top: none; }
+.tab-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: .4rem 1rem .35rem;
+  background: rgba(13,17,23,.35);
+  font-size: .68rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 600;
+}
+
+/* Animated terminal demo */
+.terminal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  font-family: 'SF Mono', Consolas, monospace;
+}
+.terminal-chrome {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .55rem .85rem;
+  background: rgba(13,17,23,.5);
+  border-bottom: 1px solid var(--border);
+}
+.terminal-dots { display: inline-flex; gap: .3rem; }
+.terminal-dots span {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: .45;
+}
+.terminal-title {
+  flex: 1;
+  text-align: center;
+  font-size: .78rem;
+  color: var(--muted);
+}
+.terminal-tabs {
+  display: flex;
+  gap: .25rem;
+  flex: 1;
+  justify-content: center;
+}
+.term-tab {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--muted);
+  padding: .2rem .75rem;
+  font-size: .75rem;
+  font-family: 'SF Mono', Consolas, monospace;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color .15s, background .15s, border-color .15s;
+}
+.term-tab:hover { color: var(--text); }
+.term-tab.active {
+  color: var(--accent);
+  background: rgba(88,166,255,0.12);
+  border-color: rgba(88,166,255,0.25);
+}
+.terminal-replay {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: .2rem .65rem;
+  font-size: .72rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color .15s, color .15s;
+}
+.terminal-replay:hover { border-color: var(--accent); color: var(--accent); }
+.terminal-body {
+  padding: 1rem 1.25rem;
+  min-height: 380px;
+  font-size: .85rem;
+  line-height: 1.55;
+  overflow-x: auto;
+}
+.terminal-body pre {
+  display: inline;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.terminal-body .prompt { color: var(--green); font-weight: 600; }
+.terminal-body .cmd    { color: var(--text); }
+.terminal-body .ok     { color: var(--green); }
+.terminal-body .err    { color: var(--red); }
+.terminal-body .warn   { color: var(--yellow); }
+.terminal-body .accent { color: var(--accent); }
+.terminal-body .dim    { color: var(--muted); }
+.terminal-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 1em;
+  vertical-align: text-bottom;
+  background: var(--text);
+  animation: cursor-blink 1s steps(2, start) infinite;
+}
+.terminal.done .terminal-cursor { display: none; }
+@keyframes cursor-blink {
+  50% { background: transparent; }
+}
+
 footer {
   padding: 2rem 0 3rem;
   text-align: center;
@@ -317,11 +432,13 @@ footer .legal a { margin: 0 .5rem; }
       surface every drift. Open-source CLI for platform teams.
     </p>
     <div class="cta">
-      <a class="btn btn-ghost" href="#demo">▶ Watch 11s demo</a>
+      <a class="btn btn-ghost" href="#run">▶ See it run</a>
       <a class="btn btn-primary" href="https://github.com/nuetzliches/composit"
          target="_blank" rel="noopener" data-ph-event="github-star-click">
         <span class="star">★</span>Star on GitHub
       </a>
+      <a class="btn btn-ghost" href="https://codespaces.new/nuetzliches/composit"
+         target="_blank" rel="noopener">Try in Codespaces →</a>
       <a class="btn btn-ghost" href="#quickstart">Quick start →</a>
     </div>
   </div>
@@ -335,14 +452,14 @@ footer .legal a { margin: 0 .5rem; }
       <div class="step">
         <div class="n">1</div>
         <h3>Scan</h3>
-        <p>Nine built-in scanners detect Docker, Terraform, Caddy, workflows, Prometheus, cron, env files, and MCP configs. Zero setup.</p>
+        <p>22 built-in scanners cover containers, Terraform, ingress, observability, CI workflows, cron, env files, MCP — and more. Zero setup.</p>
         <code>composit scan</code>
       </div>
       <div class="step">
         <div class="n">2</div>
         <h3>Declare</h3>
-        <p>Write a <code>Compositfile</code> in HCL. Approved providers, budgets, resource constraints, policy references.</p>
-        <code>vim Compositfile</code>
+        <p>Scaffold a <code>Compositfile</code> from scan results, then edit: approved providers, budgets, resource constraints, policy references.</p>
+        <code>composit init</code>
       </div>
       <div class="step">
         <div class="n">3</div>
@@ -351,17 +468,6 @@ footer .legal a { margin: 0 .5rem; }
         <code>composit diff</code>
       </div>
     </div>
-  </div>
-</section>
-
-<section id="demo">
-  <div class="container">
-    <h2>Watch it run</h2>
-    <p class="sub">11 seconds: <code>scan</code> inventories a synthetic widgetshop workspace, <code>diff</code> surfaces the three drifts that a Compositfile would catch.</p>
-    <div class="demo-frame">
-      <script src="https://asciinema.org/a/EOPTSBcM0k3wGbvh.js" id="asciicast-EOPTSBcM0k3wGbvh" async data-cols="150" data-rows="30"></script>
-    </div>
-    <p class="demo-caption">Recorded against <a href="https://github.com/nuetzliches/composit/tree/main/examples/demo-drift">examples/demo-drift</a> — <a href="https://asciinema.org/a/EOPTSBcM0k3wGbvh">open on asciinema.org</a>.</p>
   </div>
 </section>
 
@@ -375,32 +481,57 @@ footer .legal a { margin: 0 .5rem; }
       <!-- ── Install tabs ──────────────────────────────────────── -->
       <div class="install-tabs">
         <div class="tab-bar" role="tablist">
+          <button class="tab-btn" role="tab" data-tab="codespaces">
+            codespaces <span class="tab-badge badge-ok">available</span>
+          </button>
           <button class="tab-btn" role="tab" data-tab="brew">
-            brew <span class="tab-badge badge-soon">v0.2</span>
+            brew <span class="tab-badge badge-soon">soon</span>
           </button>
           <button class="tab-btn" role="tab" data-tab="npx">
-            npx <span class="tab-badge badge-soon">v0.2</span>
+            npx <span class="tab-badge badge-soon">soon</span>
           </button>
           <button class="tab-btn active" role="tab" data-tab="cargo">
             cargo <span class="tab-badge badge-ok">available</span>
           </button>
           <button class="tab-btn" role="tab" data-tab="curl">
-            curl <span class="tab-badge badge-soon">v0.2</span>
+            curl <span class="tab-badge badge-soon">soon</span>
           </button>
           <button class="tab-btn" role="tab" data-tab="docker">
             docker <span class="tab-badge badge-ok">available</span>
           </button>
         </div>
 
+        <!-- codespaces -->
+        <div class="tab-panel" id="tab-codespaces" role="tabpanel">
+          <div class="tab-panel-header">
+            <span>Browser · no install · GitHub account required</span>
+          </div>
+          <div class="tab-section">
+            <div class="tab-section-head">
+              <span>Use</span>
+              <button type="button" class="qs-copy" data-copy="composit init">Copy</button>
+            </div>
+<pre><span class="comment"># composit is pre-built — start scanning immediately.</span>
+composit init    <span class="comment"># scaffold a Compositfile from scan results</span>
+composit diff    <span class="comment"># compare intent vs. reality</span></pre>
+          </div>
+          <div class="tab-note">Opens a cloud dev environment with <code>composit</code> on PATH. <a href="https://codespaces.new/nuetzliches/composit" target="_blank" rel="noopener">Launch Codespaces →</a></div>
+        </div>
+
         <!-- brew -->
         <div class="tab-panel" id="tab-brew" role="tabpanel">
           <div class="tab-panel-header">
             <span>macOS · Linux — requires first release</span>
-            <button type="button" class="qs-copy" data-copy="brew install nuetzliches/tap/composit">Copy</button>
           </div>
+          <div class="tab-section">
+            <div class="tab-section-head">
+              <span>Install</span>
+              <button type="button" class="qs-copy" data-copy="brew install nuetzliches/tap/composit">Copy</button>
+            </div>
 <pre><span class="comment"># Add the tap once, then install.</span>
 brew tap nuetzliches/tap
 brew install composit</pre>
+          </div>
           <div class="tab-note">Formula at <a href="https://github.com/nuetzliches/composit/blob/main/install/brew/composit.rb" target="_blank" rel="noopener">install/brew/composit.rb</a> — SHA256 placeholders filled on first GitHub release.</div>
         </div>
 
@@ -408,11 +539,16 @@ brew install composit</pre>
         <div class="tab-panel" id="tab-npx" role="tabpanel">
           <div class="tab-panel-header">
             <span>Zero-install · CI-friendly — requires first release</span>
-            <button type="button" class="qs-copy" data-copy="npx @composit/cli scan">Copy</button>
           </div>
+          <div class="tab-section">
+            <div class="tab-section-head">
+              <span>Use</span>
+              <button type="button" class="qs-copy" data-copy="npx @composit/cli init">Copy</button>
+            </div>
 <pre><span class="comment"># No install step — npx downloads on first use.</span>
-npx @composit/cli scan
+npx @composit/cli init
 npx @composit/cli diff --output json</pre>
+          </div>
           <div class="tab-note">Meta-package at <a href="https://github.com/nuetzliches/composit/blob/main/install/npm/package.json" target="_blank" rel="noopener">install/npm/</a> — selects a platform binary via optional dependencies (biome / esbuild pattern).</div>
         </div>
 
@@ -420,10 +556,15 @@ npx @composit/cli diff --output json</pre>
         <div class="tab-panel active" id="tab-cargo" role="tabpanel">
           <div class="tab-panel-header">
             <span>Rust toolchain required</span>
-            <button type="button" class="qs-copy" data-copy="cargo install --git https://github.com/nuetzliches/composit">Copy</button>
           </div>
+          <div class="tab-section">
+            <div class="tab-section-head">
+              <span>Install</span>
+              <button type="button" class="qs-copy" data-copy="cargo install --git https://github.com/nuetzliches/composit">Copy</button>
+            </div>
 <pre><span class="comment"># Compiles from source — takes ~30 s on first run.</span>
 cargo install --git https://github.com/nuetzliches/composit</pre>
+          </div>
           <div class="tab-note">No Rust? <a href="https://rustup.rs" target="_blank" rel="noopener">rustup.rs</a> sets it up in 60 seconds, or use the docker tab to skip the toolchain entirely.</div>
         </div>
 
@@ -431,10 +572,15 @@ cargo install --git https://github.com/nuetzliches/composit</pre>
         <div class="tab-panel" id="tab-curl" role="tabpanel">
           <div class="tab-panel-header">
             <span>macOS · Linux — requires first release</span>
-            <button type="button" class="qs-copy" data-copy="curl -fsSL https://nuetzliches.github.io/composit/install.sh | sh">Copy</button>
           </div>
+          <div class="tab-section">
+            <div class="tab-section-head">
+              <span>Install</span>
+              <button type="button" class="qs-copy" data-copy="curl -fsSL https://nuetzliches.github.io/composit/install.sh | sh">Copy</button>
+            </div>
 <pre><span class="comment"># Downloads the pre-built binary for your platform.</span>
 curl -fsSL https://nuetzliches.github.io/composit/install.sh | sh</pre>
+          </div>
           <div class="tab-note">Installs to <code>~/.local/bin</code> by default. Override with <code>COMPOSIT_INSTALL_DIR=/usr/local/bin</code>. Script at <a href="https://github.com/nuetzliches/composit/blob/main/install/install.sh" target="_blank" rel="noopener">install/install.sh</a>.</div>
         </div>
 
@@ -442,11 +588,16 @@ curl -fsSL https://nuetzliches.github.io/composit/install.sh | sh</pre>
         <div class="tab-panel" id="tab-docker" role="tabpanel">
           <div class="tab-panel-header">
             <span>No toolchain required · CI-ready</span>
-            <button type="button" class="qs-copy" data-copy="docker run --rm -v &quot;$PWD:/repo&quot; ghcr.io/nuetzliches/composit scan">Copy</button>
           </div>
+          <div class="tab-section">
+            <div class="tab-section-head">
+              <span>Use</span>
+              <button type="button" class="qs-copy" data-copy="docker run --rm -v &quot;$PWD:/repo&quot; ghcr.io/nuetzliches/composit init">Copy</button>
+            </div>
 <pre><span class="comment"># Mount your repo and run — builds from source on first pull.</span>
-docker run --rm -v "$PWD:/repo" ghcr.io/nuetzliches/composit scan
+docker run --rm -v "$PWD:/repo" ghcr.io/nuetzliches/composit init
 docker run --rm -v "$PWD:/repo" ghcr.io/nuetzliches/composit diff --output json</pre>
+          </div>
           <div class="tab-note">Dockerfile at <a href="https://github.com/nuetzliches/composit/blob/main/Dockerfile" target="_blank" rel="noopener">Dockerfile</a>. Build locally: <code>docker build -t composit .</code></div>
         </div>
       </div>
@@ -516,31 +667,21 @@ composit diff --output html</pre>
   </div>
 </section>
 
-<section>
+<section id="run">
   <div class="container">
-    <h2>composit diff — sample output</h2>
-    <p class="sub">What a diff looks like when the Compositfile is tighter than reality — one violation category at a time.</p>
-    <pre class="sample">composit diff
-============================================================
-Workspace: example-stack
-
-PROVIDERS (1 warning)
-  <span class="warn">WARN</span>   unused_provider — Approved provider "scheduler" not found in scan report
-
-BUDGETS (pass)
-  <span class="ok">PASS</span>  All 1 checks passed
-
-RESOURCES (3 errors)
-  <span class="err">ERROR</span>  resource_count_exceeded — Total resources 96 exceeds max_total 60
-  <span class="err">ERROR</span>  resource_type_max_exceeded — docker_service: 38 found, max allowed is 20
-  <span class="err">ERROR</span>  required_resource_missing — "prometheus_config": 0 found, minimum is 1
-
-POLICIES (1 warning)
-  <span class="warn">WARN</span>   policy_file_missing — references missing file: policies/pinned-images.rego
-
-<span class="dim">------------------------------------------------------------</span>
-  <span class="err">3 errors</span> | <span class="warn">2 warnings</span> | 0 info | <span class="ok">6 passed</span>
-</pre>
+    <h2>See it run</h2>
+    <p class="sub">From empty repo to governed workspace in two commands — no config to write.</p>
+    <div class="terminal" id="term-demo" data-active="init">
+      <div class="terminal-chrome">
+        <span class="terminal-dots"><span></span><span></span><span></span></span>
+        <div class="terminal-tabs" role="tablist">
+          <button type="button" class="term-tab active" role="tab" data-term="init">composit init</button>
+          <button type="button" class="term-tab" role="tab" data-term="diff">composit diff</button>
+        </div>
+        <button type="button" class="terminal-replay" id="term-replay">↻ Replay</button>
+      </div>
+      <div class="terminal-body"><pre id="term-out"></pre><span class="terminal-cursor" id="term-cursor"></span></div>
+    </div>
   </div>
 </section>
 
@@ -603,6 +744,125 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     container.querySelector("#tab-" + tab).classList.add("active");
   });
 });
+
+// ---- Animated terminal demo -----------------------------------------------
+(() => {
+  const term = document.getElementById("term-demo");
+  if (!term) return;
+  const out = document.getElementById("term-out");
+  const replay = document.getElementById("term-replay");
+  const tabs = term.querySelectorAll(".term-tab");
+
+  const SCRIPTS = {
+    init: [
+      { t: "prompt" },
+      { t: "type", text: "composit init", speed: 55 },
+      { t: "wait", ms: 400 },
+      { t: "nl" },
+      { t: "line", html: '<span class="dim">Scanning for agent-created infrastructure...</span>' },
+      { t: "wait", ms: 200 },
+      { t: "line", html: '<span class="dim">  found </span>docker_compose       <span class="dim">12</span>' },
+      { t: "line", html: '<span class="dim">  found </span>docker_service       <span class="dim">38</span>' },
+      { t: "line", html: '<span class="dim">  found </span>workflow              <span class="dim">4</span>' },
+      { t: "line", html: '<span class="dim">  found </span>terraform_config      <span class="dim">2</span>' },
+      { t: "nl" },
+      { t: "line", html: '  <span class="ok">Compositfile written:</span> Compositfile' },
+      { t: "line", html: '  <span class="dim">Workspace:</span> my-stack' },
+      { t: "line", html: '  <span class="dim">Seeded from scan:</span> 56 resources, 0 providers' },
+      { t: "nl" },
+      { t: "line", html: '  <span class="dim">Next:</span> <span class="accent">composit diff</span>  <span class="dim">— check for governance violations</span>' },
+      { t: "done" },
+    ],
+    diff: [
+      { t: "prompt" },
+      { t: "type", text: "composit diff", speed: 55 },
+      { t: "wait", ms: 400 },
+      { t: "nl" },
+      { t: "line", html: '<span class="dim">============================================================</span>' },
+      { t: "line", text: "Workspace: my-stack" },
+      { t: "nl" },
+      { t: "line", text: "PROVIDERS (1 warning)" },
+      { t: "line", html: '  <span class="warn">WARN</span>   unused_provider — Approved provider "scheduler" not in scan' },
+      { t: "nl" },
+      { t: "line", text: "RESOURCES (2 errors)" },
+      { t: "line", html: '  <span class="err">ERROR</span>  resource_count_exceeded — Total 56 > max_total 40' },
+      { t: "line", html: '  <span class="err">ERROR</span>  resource_type_max_exceeded — docker_service: 38 > 20' },
+      { t: "nl" },
+      { t: "line", text: "POLICIES (1 warning)" },
+      { t: "line", html: '  <span class="warn">WARN</span>   policy_file_missing — policies/pinned-images.rego' },
+      { t: "nl" },
+      { t: "line", html: '<span class="dim">------------------------------------------------------------</span>' },
+      { t: "line", html: '  <span class="err">2 errors</span> | <span class="warn">2 warnings</span> | <span class="ok">6 passed</span>' },
+      { t: "done" },
+    ],
+  };
+
+  let token = 0;
+
+  const escapeHtml = (s) =>
+    s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+  const sleep = (ms, t) =>
+    new Promise((resolve) => setTimeout(() => resolve(t === token), ms));
+
+  const append = (html) => { out.insertAdjacentHTML("beforeend", html); };
+
+  async function run(name) {
+    token++;
+    const myToken = token;
+    term.classList.remove("done");
+    out.innerHTML = "";
+
+    const script = SCRIPTS[name] || SCRIPTS.init;
+    for (const step of script) {
+      if (myToken !== token) return;
+      if (step.t === "prompt") {
+        append('<span class="prompt">$</span> ');
+      } else if (step.t === "type") {
+        for (const ch of step.text) {
+          if (myToken !== token) return;
+          append('<span class="cmd">' + escapeHtml(ch) + "</span>");
+          const alive = await sleep(step.speed || 50, myToken);
+          if (!alive) return;
+        }
+      } else if (step.t === "wait") {
+        const alive = await sleep(step.ms, myToken);
+        if (!alive) return;
+      } else if (step.t === "nl") {
+        append("\n");
+      } else if (step.t === "line") {
+        append((step.html != null ? step.html : escapeHtml(step.text || "")) + "\n");
+        const alive = await sleep(90, myToken);
+        if (!alive) return;
+      } else if (step.t === "done") {
+        term.classList.add("done");
+      }
+    }
+  }
+
+  function setActive(name) {
+    tabs.forEach((b) => b.classList.toggle("active", b.dataset.term === name));
+    term.dataset.active = name;
+    run(name);
+  }
+
+  tabs.forEach((btn) => {
+    btn.addEventListener("click", () => setActive(btn.dataset.term));
+  });
+
+  replay.addEventListener("click", () => run(term.dataset.active || "init"));
+
+  // Autoplay when first scrolled into view.
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (e.isIntersecting) {
+        run(term.dataset.active || "init");
+        io.unobserve(e.target);
+      }
+    }
+  }, { threshold: 0.3 });
+  io.observe(term);
+})();
 
 // ---- Copy buttons ----------------------------------------------------------
 document.querySelectorAll(".qs-copy").forEach((btn) => {

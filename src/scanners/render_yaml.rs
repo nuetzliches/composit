@@ -142,15 +142,24 @@ plan: starter
         .unwrap();
         let r = parse_service(&yaml, "./render.yaml").unwrap();
         assert_eq!(r.name, Some("api".to_string()));
-        assert_eq!(r.extra["service_type"], serde_json::Value::String("web".to_string()));
-        assert_eq!(r.extra["plan"], serde_json::Value::String("starter".to_string()));
+        assert_eq!(
+            r.extra["service_type"],
+            serde_json::Value::String("web".to_string())
+        );
+        assert_eq!(
+            r.extra["plan"],
+            serde_json::Value::String("starter".to_string())
+        );
     }
 
     #[test]
     fn parse_service_defaults_type_to_web() {
         let yaml: Value = serde_yaml::from_str("name: frontend\n").unwrap();
         let r = parse_service(&yaml, "./render.yaml").unwrap();
-        assert_eq!(r.extra["service_type"], serde_json::Value::String("web".to_string()));
+        assert_eq!(
+            r.extra["service_type"],
+            serde_json::Value::String("web".to_string())
+        );
     }
 
     #[test]

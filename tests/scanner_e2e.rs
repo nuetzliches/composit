@@ -612,13 +612,22 @@ fn scan_db_migrations_fixture_finds_alembic_and_prisma() {
         .iter()
         .filter(|r| r["type"].as_str() == Some("db_migrations"))
         .collect();
-    assert!(migrations.len() >= 2, "expected alembic and prisma resources");
+    assert!(
+        migrations.len() >= 2,
+        "expected alembic and prisma resources"
+    );
 
-    let frameworks: Vec<&str> = migrations.iter().filter_map(|r| r["name"].as_str()).collect();
+    let frameworks: Vec<&str> = migrations
+        .iter()
+        .filter_map(|r| r["name"].as_str())
+        .collect();
     assert!(frameworks.contains(&"alembic"), "missing alembic");
     assert!(frameworks.contains(&"prisma"), "missing prisma");
 
-    let alembic = migrations.iter().find(|r| r["name"].as_str() == Some("alembic")).unwrap();
+    let alembic = migrations
+        .iter()
+        .find(|r| r["name"].as_str() == Some("alembic"))
+        .unwrap();
     assert_eq!(alembic["migration_count"].as_u64(), Some(2));
 }
 
@@ -644,7 +653,10 @@ fn scan_deploy_scripts_fixture_finds_scripts() {
     assert!(names.contains(&"deploy.sh"));
     assert!(names.contains(&"bootstrap.sh"));
 
-    let bootstrap = scripts.iter().find(|r| r["name"].as_str() == Some("bootstrap.sh")).unwrap();
+    let bootstrap = scripts
+        .iter()
+        .find(|r| r["name"].as_str() == Some("bootstrap.sh"))
+        .unwrap();
     assert_eq!(bootstrap["kind"].as_str(), Some("bootstrap"));
 }
 

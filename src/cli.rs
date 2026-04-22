@@ -47,6 +47,20 @@ pub enum Commands {
         #[arg(long)]
         live: bool,
     },
+    /// Initialize a new Compositfile from a scan of the current directory
+    Init {
+        /// Directory to initialize
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
+
+        /// Workspace name (defaults to git repo name or directory name)
+        #[arg(long)]
+        workspace: Option<String>,
+
+        /// Generate a minimal template without running a scan
+        #[arg(long)]
+        minimal: bool,
+    },
     /// Compare Compositfile governance against scan report
     Diff {
         /// Directory containing Compositfile and composit-report.yaml

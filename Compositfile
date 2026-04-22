@@ -40,6 +40,10 @@ workspace "composit" {
       max = 4
     }
 
+    allow "dockerfile" {
+      max = 2
+    }
+
     # CI is mandatory. If ci.yml disappears from a PR, `composit diff --strict`
     # fails and the PR cannot merge.
     require "workflow" {
