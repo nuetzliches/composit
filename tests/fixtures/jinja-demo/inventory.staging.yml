@@ -1,0 +1,6 @@
+all:
+  vars:
+    nginx_port: "8443"
+    server_domain: "staging.example.com"
+    ssl_enabled: "true"
+    environment: "staging"

@@ -4,9 +4,26 @@
 
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
+fn cargo_bin() -> PathBuf {
+    // Walk up from the test binary (target/<profile>/deps/<name>-<hash>) to
+    // target/<profile>/composit so we work under both `cargo test` (debug)
+    // and `cargo test --release` without pinning a profile.
+    let mut path = std::env::current_exe().expect("current_exe");
+    path.pop();
+    if path.ends_with("deps") {
+        path.pop();
+    }
+    path.push("composit");
+    if cfg!(windows) {
+        path.set_extension("exe");
+    }
+    path
 }
 
 #[test]
@@ -331,4 +348,67 @@ fn contract_response_example_matches_schema_shape() {
             );
         }
     }
+}
+
+/// CI guard: a freshly generated report must validate against the published
+/// JSON Schema. Runs the CLI on the docker fixture (a known-good,
+/// non-trivial scan) and compares the produced JSON against the v0.1
+/// schema. Breaking the contract without updating the schema will fail
+/// this test loudly.
+#[test]
+fn generated_report_validates_against_published_schema() {
+    let schema_path = repo_root().join("schemas/composit-report-v0.1.json");
+    let schema_raw = fs::read_to_string(&schema_path)
+        .unwrap_or_else(|e| panic!("read {}: {}", schema_path.display(), e));
+    let schema_json: serde_json::Value = serde_json::from_str(&schema_raw).unwrap();
+    let validator = jsonschema::validator_for(&schema_json)
+        .expect("schema must compile via jsonschema::validator_for");
+
+    // Copy the docker fixture into a tempdir so the CLI writes its report
+    // in a clean location — avoids polluting the source tree.
+    let tmp = tempfile::tempdir().unwrap();
+    copy_dir_all(&repo_root().join("tests/fixtures/docker"), tmp.path()).unwrap();
+
+    let out = Command::new(cargo_bin())
+        .args(["scan", "--dir"])
+        .arg(tmp.path())
+        .args(["--no-providers", "--output", "json"])
+        .output()
+        .expect("failed to run composit scan");
+    assert!(
+        out.status.success(),
+        "composit scan failed:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let report_path = tmp.path().join("composit-report.json");
+    let report_raw = fs::read_to_string(&report_path).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&report_raw).unwrap();
+
+    // Collect every error so the failure message names all mismatches in
+    // one go instead of one assertion per iteration.
+    let errors: Vec<String> = validator
+        .iter_errors(&report)
+        .map(|e| format!("{} (at {})", e, e.instance_path))
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "generated report does not validate against schema v0.1:\n{}",
+        errors.join("\n")
+    );
+}
+
+/// Minimal recursive copy — tests avoid adding another helper crate.
+fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    fs::create_dir_all(dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        if ty.is_dir() {
+            copy_dir_all(&entry.path(), &dst.join(entry.file_name()))?;
+        } else {
+            fs::copy(entry.path(), dst.join(entry.file_name()))?;
+        }
+    }
+    Ok(())
 }

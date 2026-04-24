@@ -1,0 +1,127 @@
+# Compositfile with RFC 005 resource roles & matchers — reference example
+#
+# This file is the canonical example that exercises every role_* constraint.
+# Copy/paste from here when extending an existing Compositfile with per-role
+# governance. The leading prose is intentional — it's a worked example, not
+# just a schema dump.
+#
+# See docs/rfcs/005-compositfile-resource-roles.md for the full specification.
+
+workspace "acme-platform" {
+
+  resources {
+    max_total = 100
+
+    allow "docker_service" {
+      # Type-level defaults still apply. Roles narrow the subset inside.
+      max            = 40
+      allowed_images = [
+        "postgres:*",
+        "mcr.microsoft.com/mssql/*",
+        "docker.elastic.co/elasticsearch/*",
+        "ghcr.io/acme/*",
+      ]
+
+      # ── Role: internal-api ────────────────────────────────────────────
+      # Match by service name. All matching services must come from the
+      # internal registry, expose port 8080, and join the "backend" network.
+      role "internal-api" {
+        match {
+          name = ["*-api", "api-*"]
+        }
+        image_prefix   = ["ghcr.io/acme/"]
+        must_expose    = [8080]
+        must_attach_to = ["backend"]
+      }
+
+      # ── Role: database ───────────────────────────────────────────────
+      # Match by name OR image family (predicate = "any"). Database
+      # services must pin to a supported major version.
+      role "database" {
+        match {
+          name      = ["*postgres*", "*mssql*", "*sqlserver*"]
+          image     = ["postgres:*", "mcr.microsoft.com/mssql/*"]
+          predicate = "any"
+        }
+        image_pin = [
+          "postgres:16",
+          "postgres:17",
+          "mcr.microsoft.com/mssql/server:2022-latest",
+        ]
+      }
+
+      # ── Role: search-index ──────────────────────────────────────────
+      # Match by image family. Must attach to one of the environment-
+      # specific search networks.
+      role "search-index" {
+        match {
+          image = ["docker.elastic.co/elasticsearch/*"]
+        }
+        image_prefix   = ["docker.elastic.co/elasticsearch/"]
+        must_attach_to = ["search", "search-dev", "search-staging"]
+      }
+
+      # ── Role: monitoring ────────────────────────────────────────────
+      # Match by path prefix. Paths are normalised: leading "./" is
+      # stripped and Windows backslashes are converted to forward slashes
+      # before matching, so these patterns work cross-platform.
+      role "monitoring" {
+        match {
+          path = ["monitoring/**"]
+        }
+        must_attach_to = ["monitoring"]
+      }
+    }
+
+    allow "env_file" {
+      max = 42
+
+      # ── Role: production-env ───────────────────────────────────────
+      # Match production env files by path. Must set DATABASE_URL and
+      # OTEL_ENDPOINT; must not set DEBUG or VERBOSE.
+      role "production-env" {
+        match {
+          path = ["**/.env.production", "ansible/**/production/**"]
+        }
+        must_set_env  = ["DATABASE_URL", "OTEL_ENDPOINT"]
+        forbidden_env = ["DEBUG", "VERBOSE"]
+      }
+    }
+
+    # Roles are optional — types without them are governed by the
+    # type-level attributes only, as in RFC 004.
+    allow "workflow" {
+      max = 10
+    }
+  }
+}
+
+# ──────────────────────────────────────────────────────────────────────────
+# Role attribute reference (RFC 005 §Role constraints)
+# ──────────────────────────────────────────────────────────────────────────
+#
+# match { … }              Selects which resources belong to the role.
+#                          Empty match = every resource of the parent type.
+#   name      = [<glob>]   Match against resource.name
+#   image     = [<glob>]   Match against resource.extra.image
+#   path      = [<glob>]   Match against resource.path (normalised)
+#   predicate = "all"|"any"  Default "all". "any" = OR across attributes.
+#
+# image_pin      = [<glob>]   Image must match one of these (exact/glob).
+#                             → role_image_not_pinned
+# image_prefix   = [<string>] Image must start with one of these.
+#                             → role_image_prefix_mismatch
+# must_expose    = [<int>]    Container-side ports that must be exposed.
+#                             → role_port_missing
+# must_attach_to = [<string>] Networks the service must join (by name).
+#                             → role_network_missing
+# must_set_env   = [<string>] Env var names that must be defined.
+#                             → role_env_var_missing
+# forbidden_env  = [<string>] Env var names that must NOT be defined.
+#                             → role_env_var_forbidden
+# must_have_file = [<glob>]   At least one matched resource path must match.
+#                             → role_file_missing (Warning, not Error)
+# min_count      = <int>      Minimum # of resources matching this role.
+#                             → role_count_below_min
+# max_count      = <int>      Maximum # of resources matching this role.
+#                             → role_count_above_max

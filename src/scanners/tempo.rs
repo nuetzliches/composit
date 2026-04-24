@@ -52,6 +52,7 @@ impl Scanner for TempoScanner {
         Ok(ScanResult {
             resources,
             providers: vec![],
+            resolution: None,
         })
     }
 }

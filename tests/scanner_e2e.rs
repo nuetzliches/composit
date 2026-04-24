@@ -134,24 +134,41 @@ fn scan_docker_fixture_finds_compose_services() {
     let report: serde_json::Value = serde_json::from_str(&content).unwrap();
     let resources = report["resources"].as_array().unwrap();
 
-    let compose = resources
+    let compose_paths: Vec<&str> = resources
         .iter()
         .filter(|r| r["type"].as_str() == Some("docker_compose"))
-        .count();
-    assert_eq!(compose, 1, "expected one docker_compose resource");
+        .filter_map(|r| r["path"].as_str())
+        .collect();
+    assert_eq!(
+        compose_paths.len(),
+        3,
+        "expected three docker_compose files (base + override + gpu), got: {compose_paths:?}"
+    );
+    for needle in &[
+        "docker-compose.yml",
+        "docker-compose.override.yml",
+        "compose.gpu.yml",
+    ] {
+        assert!(
+            compose_paths.iter().any(|p| p.ends_with(needle)),
+            "expected compose variant {needle} in paths {compose_paths:?}"
+        );
+    }
 
     let services: Vec<_> = resources
         .iter()
         .filter(|r| r["type"].as_str() == Some("docker_service"))
         .collect();
-    assert_eq!(
-        services.len(),
-        3,
-        "expected 3 docker_service resources (api, worker, db)"
+    // Base (api, worker, db) + override (debug-sidecar; api override merges
+    // under the same service name and yields a second entry) + gpu (gpu-worker).
+    assert!(
+        services.len() >= 5,
+        "expected ≥5 docker_service entries across variants, got {}",
+        services.len()
     );
 
     let names: Vec<&str> = services.iter().filter_map(|r| r["name"].as_str()).collect();
-    for expected in &["api", "worker", "db"] {
+    for expected in &["api", "worker", "db", "debug-sidecar", "gpu-worker"] {
         assert!(names.contains(expected), "missing service: {expected}");
     }
 }
@@ -228,6 +245,413 @@ fn scan_mcp_config_fixture_finds_cursor_servers() {
 /// Runs `composit scan` followed by `composit diff` on the demo-drift fixture.
 /// The fixture is shaped so that exactly three governance rules fire, giving
 /// us a stable baseline for the public Show-HN demo artefact.
+#[test]
+fn scan_jinja_demo_renders_templates_per_inventory() {
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("jinja-demo", tmp.path());
+
+    let out = run_scan(tmp.path());
+    assert!(
+        out.status.success(),
+        "scan failed:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let content = fs::read_to_string(tmp.path().join("composit-report.json")).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+    let templates: Vec<_> = report["resources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("ansible_template"))
+        .collect();
+    // 3 templates: nginx + app + vault-encrypted.
+    assert_eq!(templates.len(), 3);
+
+    // nginx.conf.j2 rendered per inventory: 2 renderings
+    let nginx = templates
+        .iter()
+        .find(|r| r["name"].as_str() == Some("nginx.conf.j2"))
+        .expect("nginx template present");
+    let nginx_renderings = nginx["renderings"].as_array().unwrap();
+    assert_eq!(
+        nginx_renderings.len(),
+        2,
+        "expected one rendering per inventory, got {}",
+        nginx_renderings.len()
+    );
+    let sources: Vec<&str> = nginx_renderings
+        .iter()
+        .filter_map(|r| r["source"].as_str())
+        .collect();
+    assert!(sources.iter().any(|s| s.contains("production")));
+    assert!(sources.iter().any(|s| s.contains("staging")));
+
+    // Production rendering uses nginx_port=443 from that inventory
+    let prod = nginx_renderings
+        .iter()
+        .find(|r| {
+            r["source"]
+                .as_str()
+                .is_some_and(|s| s.contains("production"))
+        })
+        .unwrap();
+    assert!(prod["rendered"].as_str().unwrap().contains("listen 443;"));
+
+    // Staging uses 8443
+    let staging = nginx_renderings
+        .iter()
+        .find(|r| r["source"].as_str().is_some_and(|s| s.contains("staging")))
+        .unwrap();
+    assert!(staging["rendered"]
+        .as_str()
+        .unwrap()
+        .contains("listen 8443;"));
+
+    // app.env.j2: dotenv parser kicks in → rendered_parsed.keys populated
+    let app = templates
+        .iter()
+        .find(|r| r["name"].as_str() == Some("app.env.j2"))
+        .expect("app template present");
+    let app_renderings = app["renderings"].as_array().unwrap();
+    assert_eq!(app_renderings.len(), 2);
+    let parsed = app_renderings[0]
+        .get("rendered_parsed")
+        .expect("dotenv parser must produce rendered_parsed");
+    assert_eq!(parsed["format"].as_str(), Some("dotenv"));
+    let keys = parsed["keys"].as_object().unwrap();
+    assert!(keys.contains_key("APP_NAME"));
+    assert!(keys.contains_key("APP_DOMAIN"));
+
+    // Vault-encrypted template is surfaced but never rendered
+    let vault = templates
+        .iter()
+        .find(|r| r["name"].as_str() == Some("encrypted.j2"))
+        .expect("vault template present");
+    assert_eq!(vault["vault_encrypted"].as_bool(), Some(true));
+    assert!(vault["renderings"].as_array().unwrap().is_empty());
+
+    // Diff surfaces vault_unsupported + rendered_must_contain PASS.
+    // run_scan wrote JSON; rerun with YAML so diff has a report to load.
+    let yaml_scan = run_scan_yaml(tmp.path());
+    assert!(yaml_scan.status.success());
+    let diff = run_diff_json(tmp.path(), false);
+    assert!(
+        diff.status.success(),
+        "diff failed:\n{}",
+        String::from_utf8_lossy(&diff.stderr)
+    );
+    let diff_report: serde_json::Value =
+        serde_json::from_str(&String::from_utf8(diff.stdout).unwrap()).unwrap();
+    let rules: Vec<&str> = diff_report["categories"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|c| c["violations"].as_array().unwrap().iter())
+        .filter_map(|v| v["rule"].as_str())
+        .collect();
+    assert!(
+        rules.contains(&"vault_unsupported"),
+        "vault_unsupported must fire for encrypted.j2: {rules:?}"
+    );
+    // No template_value_mismatch — both APP_ENV and APP_DOMAIN satisfy
+    // their constraints in both inventories.
+    assert!(
+        !rules.contains(&"template_value_mismatch"),
+        "all rendered_must_contain constraints satisfied; got {rules:?}"
+    );
+}
+
+#[test]
+fn scan_resolution_demo_substitutes_env_vars_into_services() {
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("resolution-demo", tmp.path());
+
+    let out = run_scan(tmp.path());
+    assert!(
+        out.status.success(),
+        "scan failed:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let content = fs::read_to_string(tmp.path().join("composit-report.json")).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let services: Vec<_> = report["resources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("docker_service"))
+        .collect();
+
+    let api = services
+        .iter()
+        .find(|r| r["name"].as_str() == Some("api"))
+        .expect("api service present");
+    assert_eq!(
+        api["resolved_image"].as_str(),
+        Some("ghcr.io/acme/api:1.2.3"),
+        "API_TAG from .env must feed into resolved_image"
+    );
+    // Raw image is preserved alongside the resolved form.
+    assert_eq!(
+        api["image"].as_str(),
+        Some("ghcr.io/acme/api:${API_TAG:-latest}")
+    );
+    let resolved_ports: Vec<&str> = api["resolved_ports"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|v| v.as_str())
+        .collect();
+    assert_eq!(resolved_ports, vec!["8080:8080"]);
+
+    let db = services
+        .iter()
+        .find(|r| r["name"].as_str() == Some("db"))
+        .expect("db service present");
+    assert_eq!(db["resolved_image"].as_str(), Some("postgres:16"));
+
+    // ports with no ${VAR} don't get a resolved_ports field — the raw
+    // form is already literal.
+    assert!(
+        db.get("resolved_ports").is_none() || db["resolved_ports"] == serde_json::Value::Null,
+        "unchanged ports must not emit resolved_ports"
+    );
+
+    // Redaction: secret-looking keys must not leak resolved values. The
+    // API_SECRET in .env is never referenced here, but ensure the env
+    // reader would have redacted it if it had been.
+    let report_str = serde_json::to_string(&report).unwrap();
+    assert!(
+        !report_str.contains("never-in-the-report"),
+        "secret-looking .env values must not appear in report"
+    );
+
+    // scan.redact also filters env_file.keys — `METRICS_INTERNAL_URL`
+    // matches `*_INTERNAL_URL` from the fixture's redact list and must
+    // be replaced with <redacted> in the key list.
+    let env_file = report["resources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["type"].as_str() == Some("env_file"))
+        .expect("env_file resource present");
+    let keys: Vec<&str> = env_file["keys"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|v| v.as_str())
+        .collect();
+    assert!(
+        keys.contains(&"<redacted>"),
+        "user-declared redact glob must hide key names in env_file.keys: {keys:?}"
+    );
+    assert!(
+        !keys.contains(&"METRICS_INTERNAL_URL"),
+        "raw key name must not leak once redacted: {keys:?}"
+    );
+    // Non-redacted keys must still be visible.
+    assert!(
+        keys.contains(&"API_TAG") && keys.contains(&"PG_TAG"),
+        "non-matching keys must remain: {keys:?}"
+    );
+
+    // RFC 006 report block: env_files_used is populated, and the mystery
+    // service's ${MYSTERY_TAG} shows up in unresolved.
+    let resolution = report
+        .get("resolution")
+        .expect("report must carry resolution block when scan opted in");
+    let env_files: Vec<&str> = resolution["env_files_used"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|v| v.as_str())
+        .collect();
+    assert!(
+        env_files.iter().any(|p| p.ends_with(".env")),
+        "env_files_used must list the resolvable .env: {env_files:?}"
+    );
+
+    let unresolved = resolution["unresolved"].as_array().unwrap();
+    assert!(
+        unresolved
+            .iter()
+            .any(|v| v["variable"].as_str() == Some("MYSTERY_TAG")),
+        "MYSTERY_TAG must appear in unresolved list: {unresolved:?}"
+    );
+
+    // Diff surfaces unresolved_variable as Info. run_scan wrote JSON;
+    // scan for YAML so the diff command finds what it expects to read.
+    let yaml_scan = run_scan_yaml(tmp.path());
+    assert!(yaml_scan.status.success());
+    let diff = run_diff_json(tmp.path(), false);
+    assert!(
+        diff.status.success(),
+        "diff failed:\n{}",
+        String::from_utf8_lossy(&diff.stderr)
+    );
+    let diff_stdout = String::from_utf8(diff.stdout).unwrap();
+    let diff_report: serde_json::Value = serde_json::from_str(&diff_stdout).unwrap();
+    let unresolved_rules: Vec<&str> = diff_report["categories"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|c| c["violations"].as_array().unwrap().iter())
+        .filter_map(|v| v["rule"].as_str())
+        .filter(|r| *r == "unresolved_variable")
+        .collect();
+    assert!(
+        !unresolved_rules.is_empty(),
+        "composit diff must surface unresolved_variable for MYSTERY_TAG"
+    );
+}
+
+#[test]
+fn scan_ansible_fixture_finds_playbook_inventory_and_role() {
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("ansible", tmp.path());
+
+    let out = run_scan(tmp.path());
+    assert!(
+        out.status.success(),
+        "composit scan failed:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let content = fs::read_to_string(tmp.path().join("composit-report.json")).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let resources = report["resources"].as_array().unwrap();
+
+    // Playbook with 2 plays + both tasks + roles ref
+    let playbooks: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("ansible_playbook"))
+        .collect();
+    assert_eq!(playbooks.len(), 1, "expected one ansible_playbook");
+    // Resource.extra is flattened into the top-level JSON object.
+    let plays_count = playbooks[0]["plays"].as_u64().unwrap();
+    assert_eq!(plays_count, 2, "site.yml has two plays");
+
+    // Inventory with group names
+    let inventories: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("ansible_inventory"))
+        .collect();
+    assert_eq!(inventories.len(), 1);
+    let group_names: Vec<&str> = inventories[0]["group_names"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|v| v.as_str())
+        .collect();
+    assert!(group_names.contains(&"all"));
+
+    // Role with handlers + templates
+    let roles: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("ansible_role"))
+        .collect();
+    assert_eq!(roles.len(), 1);
+    assert_eq!(roles[0]["name"].as_str(), Some("nginx"));
+    assert_eq!(roles[0]["has_handlers"].as_bool(), Some(true));
+    assert_eq!(roles[0]["has_templates"].as_bool(), Some(true));
+    assert_eq!(roles[0]["template_count"].as_u64(), Some(1));
+
+    // Critical: the role's tasks/main.yml must NOT double-register as a
+    // playbook (it's a list of tasks, not plays — but we also dedupe via
+    // claimed paths). No duplicate ansible_playbook matching roles path.
+    let playbook_paths: Vec<&str> = playbooks
+        .iter()
+        .filter_map(|r| r["path"].as_str())
+        .collect();
+    for p in &playbook_paths {
+        assert!(
+            !p.contains("roles/"),
+            "role task file leaked into playbook list: {p}"
+        );
+    }
+}
+
+#[test]
+fn roles_demo_surfaces_rfc005_violations() {
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("roles-demo", tmp.path());
+
+    let scan = run_scan_yaml(tmp.path());
+    assert!(
+        scan.status.success(),
+        "scan failed:\n{}",
+        String::from_utf8_lossy(&scan.stderr)
+    );
+
+    let diff = run_diff_json(tmp.path(), false);
+    assert!(
+        diff.status.success(),
+        "diff failed:\n{}",
+        String::from_utf8_lossy(&diff.stderr)
+    );
+
+    let stdout = String::from_utf8(diff.stdout).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|e| panic!("diff JSON parse failed: {e}\nstdout:\n{stdout}"));
+
+    let mut rules: Vec<String> = Vec::new();
+    for cat in report["categories"].as_array().unwrap() {
+        for v in cat["violations"].as_array().unwrap() {
+            rules.push(v["rule"].as_str().unwrap().to_string());
+        }
+    }
+
+    // Each role_* rule must fire at least once. This locks the RFC 005
+    // diff contract — if the renderer or checker drops one of these we
+    // hear about it.
+    for expected in &[
+        "role_image_not_pinned",      // postgres-db uses :latest
+        "role_port_missing",          // postgres-db doesn't expose 5432
+        "role_network_missing",       // postgres-db not on backend network
+        "role_image_prefix_mismatch", // api image uses ghcr.io/other/
+        "role_env_var_missing",       // .env.production lacks DATABASE_URL
+        "role_env_var_forbidden",     // .env.production sets DEBUG
+        "role_count_below_min",       // 0 frontend-* services found, min=2
+    ] {
+        assert!(
+            rules.iter().any(|r| r == expected),
+            "roles-demo must raise {expected}, got: {rules:?}"
+        );
+    }
+
+    // role_count_below_min must populate details with the matched summary
+    // (even if it's "(no matches)") so HTML shows what was considered.
+    let count_min: Vec<&serde_json::Value> = report["categories"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|c| c["violations"].as_array().unwrap().iter())
+        .filter(|v| v["rule"].as_str() == Some("role_count_below_min"))
+        .collect();
+    assert_eq!(count_min.len(), 1);
+    let details = count_min[0]["details"].as_str().unwrap();
+    assert!(
+        details.contains("matched:") && details.contains("(no matches)"),
+        "count_below_min details must list matched resources: {details}"
+    );
+
+    // Expected/actual fields must be populated on every role_* violation so
+    // the HTML diff renderer has SOLL/IST data to display.
+    for cat in report["categories"].as_array().unwrap() {
+        for v in cat["violations"].as_array().unwrap() {
+            let rule = v["rule"].as_str().unwrap();
+            if rule.starts_with("role_") {
+                assert!(
+                    v.get("expected").is_some() && v.get("actual").is_some(),
+                    "{rule} must carry expected+actual, got: {v}"
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn demo_drift_surfaces_three_expected_errors() {
     let tmp = tempfile::tempdir().unwrap();

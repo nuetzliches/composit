@@ -4,8 +4,8 @@ use anyhow::{anyhow, Context, Result};
 use hcl::Body;
 
 use crate::core::governance::{
-    AllowRule, AuthRef, BudgetRule, ExtraPattern, Governance, PolicyRule, ProviderRule,
-    RequireRule, ResourceConstraints, ScanSettings,
+    AllowRule, AnsibleSettings, AuthRef, BudgetRule, ExtraPattern, Governance, Matcher, PolicyRule,
+    Predicate, ProviderRule, RequireRule, ResourceConstraints, Role, ScanSettings,
 };
 
 /// Parse a Compositfile (HCL governance document) into a Governance struct.
@@ -61,6 +61,8 @@ pub fn parse_compositfile(path: &Path) -> Result<Governance> {
 /// valid no-op.
 fn parse_scan_block(block: &hcl::Block) -> Result<ScanSettings> {
     let exclude_paths = get_string_array_attr(&block.body, "exclude");
+    let resolvable = get_string_array_attr(&block.body, "resolvable");
+    let redact = get_string_array_attr(&block.body, "redact");
 
     let mut extra_patterns = Vec::new();
     for inner in block.body.blocks() {
@@ -80,10 +82,39 @@ fn parse_scan_block(block: &hcl::Block) -> Result<ScanSettings> {
             "scanners" => {
                 // handled below
             }
+            "ansible" => {
+                // handled in its own pass below
+            }
             other => {
                 eprintln!("Warning: unknown block type '{}' inside scan {{ }}", other);
             }
         }
+    }
+
+    // RFC 007: optional `ansible { extra_vars { … }; inventories = [...] }` sub-block.
+    let mut ansible = AnsibleSettings::default();
+    if let Some(ansible_block) = block
+        .body
+        .blocks()
+        .find(|b| b.identifier.as_str() == "ansible")
+    {
+        if let Some(ev_block) = ansible_block
+            .body
+            .blocks()
+            .find(|b| b.identifier.as_str() == "extra_vars")
+        {
+            for attr in ev_block.body.attributes() {
+                let key = attr.key.as_str().to_string();
+                let value = match &attr.expr {
+                    hcl::Expression::String(s) => s.clone(),
+                    hcl::Expression::Number(n) => n.to_string(),
+                    hcl::Expression::Bool(b) => b.to_string(),
+                    _ => continue,
+                };
+                ansible.extra_vars.insert(key, value);
+            }
+        }
+        ansible.inventories = get_string_array_attr(&ansible_block.body, "inventories");
     }
 
     // `scanners { prometheus = false }` maps each attribute to an on/off
@@ -105,6 +136,9 @@ fn parse_scan_block(block: &hcl::Block) -> Result<ScanSettings> {
         exclude_paths,
         extra_patterns,
         scanners,
+        resolvable,
+        redact,
+        ansible,
     })
 }
 
@@ -274,11 +308,28 @@ fn parse_resources_block(block: &hcl::Block) -> Result<ResourceConstraints> {
                 let allowed_images = get_string_array_attr(&inner.body, "allowed_images");
                 let allowed_types = get_string_array_attr(&inner.body, "allowed_types");
 
+                // RFC 005: `role "<name>" { … }` sub-blocks.
+                let mut roles: Vec<Role> = Vec::new();
+                for role_block in inner.body.blocks() {
+                    if role_block.identifier.as_str() == "role" {
+                        let role = parse_role_block(role_block, &resource_type)?;
+                        if roles.iter().any(|r| r.name == role.name) {
+                            return Err(anyhow!(
+                                "Duplicate role \"{}\" in allow \"{}\" block",
+                                role.name,
+                                resource_type
+                            ));
+                        }
+                        roles.push(role);
+                    }
+                }
+
                 allow.push(AllowRule {
                     resource_type,
                     max,
                     allowed_images,
                     allowed_types,
+                    roles,
                 });
             }
             "require" => {
@@ -302,6 +353,163 @@ fn parse_resources_block(block: &hcl::Block) -> Result<ResourceConstraints> {
         allow,
         require,
     })
+}
+
+/// Parse a `role "<name>" { match { … } image_pin = […] … }` block.
+/// See RFC 005 for the attribute catalog.
+fn parse_role_block(block: &hcl::Block, parent_type: &str) -> Result<Role> {
+    let name = block
+        .labels
+        .first()
+        .map(|l| l.as_str().to_string())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| {
+            anyhow!(
+                "role block inside allow \"{}\" has an empty or missing label",
+                parent_type
+            )
+        })?;
+
+    // Optional `match { name = [...], image = [...], path = [...], predicate = "all"|"any" }`.
+    let matcher = match block
+        .body
+        .blocks()
+        .find(|b| b.identifier.as_str() == "match")
+    {
+        Some(mb) => parse_match_block(mb, &name)?,
+        None => Matcher::default(),
+    };
+
+    let image_pin = get_string_array_attr(&block.body, "image_pin");
+    let image_prefix = get_string_array_attr(&block.body, "image_prefix");
+    let must_expose = get_u16_array_attr(&block.body, "must_expose").map_err(|e| {
+        anyhow!(
+            "role \"{}\" must_expose: {} (ports must be positive integers ≤ 65535)",
+            name,
+            e
+        )
+    })?;
+    let must_attach_to = get_string_array_attr(&block.body, "must_attach_to");
+    let must_set_env = get_string_array_attr(&block.body, "must_set_env");
+    let forbidden_env = get_string_array_attr(&block.body, "forbidden_env");
+    let must_have_file = get_string_array_attr(&block.body, "must_have_file");
+    let min_count = get_usize_attr(&block.body, "min_count");
+    let max_count = get_usize_attr(&block.body, "max_count");
+
+    // RFC 007: `rendered_must_contain { key = "glob" }` sub-block.
+    let mut rendered_must_contain: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    if let Some(rmc_block) = block
+        .body
+        .blocks()
+        .find(|b| b.identifier.as_str() == "rendered_must_contain")
+    {
+        for attr in rmc_block.body.attributes() {
+            let key = attr.key.as_str().to_string();
+            if let hcl::Expression::String(s) = &attr.expr {
+                rendered_must_contain.insert(key, s.clone());
+            }
+        }
+    }
+
+    // Forward-compat: warn on unknown attrs/blocks (but don't fail).
+    const KNOWN_ROLE_ATTRS: &[&str] = &[
+        "image_pin",
+        "image_prefix",
+        "must_expose",
+        "must_attach_to",
+        "must_set_env",
+        "forbidden_env",
+        "must_have_file",
+        "min_count",
+        "max_count",
+        "rendered_must_contain",
+    ];
+    for attr in block.body.attributes() {
+        if !KNOWN_ROLE_ATTRS.contains(&attr.key.as_str()) {
+            eprintln!(
+                "Warning: unknown attribute '{}' in role \"{}\"",
+                attr.key.as_str(),
+                name
+            );
+        }
+    }
+    const KNOWN_ROLE_SUB_BLOCKS: &[&str] = &["match", "rendered_must_contain"];
+    for sub in block.body.blocks() {
+        if !KNOWN_ROLE_SUB_BLOCKS.contains(&sub.identifier.as_str()) {
+            eprintln!(
+                "Warning: unknown block '{}' in role \"{}\"",
+                sub.identifier.as_str(),
+                name
+            );
+        }
+    }
+
+    Ok(Role {
+        name,
+        matcher,
+        image_pin,
+        image_prefix,
+        must_expose,
+        must_attach_to,
+        must_set_env,
+        forbidden_env,
+        must_have_file,
+        min_count,
+        max_count,
+        rendered_must_contain,
+    })
+}
+
+fn parse_match_block(block: &hcl::Block, role_name: &str) -> Result<Matcher> {
+    let name = get_string_array_attr(&block.body, "name");
+    let image = get_string_array_attr(&block.body, "image");
+    let path = get_string_array_attr(&block.body, "path");
+
+    let predicate = match get_string_attr(&block.body, "predicate").as_deref() {
+        None | Some("all") => Predicate::All,
+        Some("any") => Predicate::Any,
+        Some(other) => {
+            return Err(anyhow!(
+                "role \"{}\" match.predicate = \"{}\" is not recognised. Valid: \"all\" (default), \"any\".",
+                role_name,
+                other
+            ));
+        }
+    };
+
+    Ok(Matcher {
+        name,
+        image,
+        path,
+        predicate,
+    })
+}
+
+/// Extract a `[1, 2, 3]` HCL integer array as `Vec<u16>`.
+/// Returns Err if any element is not a positive integer in the `u16` range —
+/// role `must_expose` rejects negative/overflowing port numbers at parse time.
+fn get_u16_array_attr(body: &Body, key: &str) -> Result<Vec<u16>, String> {
+    let Some(attr) = body.attributes().find(|a| a.key.as_str() == key) else {
+        return Ok(Vec::new());
+    };
+    let items = match &attr.expr {
+        hcl::Expression::Array(items) => items,
+        _ => return Err(format!("{} is not an array", key)),
+    };
+
+    let mut out = Vec::with_capacity(items.len());
+    for item in items {
+        match item {
+            hcl::Expression::Number(n) => match n.as_u64() {
+                Some(v) if v <= u16::MAX as u64 => out.push(v as u16),
+                Some(v) => return Err(format!("{} out of u16 range", v)),
+                None => return Err(format!("{} is not a non-negative integer", n)),
+            },
+            _ => return Err("non-integer value in port list".to_string()),
+        }
+    }
+    Ok(out)
 }
 
 /// Extract a string attribute from an HCL body.
@@ -713,6 +921,162 @@ mod tests {
         assert_eq!(gov.scan.extra_patterns[0].glob, "modules/**/*.tf");
         assert_eq!(gov.scan.scanners.get("prometheus"), Some(&false));
         assert!(gov.scan.is_scanner_enabled("docker"));
+    }
+
+    #[test]
+    fn test_parse_role_block_with_matcher_and_constraints() {
+        let gov = parse_hcl(
+            r#"
+            workspace "test" {
+              resources {
+                allow "docker_service" {
+                  max = 20
+
+                  role "database" {
+                    match {
+                      name      = ["*postgres*", "*mssql*"]
+                      image     = ["postgres:*"]
+                      predicate = "any"
+                    }
+                    image_pin      = ["postgres:16", "postgres:17"]
+                    must_expose    = [5432]
+                    must_attach_to = ["backend"]
+                    max_count      = 3
+                  }
+
+                  role "api" {
+                    match { name = ["*-api"] }
+                    image_prefix = ["git.example/acme/"]
+                    must_set_env = ["DATABASE_URL"]
+                  }
+                }
+              }
+            }
+            "#,
+        )
+        .unwrap();
+        let res = gov.resources.unwrap();
+        assert_eq!(res.allow.len(), 1);
+        let allow = &res.allow[0];
+        assert_eq!(allow.roles.len(), 2);
+
+        let db = &allow.roles[0];
+        assert_eq!(db.name, "database");
+        assert_eq!(db.matcher.predicate, Predicate::Any);
+        assert_eq!(db.matcher.name, vec!["*postgres*", "*mssql*"]);
+        assert_eq!(db.image_pin, vec!["postgres:16", "postgres:17"]);
+        assert_eq!(db.must_expose, vec![5432]);
+        assert_eq!(db.must_attach_to, vec!["backend"]);
+        assert_eq!(db.max_count, Some(3));
+
+        let api = &allow.roles[1];
+        assert_eq!(api.name, "api");
+        assert_eq!(api.matcher.predicate, Predicate::All); // default
+        assert_eq!(api.image_prefix, vec!["git.example/acme/"]);
+        assert_eq!(api.must_set_env, vec!["DATABASE_URL"]);
+    }
+
+    #[test]
+    fn test_duplicate_role_label_rejected() {
+        let err = parse_hcl(
+            r#"
+            workspace "test" {
+              resources {
+                allow "docker_service" {
+                  role "db" {
+                    match {
+                      name = ["*"]
+                    }
+                  }
+                  role "db" {
+                    match {
+                      name = ["*"]
+                    }
+                  }
+                }
+              }
+            }
+            "#,
+        )
+        .expect_err("duplicate role labels must fail");
+        assert!(
+            format!("{}", err).contains("Duplicate role \"db\""),
+            "wrong error: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_role_empty_label_rejected() {
+        let err = parse_hcl(
+            r#"
+            workspace "test" {
+              resources {
+                allow "docker_service" {
+                  role "" {
+                    match {
+                      name = ["*"]
+                    }
+                  }
+                }
+              }
+            }
+            "#,
+        )
+        .expect_err("empty role label must fail");
+        assert!(
+            format!("{}", err).contains("empty or missing label"),
+            "wrong error: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_role_unknown_predicate_rejected() {
+        let err = parse_hcl(
+            r#"
+            workspace "test" {
+              resources {
+                allow "docker_service" {
+                  role "db" {
+                    match {
+                      name      = ["*"]
+                      predicate = "maybe"
+                    }
+                  }
+                }
+              }
+            }
+            "#,
+        )
+        .expect_err("unknown predicate must fail");
+        assert!(format!("{}", err).contains("maybe"), "wrong error: {}", err);
+    }
+
+    #[test]
+    fn test_role_port_out_of_range_rejected() {
+        let err = parse_hcl(
+            r#"
+            workspace "test" {
+              resources {
+                allow "docker_service" {
+                  role "api" {
+                    match {
+                      name = ["*"]
+                    }
+                    must_expose = [70000]
+                  }
+                }
+              }
+            }
+            "#,
+        )
+        .expect_err("port > 65535 must fail");
+        assert!(
+            format!("{}", err).contains("must_expose"),
+            "wrong error: {}",
+            err
+        );
     }
 
     #[test]

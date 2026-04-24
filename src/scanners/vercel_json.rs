@@ -44,6 +44,7 @@ impl Scanner for VercelJsonScanner {
         Ok(ScanResult {
             resources,
             providers: vec![],
+            resolution: None,
         })
     }
 }

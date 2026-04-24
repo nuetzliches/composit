@@ -139,6 +139,7 @@ impl Scanner for CaddyfileScanner {
         Ok(ScanResult {
             resources,
             providers: vec![],
+            resolution: None,
         })
     }
 }

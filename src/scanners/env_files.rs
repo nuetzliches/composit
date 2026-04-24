@@ -48,6 +48,7 @@ impl Scanner for EnvFilesScanner {
 
                 let content = fs::read_to_string(&path).unwrap_or_default();
                 let var_count = count_env_vars(&content);
+                let keys = extract_env_keys(&content);
 
                 let rel_path = path
                     .strip_prefix(&context.dir)
@@ -59,6 +60,12 @@ impl Scanner for EnvFilesScanner {
                 extra.insert(
                     "variables".to_string(),
                     serde_json::Value::Number(serde_json::Number::from(var_count)),
+                );
+                extra.insert(
+                    "keys".to_string(),
+                    serde_json::Value::Array(
+                        keys.into_iter().map(serde_json::Value::String).collect(),
+                    ),
                 );
 
                 resources.push(Resource {
@@ -78,6 +85,7 @@ impl Scanner for EnvFilesScanner {
         Ok(ScanResult {
             resources,
             providers: vec![],
+            resolution: None,
         })
     }
 }
@@ -91,6 +99,27 @@ fn count_env_vars(content: &str) -> usize {
             !trimmed.is_empty() && !trimmed.starts_with('#') && trimmed.contains('=')
         })
         .count()
+}
+
+/// Return the variable names (keys only, no values) declared in a .env file.
+/// Values are deliberately discarded so the scanner never handles secrets.
+fn extract_env_keys(content: &str) -> Vec<String> {
+    content
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                return None;
+            }
+            let (key, _rest) = trimmed.split_once('=')?;
+            let key = key.trim().trim_start_matches("export ").trim();
+            if key.is_empty() {
+                None
+            } else {
+                Some(key.to_string())
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]

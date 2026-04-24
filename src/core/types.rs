@@ -120,6 +120,12 @@ pub struct Report {
     pub providers: Vec<Provider>,
     pub resources: Vec<Resource>,
     pub summary: Summary,
+    /// RFC 006 cross-file variable resolution metadata. `None` when no
+    /// resolution was attempted; present even when empty so consumers can
+    /// distinguish "resolution ran but nothing to resolve" from "feature
+    /// disabled".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolution: Option<crate::core::scanner::ResolutionInfo>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -191,6 +197,10 @@ impl Report {
             scan_mode: Some(scan_mode),
             providers,
             resources,
+            // Resolution is wired in by the caller (main.rs) after build()
+            // so the ScanResult-driven metadata flows through without
+            // changing the build() signature used by tests + init.
+            resolution: None,
             summary,
         }
     }

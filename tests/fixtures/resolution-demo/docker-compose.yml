@@ -1,0 +1,13 @@
+services:
+  api:
+    image: ghcr.io/acme/api:${API_TAG:-latest}
+    ports:
+      - "${API_PORT:-8080}:8080"
+  db:
+    image: postgres:${PG_TAG}
+    ports:
+      - "5432:5432"
+  mystery:
+    # References a var not in .env and with no default. Surfaces as
+    # `unresolved_variable` Info in composit diff.
+    image: ghcr.io/acme/mystery:${MYSTERY_TAG}

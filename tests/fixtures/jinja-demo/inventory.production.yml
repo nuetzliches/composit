@@ -1,0 +1,6 @@
+all:
+  vars:
+    nginx_port: "443"
+    server_domain: "prod.example.com"
+    ssl_enabled: "true"
+    environment: "production"

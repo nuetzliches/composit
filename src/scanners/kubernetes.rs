@@ -75,6 +75,7 @@ impl Scanner for KubernetesScanner {
         Ok(ScanResult {
             resources,
             providers: vec![],
+            resolution: None,
         })
     }
 }

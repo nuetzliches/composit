@@ -253,6 +253,7 @@ impl Scanner for PrometheusScanner {
         Ok(ScanResult {
             resources,
             providers: vec![],
+            resolution: None,
         })
     }
 }

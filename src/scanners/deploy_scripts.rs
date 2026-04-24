@@ -68,6 +68,7 @@ impl Scanner for DeployScriptsScanner {
         Ok(ScanResult {
             resources,
             providers: vec![],
+            resolution: None,
         })
     }
 }

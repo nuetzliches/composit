@@ -1,3 +1,4 @@
+pub mod ansible;
 pub mod caddyfile;
 pub mod cron;
 pub mod db_migrations;
@@ -47,4 +48,5 @@ pub fn register_default_scanners(registry: &mut ScannerRegistry) {
     registry.register(Box::new(tempo::TempoScanner));
     registry.register(Box::new(db_migrations::DbMigrationsScanner));
     registry.register(Box::new(deploy_scripts::DeployScriptsScanner));
+    registry.register(Box::new(ansible::AnsibleScanner));
 }

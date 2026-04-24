@@ -1,0 +1,4 @@
+server {
+    listen {{ nginx_port | default(80) }};
+    server_name {{ ansible_fqdn }};
+}

@@ -40,6 +40,7 @@ impl Scanner for DbMigrationsScanner {
         Ok(ScanResult {
             resources,
             providers: vec![],
+            resolution: None,
         })
     }
 }

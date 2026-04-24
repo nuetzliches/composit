@@ -232,7 +232,9 @@ async fn build_report(dir: &Path, providers: Vec<String>, no_providers: bool) ->
     // Enrich with git-blame attribution
     core::attribution::enrich_attribution(&mut resources, dir);
 
-    Ok(Report::build(workspace, providers, resources, scan_mode))
+    let mut report = Report::build(workspace, providers, resources, scan_mode);
+    report.resolution = result.resolution;
+    Ok(report)
 }
 
 /// Load the Compositfile at the scan root. A missing file is fine —

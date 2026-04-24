@@ -63,6 +63,7 @@ impl Scanner for McpConfigScanner {
         Ok(ScanResult {
             resources,
             providers,
+            resolution: None,
         })
     }
 }

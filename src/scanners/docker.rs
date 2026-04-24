@@ -31,18 +31,34 @@ impl Scanner for DockerScanner {
     async fn scan(&self, context: &ScanContext) -> Result<ScanResult> {
         let mut resources = Vec::new();
 
-        // Scan for docker-compose files
-        for pattern in &[
-            "docker-compose.yml",
-            "docker-compose.yaml",
-            "compose.yml",
-            "compose.yaml",
-        ] {
-            let full_pattern = context.dir.join("**").join(pattern);
+        // Scan for docker-compose files. The Compose specification allows
+        // `compose.yml` / `docker-compose.yml` plus any number of override
+        // layers: `compose.override.yml`, `compose.gpu.yml`,
+        // `docker-compose.debug.yml`, etc. The globs below cover all of them
+        // in one pass. Filter out tilde-backed editor temp files and any
+        // path already caught by exclude rules.
+        let compose_globs = &[
+            "**/docker-compose.yml",
+            "**/docker-compose.yaml",
+            "**/docker-compose.*.yml",
+            "**/docker-compose.*.yaml",
+            "**/compose.yml",
+            "**/compose.yaml",
+            "**/compose.*.yml",
+            "**/compose.*.yaml",
+        ];
+        let mut seen = std::collections::HashSet::new();
+        for pattern in compose_globs {
+            let full_pattern = context.dir.join(pattern);
             let pattern_str = full_pattern.to_string_lossy().to_string();
             for entry in glob(&pattern_str)? {
                 let Ok(path) = entry else { continue };
                 if context.is_excluded(&path) {
+                    continue;
+                }
+                // The `.*` variant globs overlap with the base name globs on
+                // some filesystems; dedupe to avoid double-reporting.
+                if !seen.insert(path.clone()) {
                     continue;
                 }
                 match scan_compose_file(&path, &context.dir) {
@@ -88,6 +104,7 @@ impl Scanner for DockerScanner {
         Ok(ScanResult {
             resources,
             providers: vec![],
+            resolution: None,
         })
     }
 }

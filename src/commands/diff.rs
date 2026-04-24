@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::cli::DiffOutputFormat;
 use crate::core::compositfile::parse_compositfile;
-use crate::core::governance::{Governance, ProviderRule};
-use crate::core::types::{AuthMode, Provider, Report, ScanMode};
+use crate::core::governance::{Governance, Predicate, ProviderRule, Role};
+use crate::core::types::{AuthMode, Provider, Report, Resource, ScanMode};
 
 // ─────────────────────────────────────────────────────────
 // Violation model
@@ -30,20 +30,27 @@ pub struct ViolationCategory {
     pub passed: usize,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Violation {
     pub severity: Severity,
     pub rule: String,
     pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub details: Option<String>,
+    /// What the Compositfile governance requires (SOLL).
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub expected: Option<String>,
+    /// What the scan actually observed (IST).
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub actual: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
     Error,
     Warning,
+    #[default]
     Info,
 }
 
@@ -135,6 +142,7 @@ pub fn compute_diff_opts(
         check_providers(governance, report, offline),
         check_budgets(governance, report),
         check_resources(governance, report),
+        check_resolution(report),
         check_policies(governance, base_dir, report),
     ];
 
@@ -195,6 +203,8 @@ fn check_workspace(governance: &Governance, report: &Report) -> ViolationCategor
                  matches the Compositfile workspace."
                     .to_string(),
             ),
+            expected: Some(governance.workspace.clone()),
+            actual: Some(report.workspace.clone()),
         });
     }
 
@@ -230,6 +240,11 @@ fn check_providers(governance: &Governance, report: &Report, offline: bool) -> V
                 }
             }
             None => {
+                let approved_names: Vec<String> = governance
+                    .providers
+                    .iter()
+                    .map(|p| p.name.clone())
+                    .collect();
                 violations.push(Violation {
                     severity: Severity::Error,
                     rule: "unapproved_provider".to_string(),
@@ -238,6 +253,12 @@ fn check_providers(governance: &Governance, report: &Report, offline: bool) -> V
                         rp.name
                     ),
                     details: Some(format!("Endpoint: {}", rp.endpoint)),
+                    expected: Some(if approved_names.is_empty() {
+                        "(no approved providers)".to_string()
+                    } else {
+                        approved_names.join("\n")
+                    }),
+                    actual: Some(rp.name.clone()),
                 });
             }
         }
@@ -272,6 +293,8 @@ fn check_providers(governance: &Governance, report: &Report, offline: bool) -> V
                 gp.name
             ),
             details,
+            expected: Some(gp.name.clone()),
+            actual: Some("(not observed in scan)".to_string()),
         });
     }
 
@@ -312,6 +335,7 @@ fn check_provider_contract(
             rule: "contract_unreachable".to_string(),
             message: format!("Provider \"{}\" was unreachable during the scan", rule.name),
             details: Some(format!("Endpoint: {}", report_provider.endpoint)),
+            ..Default::default()
         });
         return violations;
     }
@@ -352,6 +376,7 @@ fn check_provider_contract(
                                     .pricing_tier
                                     .as_ref()
                                     .map(|t| format!("pricing tier: {}", t)),
+                                ..Default::default()
                             });
                         }
                     }
@@ -369,6 +394,7 @@ fn check_provider_contract(
                                 rule.name
                             ),
                             details: Some(format!("received: {:?}", info.expires_at)),
+                            ..Default::default()
                         });
                     }
                 }
@@ -392,6 +418,7 @@ fn check_provider_contract(
                             .auth
                             .as_ref()
                             .and_then(|a| a.env.as_ref().map(|e| format!("credential env: {}", e))),
+                        ..Default::default()
                     });
                 }
                 "auth_type_not_advertised" => {
@@ -406,6 +433,7 @@ fn check_provider_contract(
                             rule.auth.as_ref().map(|a| a.auth_type.as_str()).unwrap_or("api-key"),
                         ),
                         details: None,
+                        ..Default::default()
                     });
                 }
                 "fetch_failed" => {
@@ -417,6 +445,7 @@ fn check_provider_contract(
                             rule.name
                         ),
                         details: None,
+                        ..Default::default()
                     });
                 }
                 "invalid_contract_body" => {
@@ -431,6 +460,7 @@ fn check_provider_contract(
                             "missing or malformed contract.{id, provider, issued_at, expires_at}, or contract.provider did not match the public manifest"
                                 .to_string(),
                         ),
+                        ..Default::default()
                     });
                 }
                 // Empty reason OR "auth_missing": the scanner didn't
@@ -460,6 +490,7 @@ fn check_provider_contract(
                             rule.name
                         ),
                         details,
+                        ..Default::default()
                     });
                 }
             }
@@ -494,6 +525,8 @@ fn check_budgets(governance: &Governance, report: &Report) -> ViolationCategory 
                         report.summary.estimated_monthly_cost, budget.max_monthly
                     ),
                     details: None,
+                    expected: Some(format!("≤ {}", budget.max_monthly)),
+                    actual: Some(report.summary.estimated_monthly_cost.clone()),
                 });
             } else if let Some(alert_str) = &budget.alert_at {
                 if let Some(threshold) = parse_percentage(alert_str) {
@@ -509,6 +542,13 @@ fn check_budgets(governance: &Governance, report: &Report) -> ViolationCategory 
                                 alert_amount
                             ),
                             details: None,
+                            expected: Some(format!(
+                                "≤ {:.0} EUR ({}% of {})",
+                                alert_amount,
+                                (threshold * 100.0) as usize,
+                                budget.max_monthly
+                            )),
+                            actual: Some(report.summary.estimated_monthly_cost.clone()),
                         });
                     } else {
                         passed += 1;
@@ -555,6 +595,7 @@ fn check_resources(governance: &Governance, report: &Report) -> ViolationCategor
                     report.summary.total_resources, max_total
                 ),
                 details: None,
+                ..Default::default()
             });
         } else {
             passed += 1;
@@ -587,6 +628,8 @@ fn check_resources(governance: &Governance, report: &Report) -> ViolationCategor
                         resource_type, count
                     ),
                     details: None,
+                    expected: Some("(not in allow list)".to_string()),
+                    actual: Some(format!("{} × {}", count, resource_type)),
                 });
             }
         }
@@ -609,6 +652,8 @@ fn check_resources(governance: &Governance, report: &Report) -> ViolationCategor
                         rule.resource_type, count, max
                     ),
                     details: None,
+                    expected: Some(format!("≤ {}", max)),
+                    actual: Some(count.to_string()),
                 });
             } else {
                 passed += 1;
@@ -629,6 +674,8 @@ fn check_resources(governance: &Governance, report: &Report) -> ViolationCategor
                                     image, rule.resource_type
                                 ),
                                 details: r.path.clone(),
+                                expected: Some(rule.allowed_images.join("\n")),
+                                actual: Some(image.to_string()),
                             });
                         }
                     }
@@ -650,10 +697,35 @@ fn check_resources(governance: &Governance, report: &Report) -> ViolationCategor
                                     rt, rule.resource_type
                                 ),
                                 details: r.path.clone(),
+                                expected: Some(rule.allowed_types.join("\n")),
+                                actual: Some(rt.to_string()),
                             });
                         }
                     }
                 }
+            }
+        }
+
+        // RFC 005: per-role constraints inside this allow block.
+        if !rule.roles.is_empty() {
+            let empty: Vec<&Resource> = Vec::new();
+            let resources_of_type: &[&Resource] = by_type
+                .get(rule.resource_type.as_str())
+                .map(|v| v.as_slice())
+                .unwrap_or(&empty);
+            for role in &rule.roles {
+                let matched: Vec<&Resource> = resources_of_type
+                    .iter()
+                    .copied()
+                    .filter(|r| role_matches(role, r))
+                    .collect();
+                check_role_constraints(
+                    role,
+                    &rule.resource_type,
+                    &matched,
+                    &mut violations,
+                    &mut passed,
+                );
             }
         }
     }
@@ -674,6 +746,8 @@ fn check_resources(governance: &Governance, report: &Report) -> ViolationCategor
                     rule.resource_type, count, rule.min
                 ),
                 details: None,
+                expected: Some(format!("≥ {}", rule.min)),
+                actual: Some(count.to_string()),
             });
         } else {
             passed += 1;
@@ -682,6 +756,113 @@ fn check_resources(governance: &Governance, report: &Report) -> ViolationCategor
 
     ViolationCategory {
         name: "resources".to_string(),
+        violations,
+        passed,
+    }
+}
+
+/// Surface RFC 006 resolution artefacts as diff signals. Emits:
+/// - `resolution_disabled` (Info) once, when the report carries no
+///   resolution metadata but scanners found `${VAR}` references that
+///   could benefit from it. Points the operator at `scan.resolvable`.
+/// - `unresolved_variable` (Info) per variable that couldn't be filled
+///   in by the resolver.
+fn check_resolution(report: &Report) -> ViolationCategory {
+    let mut violations = Vec::new();
+    let mut passed = 0;
+
+    let has_templated = report.resources.iter().any(|r| {
+        r.extra
+            .get("image")
+            .and_then(|v| v.as_str())
+            .is_some_and(|s| s.contains("${"))
+            || r.extra
+                .get("ports")
+                .and_then(|v| v.as_array())
+                .is_some_and(|arr| {
+                    arr.iter()
+                        .any(|p| p.as_str().is_some_and(|s| s.contains("${")))
+                })
+    });
+
+    match &report.resolution {
+        None => {
+            if has_templated {
+                violations.push(Violation {
+                    severity: Severity::Info,
+                    rule: "resolution_disabled".to_string(),
+                    message: "Scan found ${VAR} references but cross-file resolution is disabled"
+                        .to_string(),
+                    details: Some(
+                        "Add `scan { resolvable = [\".env\"] }` to your Compositfile to enable \
+                         RFC 006 variable substitution (default redaction applies to *_KEY, \
+                         *_SECRET, *_TOKEN, *_PASSWORD)."
+                            .to_string(),
+                    ),
+                    expected: Some("resolvable = [\".env\"]".to_string()),
+                    actual: Some("(not set)".to_string()),
+                });
+            } else {
+                passed += 1;
+            }
+        }
+        Some(res) => {
+            if res.unresolved.is_empty() {
+                passed += 1;
+            }
+            for u in &res.unresolved {
+                violations.push(Violation {
+                    severity: Severity::Info,
+                    rule: "unresolved_variable".to_string(),
+                    message: format!(
+                        "\"${{{}}}\" referenced in {} of {} but not defined in any resolvable env file",
+                        u.variable, u.field, u.resource_path
+                    ),
+                    details: Some(format!(
+                        "env_files_used: {}",
+                        if res.env_files_used.is_empty() {
+                            "(none)".to_string()
+                        } else {
+                            res.env_files_used.join(", ")
+                        }
+                    )),
+                    expected: Some(u.variable.clone()),
+                    actual: Some("(undefined)".to_string()),
+                });
+            }
+        }
+    }
+
+    // RFC 007 §Open question 1: vault-encrypted templates are visible
+    // in the scan but never rendered. Surface them as Info so operators
+    // see that their governance doesn't see inside those files.
+    for r in &report.resources {
+        if r.resource_type == "ansible_template"
+            && r.extra
+                .get("vault_encrypted")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+        {
+            violations.push(Violation {
+                severity: Severity::Info,
+                rule: "vault_unsupported".to_string(),
+                message: format!(
+                    "Template {} is ansible-vault encrypted and was not rendered",
+                    r.path.as_deref().unwrap_or("-")
+                ),
+                details: Some(
+                    "composit does not decrypt vault files. Role constraints on \
+                     the rendered output cannot apply until decryption is wired in."
+                        .to_string(),
+                ),
+                expected: Some("plaintext template".to_string()),
+                actual: Some("$ANSIBLE_VAULT;...".to_string()),
+            });
+        }
+    }
+
+    ViolationCategory {
+        name: "resolution".to_string(),
         violations,
         passed,
     }
@@ -717,6 +898,7 @@ fn check_policies(governance: &Governance, base_dir: &Path, report: &Report) -> 
                     policy.name, policy.source
                 ),
                 details: None,
+                ..Default::default()
             });
             continue;
         }
@@ -736,6 +918,7 @@ fn check_policies(governance: &Governance, base_dir: &Path, report: &Report) -> 
                     rule: "policy_file_unreadable".to_string(),
                     message: format!("Policy \"{}\" could not be read: {}", policy.name, e),
                     details: Some(policy.source.clone()),
+                    ..Default::default()
                 });
                 continue;
             }
@@ -757,6 +940,7 @@ fn check_policies(governance: &Governance, base_dir: &Path, report: &Report) -> 
                         policy.name, policy.source, issue
                     ),
                     details: None,
+                    ..Default::default()
                 });
                 continue;
             }
@@ -788,6 +972,7 @@ fn check_policies(governance: &Governance, base_dir: &Path, report: &Report) -> 
                             policy.name, policy.source
                         ),
                         details: None,
+                        ..Default::default()
                     });
                 }
                 PolicyOutcome::Denials(msgs) => {
@@ -802,6 +987,7 @@ fn check_policies(governance: &Governance, base_dir: &Path, report: &Report) -> 
                                 policy.name, policy.source, msg
                             ),
                             details: None,
+                            ..Default::default()
                         });
                     }
                 }
@@ -814,6 +1000,7 @@ fn check_policies(governance: &Governance, base_dir: &Path, report: &Report) -> 
                             policy.name, policy.source
                         ),
                         details: None,
+                        ..Default::default()
                     });
                 }
                 PolicyOutcome::EvalError(e) => {
@@ -828,6 +1015,7 @@ fn check_policies(governance: &Governance, base_dir: &Path, report: &Report) -> 
                             policy.name, policy.source, e
                         ),
                         details: None,
+                        ..Default::default()
                     });
                 }
             }
@@ -850,6 +1038,7 @@ fn check_policies(governance: &Governance, base_dir: &Path, report: &Report) -> 
                 } else {
                     Some(format!("rules: {}", meta.rules.join(", ")))
                 },
+                ..Default::default()
             });
         }
     }
@@ -883,6 +1072,511 @@ fn matches_any_pattern(value: &str, patterns: &[String]) -> bool {
     patterns
         .iter()
         .any(|p| glob::Pattern::new(p).is_ok_and(|pat| pat.matches(value)))
+}
+
+// ─────────────────────────────────────────────────────────
+// RFC 005 — role matching & constraint checks
+// ─────────────────────────────────────────────────────────
+
+/// Does a resource belong to this role? Applies the role's matcher.
+/// An empty matcher (no attributes set) selects every resource.
+fn role_matches(role: &Role, r: &Resource) -> bool {
+    let m = &role.matcher;
+    if m.is_empty() {
+        return true;
+    }
+
+    // Per matcher attribute: matches if the attribute is empty OR the resource
+    // satisfies at least one pattern inside that attribute.
+    let name_ok = m.name.is_empty()
+        || r.name
+            .as_deref()
+            .is_some_and(|n| matches_any_pattern(n, &m.name));
+    let image_ok = m.image.is_empty()
+        || image_for_matching(r).is_some_and(|i| matches_any_pattern(&i, &m.image));
+    let path_ok = m.path.is_empty()
+        || r.path
+            .as_deref()
+            .map(normalize_path)
+            .is_some_and(|p| matches_any_pattern(&p, &m.path));
+
+    let attrs_set = [!m.name.is_empty(), !m.image.is_empty(), !m.path.is_empty()];
+    let results = [name_ok, image_ok, path_ok];
+
+    match m.predicate {
+        Predicate::All => attrs_set
+            .iter()
+            .zip(results.iter())
+            .all(|(set, ok)| !*set || *ok),
+        Predicate::Any => attrs_set
+            .iter()
+            .zip(results.iter())
+            .any(|(set, ok)| *set && *ok),
+    }
+}
+
+/// Prefer the RFC 006 `resolved_image` when present — role constraints
+/// care about the concrete image that will run, not the `${VAR}` template.
+fn image_for_matching(r: &Resource) -> Option<String> {
+    if let Some(s) = r.extra.get("resolved_image").and_then(|v| v.as_str()) {
+        return Some(s.to_string());
+    }
+    r.extra
+        .get("image")
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+}
+
+/// Normalize a resource path for glob matching: strip leading `./` and
+/// convert Windows backslashes so patterns written with `/` work cross-platform.
+fn normalize_path(p: &str) -> String {
+    let trimmed = p.strip_prefix("./").unwrap_or(p);
+    trimmed.replace('\\', "/")
+}
+
+fn string_list(items: &[String]) -> String {
+    items.join("\n")
+}
+
+/// Human-readable summary of which resources a role matched. Used in the
+/// `details` field of role violations so the HTML diff shows authors
+/// *which* services tripped the rule, not just how many.
+fn matched_summary(matched: &[&Resource]) -> String {
+    if matched.is_empty() {
+        return "(no matches)".to_string();
+    }
+    let names: Vec<String> = matched
+        .iter()
+        .take(5)
+        .map(|r| match (r.name.as_deref(), r.path.as_deref()) {
+            (Some(n), Some(p)) => format!("{} ({})", n, p),
+            (Some(n), None) => n.to_string(),
+            (None, Some(p)) => p.to_string(),
+            (None, None) => "-".to_string(),
+        })
+        .collect();
+    let mut s = names.join("; ");
+    if matched.len() > 5 {
+        s.push_str(&format!(" … (+{} more)", matched.len() - 5));
+    }
+    s
+}
+
+/// Evaluate all constraints of a role against the set of resources that
+/// matched it. Emits per-resource violations (e.g. image_not_pinned) and
+/// per-role violations (min/max_count) with `expected`/`actual` populated
+/// for the HTML diff renderer.
+fn check_role_constraints(
+    role: &Role,
+    resource_type: &str,
+    matched: &[&Resource],
+    violations: &mut Vec<Violation>,
+    passed: &mut usize,
+) {
+    let role_tag = format!("role: \"{}\"", role.name);
+
+    // Count-based constraints evaluated once per role.
+    if let Some(min) = role.min_count {
+        if matched.len() < min {
+            violations.push(Violation {
+                severity: Severity::Error,
+                rule: "role_count_below_min".to_string(),
+                message: format!(
+                    "Role \"{}\" on {}: {} matching, minimum is {}",
+                    role.name,
+                    resource_type,
+                    matched.len(),
+                    min
+                ),
+                details: Some(format!(
+                    "{} — matched: {}",
+                    role_tag,
+                    matched_summary(matched)
+                )),
+                expected: Some(format!("≥ {}", min)),
+                actual: Some(matched.len().to_string()),
+            });
+        } else {
+            *passed += 1;
+        }
+    }
+
+    if let Some(max) = role.max_count {
+        if matched.len() > max {
+            violations.push(Violation {
+                severity: Severity::Error,
+                rule: "role_count_above_max".to_string(),
+                message: format!(
+                    "Role \"{}\" on {}: {} matching, maximum is {}",
+                    role.name,
+                    resource_type,
+                    matched.len(),
+                    max
+                ),
+                details: Some(format!(
+                    "{} — matched: {}",
+                    role_tag,
+                    matched_summary(matched)
+                )),
+                expected: Some(format!("≤ {}", max)),
+                actual: Some(matched.len().to_string()),
+            });
+        } else {
+            *passed += 1;
+        }
+    }
+
+    // Per-resource constraints.
+    for r in matched {
+        let path = r.path.as_deref().unwrap_or("-");
+        let detail = format!("{} @ {}", role_tag, path);
+
+        // image_pin — exact (glob) match against a list of allowed pins.
+        // Uses the RFC-006 resolved form when present so `${VAR:-latest}`
+        // → `postgres:16` is compared against the pin, not the template.
+        if !role.image_pin.is_empty() {
+            if let Some(image) = image_for_matching(r) {
+                if !matches_any_pattern(&image, &role.image_pin) {
+                    violations.push(Violation {
+                        severity: Severity::Error,
+                        rule: "role_image_not_pinned".to_string(),
+                        message: format!(
+                            "Role \"{}\": image \"{}\" not in pinned list",
+                            role.name, image
+                        ),
+                        details: Some(detail.clone()),
+                        expected: Some(string_list(&role.image_pin)),
+                        actual: Some(image),
+                    });
+                } else {
+                    *passed += 1;
+                }
+            }
+        }
+
+        // image_prefix — the image must start with one of the listed strings.
+        if !role.image_prefix.is_empty() {
+            if let Some(image) = image_for_matching(r) {
+                let ok = role.image_prefix.iter().any(|pfx| image.starts_with(pfx));
+                if !ok {
+                    violations.push(Violation {
+                        severity: Severity::Error,
+                        rule: "role_image_prefix_mismatch".to_string(),
+                        message: format!(
+                            "Role \"{}\": image \"{}\" does not match any allowed prefix",
+                            role.name, image
+                        ),
+                        details: Some(detail.clone()),
+                        expected: Some(string_list(&role.image_prefix)),
+                        actual: Some(image),
+                    });
+                } else {
+                    *passed += 1;
+                }
+            }
+        }
+
+        // must_expose — each required port must appear in the resource's ports list.
+        if !role.must_expose.is_empty() {
+            let observed_ports = extract_container_ports(r);
+            let missing: Vec<u16> = role
+                .must_expose
+                .iter()
+                .copied()
+                .filter(|p| !observed_ports.contains(p))
+                .collect();
+            if !missing.is_empty() {
+                violations.push(Violation {
+                    severity: Severity::Error,
+                    rule: "role_port_missing".to_string(),
+                    message: format!(
+                        "Role \"{}\": required ports {:?} not exposed (missing {:?})",
+                        role.name, role.must_expose, missing
+                    ),
+                    details: Some(detail.clone()),
+                    expected: Some(
+                        role.must_expose
+                            .iter()
+                            .map(|p| p.to_string())
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    ),
+                    actual: Some(if observed_ports.is_empty() {
+                        "(none)".to_string()
+                    } else {
+                        observed_ports
+                            .iter()
+                            .map(|p| p.to_string())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    }),
+                });
+            } else {
+                *passed += 1;
+            }
+        }
+
+        // must_attach_to — required networks.
+        if !role.must_attach_to.is_empty() {
+            let networks = extract_networks(r);
+            let missing: Vec<&String> = role
+                .must_attach_to
+                .iter()
+                .filter(|n| !networks.iter().any(|actual| actual == *n))
+                .collect();
+            if !missing.is_empty() {
+                violations.push(Violation {
+                    severity: Severity::Error,
+                    rule: "role_network_missing".to_string(),
+                    message: format!(
+                        "Role \"{}\": not attached to required networks ({})",
+                        role.name,
+                        missing
+                            .iter()
+                            .map(|s| s.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
+                    details: Some(detail.clone()),
+                    expected: Some(string_list(&role.must_attach_to)),
+                    actual: Some(if networks.is_empty() {
+                        "(none)".to_string()
+                    } else {
+                        networks.join(", ")
+                    }),
+                });
+            } else {
+                *passed += 1;
+            }
+        }
+
+        // must_set_env / forbidden_env — apply to env_file resources.
+        if !role.must_set_env.is_empty() || !role.forbidden_env.is_empty() {
+            let observed_env = extract_env_keys(r);
+            if !role.must_set_env.is_empty() {
+                let missing: Vec<&String> = role
+                    .must_set_env
+                    .iter()
+                    .filter(|name| !observed_env.iter().any(|k| k == *name))
+                    .collect();
+                if !missing.is_empty() {
+                    violations.push(Violation {
+                        severity: Severity::Error,
+                        rule: "role_env_var_missing".to_string(),
+                        message: format!(
+                            "Role \"{}\": env vars not set: {}",
+                            role.name,
+                            missing
+                                .iter()
+                                .map(|s| s.as_str())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ),
+                        details: Some(detail.clone()),
+                        expected: Some(string_list(&role.must_set_env)),
+                        actual: Some(if observed_env.is_empty() {
+                            "(none)".to_string()
+                        } else {
+                            observed_env.join(", ")
+                        }),
+                    });
+                } else {
+                    *passed += 1;
+                }
+            }
+            if !role.forbidden_env.is_empty() {
+                let present: Vec<&String> = role
+                    .forbidden_env
+                    .iter()
+                    .filter(|name| observed_env.iter().any(|k| k == *name))
+                    .collect();
+                if !present.is_empty() {
+                    violations.push(Violation {
+                        severity: Severity::Error,
+                        rule: "role_env_var_forbidden".to_string(),
+                        message: format!(
+                            "Role \"{}\": forbidden env vars present: {}",
+                            role.name,
+                            present
+                                .iter()
+                                .map(|s| s.as_str())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ),
+                        details: Some(detail.clone()),
+                        expected: Some(string_list(&role.forbidden_env)),
+                        actual: Some(
+                            present
+                                .iter()
+                                .map(|s| s.as_str())
+                                .collect::<Vec<_>>()
+                                .join(", "),
+                        ),
+                    });
+                } else {
+                    *passed += 1;
+                }
+            }
+        }
+    }
+
+    // rendered_must_contain — per-resource: for every matched
+    // ansible_template, every rendering must expose the named keys
+    // whose values match the declared glob pattern. Parsed-dotenv keys
+    // are checked first; a substring match on the raw rendering is the
+    // fallback when no structured form was recognised.
+    if !role.rendered_must_contain.is_empty() {
+        for r in matched {
+            if r.resource_type != "ansible_template" {
+                continue;
+            }
+            let path = r.path.as_deref().unwrap_or("-");
+            let renderings = r
+                .extra
+                .get("renderings")
+                .and_then(|v| v.as_array())
+                .cloned()
+                .unwrap_or_default();
+            for rendering in &renderings {
+                let src_tag = rendering
+                    .get("source")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("?");
+                for (key, expected_glob) in &role.rendered_must_contain {
+                    let actual_val = rendering
+                        .get("rendered_parsed")
+                        .and_then(|p| p.get("keys"))
+                        .and_then(|k| k.get(key))
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string);
+                    let ok = match actual_val.as_deref() {
+                        Some(v) => glob::Pattern::new(expected_glob)
+                            .map(|p| p.matches(v))
+                            .unwrap_or(false),
+                        None => {
+                            // Fallback for unparsed formats: look for
+                            // "<key> <expected>" substring in the raw
+                            // render. Conservative (false negatives
+                            // possible) but avoids false positives.
+                            let rendered = rendering
+                                .get("rendered")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("");
+                            rendered.contains(key)
+                                && rendered.contains(expected_glob.trim_matches('*'))
+                        }
+                    };
+                    if !ok {
+                        violations.push(Violation {
+                            severity: Severity::Error,
+                            rule: "template_value_mismatch".to_string(),
+                            message: format!(
+                                "Role \"{}\": template rendering ({}) key \"{}\" does not satisfy \"{}\"",
+                                role.name, src_tag, key, expected_glob
+                            ),
+                            details: Some(format!("{} @ {}", role_tag, path)),
+                            expected: Some(format!("{} = {}", key, expected_glob)),
+                            actual: Some(
+                                actual_val.unwrap_or_else(|| "(not in rendering)".to_string()),
+                            ),
+                        });
+                    } else {
+                        *passed += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    // must_have_file — evaluated once per role (globs may match anywhere in
+    // the workspace, not only inside matched resources). We check the union
+    // of all resource paths as a cheap proxy for "does the workspace contain
+    // a file matching the glob".
+    for glob_pat in &role.must_have_file {
+        let pat = match glob::Pattern::new(glob_pat) {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+        let any_match = matched.iter().any(|r| {
+            r.path
+                .as_deref()
+                .map(normalize_path)
+                .is_some_and(|p| pat.matches(&p))
+        });
+        if !any_match {
+            violations.push(Violation {
+                severity: Severity::Warning,
+                rule: "role_file_missing".to_string(),
+                message: format!(
+                    "Role \"{}\": required file pattern \"{}\" not satisfied",
+                    role.name, glob_pat
+                ),
+                details: Some(role_tag.clone()),
+                expected: Some(glob_pat.clone()),
+                actual: Some("(not found)".to_string()),
+            });
+        } else {
+            *passed += 1;
+        }
+    }
+}
+
+/// Extract container-side port numbers from a docker_service resource's
+/// `ports` extra. Mappings like `"127.0.0.1:5090:8080"` yield `8080`.
+/// Prefers RFC 006 `resolved_ports` so `${VAR:-5432}` becomes 5432 at check
+/// time rather than being silently dropped by the port parser.
+fn extract_container_ports(r: &Resource) -> Vec<u16> {
+    let ports_source = r
+        .extra
+        .get("resolved_ports")
+        .or_else(|| r.extra.get("ports"));
+    let Some(ports) = ports_source.and_then(|v| v.as_array()) else {
+        return Vec::new();
+    };
+    ports
+        .iter()
+        .filter_map(|v| v.as_str())
+        .filter_map(|s| {
+            // Strip env-var defaults like ${PORT:-8080}
+            let last = s.rsplit_once(':').map(|(_, p)| p).unwrap_or(s);
+            let cleaned: String = last
+                .trim_start_matches('$')
+                .trim_start_matches('{')
+                .trim_end_matches('}')
+                .chars()
+                .take_while(|c| c.is_ascii_digit())
+                .collect();
+            cleaned.parse::<u16>().ok()
+        })
+        .collect()
+}
+
+/// Extract network names attached to a docker_service resource.
+fn extract_networks(r: &Resource) -> Vec<String> {
+    r.extra
+        .get("networks")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Extract the env var key names defined in an env_file resource.
+/// Scanners record them under `extra.keys` (array of strings); fall back to
+/// an empty list for types that don't carry the attribute.
+fn extract_env_keys(r: &Resource) -> Vec<String> {
+    for field in ["keys", "env_keys", "variables_list"] {
+        if let Some(arr) = r.extra.get(field).and_then(|v| v.as_array()) {
+            return arr
+                .iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect();
+        }
+    }
+    Vec::new()
 }
 
 // ─────────────────────────────────────────────────────────
@@ -952,7 +1646,7 @@ fn render_diff_html(diff: &DiffReport) -> String {
         let mut rows = String::new();
         if cat.violations.is_empty() && cat.passed > 0 {
             rows.push_str(&format!(
-                r#"<tr class="row-pass"><td><span class="sev sev-pass">PASS</span></td><td colspan="2">All {} checks passed</td></tr>"#,
+                r#"<tr class="row-pass"><td><span class="sev sev-pass">PASS</span></td><td colspan="4">All {} checks passed</td></tr>"#,
                 cat.passed
             ));
         }
@@ -963,15 +1657,33 @@ fn render_diff_html(diff: &DiffReport) -> String {
                 Severity::Info => ("sev-info", "INFO"),
             };
             let detail = v.details.as_deref().unwrap_or("");
+            let expected_html = render_diff_cell(v.expected.as_deref(), "del");
+            let actual_html = render_diff_cell(v.actual.as_deref(), "ins");
+            let message_html = if detail.is_empty() {
+                html_escape(&v.message)
+            } else {
+                format!(
+                    "{}<br><span class=\"detail\">{}</span>",
+                    html_escape(&v.message),
+                    html_escape(detail)
+                )
+            };
             rows.push_str(&format!(
-                r#"<tr><td><span class="sev {}">{}</span></td><td class="rule">{}</td><td>{}{}</td></tr>"#,
-                sev_class, sev_label,
+                r#"<tr><td><span class="sev {}">{}</span></td><td class="rule">{}</td><td class="col-expected">{}</td><td class="col-actual">{}</td><td class="col-msg">{}</td></tr>"#,
+                sev_class,
+                sev_label,
                 html_escape(&v.rule),
-                html_escape(&v.message),
-                if detail.is_empty() { String::new() } else { format!(r#"<br><span class="detail">{}</span>"#, html_escape(detail)) }
+                expected_html,
+                actual_html,
+                message_html,
             ));
         }
 
+        let table_head = if cat.violations.is_empty() {
+            String::new()
+        } else {
+            r#"<thead><tr><th>Sev</th><th>Rule</th><th>Expected (Compositfile)</th><th>Actual (Scan)</th><th>Message</th></tr></thead>"#.to_string()
+        };
         categories_html.push_str(&format!(
             r#"
     <div class="category">
@@ -979,10 +1691,11 @@ fn render_diff_html(diff: &DiffReport) -> String {
         <h2>{}</h2>
         <div class="badges">{}</div>
       </div>
-      <table>{}</table>
+      <table>{}<tbody>{}</tbody></table>
     </div>"#,
             html_escape(&cat.name.to_uppercase()),
             badge_parts.join(" "),
+            table_head,
             rows
         ));
     }
@@ -1037,6 +1750,19 @@ tr:last-child td {{ border-bottom:none; }}
 .sev-pass {{ background:rgba(63,185,80,.15); color:var(--green); }}
 .rule {{ font-family:'SF Mono',Consolas,monospace; font-size:.8rem; color:var(--muted); white-space:nowrap; }}
 .detail {{ color:var(--muted); font-size:.8rem; }}
+th {{ text-align:left; padding:.5rem 1rem; color:var(--muted); font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; font-weight:600; border-bottom:1px solid var(--border); background:rgba(13,17,23,.5); }}
+.col-expected, .col-actual {{ font-family:'SF Mono',Consolas,monospace; font-size:.8rem; vertical-align:top; max-width:260px; }}
+.col-msg {{ font-size:.85rem; vertical-align:top; }}
+.scalar {{ display:inline-block; padding:.15rem .5rem; border-radius:4px; }}
+.scalar.del {{ background:rgba(248,81,73,.12); color:var(--red); }}
+.scalar.ins {{ background:rgba(63,185,80,.12); color:var(--green); }}
+.diff-pre {{ font-family:'SF Mono',Consolas,monospace; font-size:.75rem; white-space:pre-wrap; word-break:break-all; margin:0; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:.5rem; max-height:200px; overflow:auto; }}
+.diff-pre .line {{ display:block; padding:0 .25rem; }}
+.diff-pre .line.del {{ background:rgba(248,81,73,.12); color:var(--red); }}
+.diff-pre .line.ins {{ background:rgba(63,185,80,.12); color:var(--green); }}
+.diff-pre .line.del::before {{ content:"- "; opacity:.6; }}
+.diff-pre .line.ins::before {{ content:"+ "; opacity:.6; }}
+.empty-diff {{ color:var(--muted); font-style:italic; }}
 .row-pass td {{ color:var(--green); }}
 footer {{ margin-top:2rem; padding-top:1rem; border-top:1px solid var(--border); color:var(--muted); font-size:.8rem; text-align:center; }}
 footer a {{ color:var(--accent); text-decoration:none; }}
@@ -1073,6 +1799,22 @@ footer a {{ color:var(--accent); text-decoration:none; }}
         passed = diff.summary.passed_checks,
         categories = categories_html,
     )
+}
+
+/// Render the expected/actual cell. Multi-line values become a diff-pre block
+/// with +/- line prefixes; scalars become an inline colored chip.
+fn render_diff_cell(value: Option<&str>, kind: &str) -> String {
+    match value {
+        None | Some("") => String::from(r#"<span class="empty-diff">—</span>"#),
+        Some(v) if v.contains('\n') => {
+            let lines: Vec<String> = v
+                .lines()
+                .map(|l| format!(r#"<span class="line {}">{}</span>"#, kind, html_escape(l)))
+                .collect();
+            format!(r#"<pre class="diff-pre">{}</pre>"#, lines.join(""))
+        }
+        Some(v) => format!(r#"<span class="scalar {}">{}</span>"#, kind, html_escape(v)),
+    }
 }
 
 fn html_escape(s: &str) -> String {
@@ -1157,8 +1899,50 @@ fn print_diff_terminal(diff: &DiffReport) {
                 Severity::Info => "INFO ".cyan().bold().to_string(),
             };
             println!("  {}  {} — {}", severity_str, v.rule.dimmed(), v.message);
+            // Show Expected / Actual when present so terminal reaches feature
+            // parity with the HTML diff for role_* and resolution violations.
+            if let (Some(exp), Some(act)) = (v.expected.as_deref(), v.actual.as_deref()) {
+                let exp_display = if exp.contains('\n') {
+                    exp.replace('\n', ", ")
+                } else {
+                    exp.to_string()
+                };
+                let act_display = if act.contains('\n') {
+                    act.replace('\n', ", ")
+                } else {
+                    act.to_string()
+                };
+                println!(
+                    "         expected {} / actual {}",
+                    format!("- {}", exp_display).red(),
+                    format!("+ {}", act_display).green()
+                );
+            }
             if let Some(detail) = &v.details {
                 println!("         {}", detail.dimmed());
+            }
+        }
+
+        // Dedicated resolution-category tail: show env_files_used as a
+        // one-line summary so operators see at-a-glance which .env feeds
+        // the resolver, without having to open the YAML report.
+        if cat.name == "resolution" {
+            // Only meaningful when the scan actually opted into resolution;
+            // we can't read the report from here, so use a terse placeholder
+            // indicator based on category contents.
+            let disabled = cat
+                .violations
+                .iter()
+                .any(|v| v.rule == "resolution_disabled");
+            if !disabled {
+                let unresolved_count = cat
+                    .violations
+                    .iter()
+                    .filter(|v| v.rule == "unresolved_variable")
+                    .count();
+                if unresolved_count == 0 && cat.passed > 0 {
+                    println!("         {}", "(every ${VAR} resolved to a value)".dimmed());
+                }
             }
         }
     }
@@ -1210,6 +1994,7 @@ mod tests {
                 auto_detected: 0,
                 estimated_monthly_cost: cost.to_string(),
             },
+            resolution: None,
         }
     }
 
@@ -1405,6 +2190,7 @@ mod tests {
                 max: Some(20),
                 allowed_images: vec![],
                 allowed_types: vec![],
+                roles: vec![],
             }],
             require: vec![],
         });
@@ -1462,12 +2248,14 @@ mod tests {
                     max: Some(20),
                     allowed_images: vec![],
                     allowed_types: vec![],
+                    roles: vec![],
                 },
                 AllowRule {
                     resource_type: "docker_compose".to_string(),
                     max: Some(10),
                     allowed_images: vec![],
                     allowed_types: vec![],
+                    roles: vec![],
                 },
             ],
             require: vec![RequireRule {

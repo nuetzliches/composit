@@ -44,6 +44,7 @@ impl Scanner for OpaPolicyScanner {
         Ok(ScanResult {
             resources,
             providers: vec![],
+            resolution: None,
         })
     }
 }

@@ -1,0 +1,34 @@
+workspace "jinja-demo" {
+
+  scan {
+    ansible {
+      # Inventory-per-environment rendering: each template gets rendered
+      # twice, once for staging and once for production.
+      inventories = ["inventory.production.yml", "inventory.staging.yml"]
+
+      # extra_vars override anything in the inventory (e.g. force HTTPS
+      # everywhere, regardless of inventory opinion).
+      extra_vars {
+        ssl_enabled = "true"
+      }
+    }
+  }
+
+  resources {
+    allow "ansible_template" {
+      # Role constraint on rendered output. The `app.env.j2` template
+      # produces a dotenv blob; we require that the `APP_ENV` key is
+      # populated with *any* non-empty value. `APP_DOMAIN` must end in
+      # `.example.com`.
+      role "app-env-template" {
+        match {
+          name = ["app.env.j2"]
+        }
+        rendered_must_contain {
+          APP_ENV    = "*"
+          APP_DOMAIN = "*.example.com"
+        }
+      }
+    }
+  }
+}

@@ -69,6 +69,7 @@ impl Scanner for McpProviderScanner {
         Ok(ScanResult {
             resources: all_resources,
             providers: all_providers,
+            resolution: None,
         })
     }
 }

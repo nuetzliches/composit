@@ -1,0 +1,11 @@
+# RFC 006 opt-in: resolution runs only because this block declares the
+# `.env` file as resolvable. The redaction defaults still hide secret-
+# looking keys (*_SECRET, *_KEY, *_TOKEN, *_PASSWORD, DATABASE_URL).
+# `redact` also hides matching key names in env_file.keys output.
+workspace "resolution-demo" {
+
+  scan {
+    resolvable = [".env"]
+    redact     = ["*_INTERNAL_URL"]
+  }
+}

@@ -45,7 +45,11 @@
       "description": "All detected resources. Concrete fields beyond the required ones depend on resource_type (e.g. docker_service has image/ports; workflow has runs_on/jobs).",
       "items": { "$ref": "#/$defs/Resource" }
     },
-    "summary": { "$ref": "#/$defs/Summary" }
+    "summary": { "$ref": "#/$defs/Summary" },
+    "resolution": {
+      "$ref": "#/$defs/Resolution",
+      "description": "RFC 006 cross-file variable resolution metadata. Present when the scan opted into resolution via `scan.resolvable` in the Compositfile."
+    }
   },
   "$defs": {
     "Provider": {
@@ -228,6 +232,44 @@
           "description": "Aggregated monthly cost in a single currency (currently EUR).",
           "pattern": "^[0-9]+(\\.[0-9]+)? [A-Z]{3}$",
           "examples": ["0 EUR", "47 EUR"]
+        }
+      }
+    },
+    "Resolution": {
+      "type": "object",
+      "description": "RFC 006 cross-file variable resolution artefacts recorded by `composit scan`. Opt-in: only present when the Compositfile's `scan.resolvable` glob list is non-empty.",
+      "additionalProperties": false,
+      "properties": {
+        "env_files_used": {
+          "type": "array",
+          "description": "Relative paths (forward slashes, leading ./) of env files consulted during the resolution pass.",
+          "items": { "type": "string" }
+        },
+        "unresolved": {
+          "type": "array",
+          "description": "${VAR} references the resolver could not fill because the variable was not in any resolvable env file and had no :-default fallback. `composit diff` surfaces each entry as an Info-level `unresolved_variable` violation.",
+          "items": { "$ref": "#/$defs/UnresolvedVariable" }
+        }
+      }
+    },
+    "UnresolvedVariable": {
+      "type": "object",
+      "required": ["resource_path", "field", "variable"],
+      "additionalProperties": false,
+      "properties": {
+        "resource_path": {
+          "type": "string",
+          "description": "Path of the resource whose field carries the unresolved template."
+        },
+        "field": {
+          "type": "string",
+          "description": "Name of the resource field that contains the template (e.g. `image`, `ports`).",
+          "examples": ["image", "ports"]
+        },
+        "variable": {
+          "type": "string",
+          "description": "The variable name that could not be resolved (no surrounding `${...}`).",
+          "examples": ["NEO_API_TAG", "DATABASE_HOST"]
         }
       }
     }

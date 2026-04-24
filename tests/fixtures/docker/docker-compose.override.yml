@@ -1,0 +1,13 @@
+services:
+  api:
+    # Override: dev-only mount
+    volumes:
+      - ./src:/app/src
+
+  debug-sidecar:
+    image: ghcr.io/example/debug-sidecar:latest
+    networks:
+      - internal
+
+networks:
+  internal:
