@@ -1,10 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 
 use anyhow::Result;
 use colored::Colorize;
 
-use crate::core::types::Report;
+use crate::core::types::{Report, Resource};
 
 /// Header prepended to every generated Compositfile. Without this, coding
 /// agents tend to auto-update the Compositfile whenever they add
@@ -185,6 +185,32 @@ fn generate_from_report(workspace: &str, report: &Report) -> String {
         }
     }
 
+    // RFC 006 hint: if the scan found ${VAR} templates, mention the opt-in
+    // without enabling it. Keeps the baseline Compositfile minimal while
+    // making the feature discoverable at the right moment.
+    let has_templated = report.resources.iter().any(|r| {
+        r.extra
+            .get("image")
+            .and_then(|v| v.as_str())
+            .is_some_and(|s| s.contains("${"))
+            || r.extra
+                .get("ports")
+                .and_then(|v| v.as_array())
+                .is_some_and(|arr| {
+                    arr.iter()
+                        .any(|p| p.as_str().is_some_and(|s| s.contains("${")))
+                })
+    });
+    if has_templated {
+        out.push_str("\n  # --- Cross-file variable resolution (RFC 006) ---\n");
+        out.push_str("  # Scan found ${VAR} references in docker-compose files. Uncomment to\n");
+        out.push_str("  # let composit substitute values from .env files. Secret-looking keys\n");
+        out.push_str("  # (*_SECRET, *_KEY, *_TOKEN, *_PASSWORD, DATABASE_URL) are redacted.\n");
+        out.push_str("  # scan {\n");
+        out.push_str("  #   resolvable = [\".env\"]\n");
+        out.push_str("  # }\n");
+    }
+
     // Resources
     if !report.resources.is_empty() {
         let mut by_type: HashMap<&str, usize> = HashMap::new();
@@ -210,6 +236,18 @@ fn generate_from_report(workspace: &str, report: &Report) -> String {
             let max = std::cmp::max(count + 5, count * 2);
             out.push_str(&format!("    allow \"{resource_type}\" {{\n"));
             out.push_str(&format!("      max = {max}  # found: {count}\n"));
+
+            // RFC 005: detect common role patterns in the scanned resources
+            // and emit commented-out stubs so authors see concrete suggestions
+            // next to their own data. Everything is commented — the baseline
+            // Compositfile still passes diff; the stubs are opt-in.
+            let resources_of_type: Vec<&Resource> = report
+                .resources
+                .iter()
+                .filter(|r| r.resource_type == *resource_type)
+                .collect();
+            emit_role_stubs(&mut out, resource_type, &resources_of_type);
+
             out.push_str("    }\n");
         }
 
@@ -218,4 +256,378 @@ fn generate_from_report(workspace: &str, report: &Report) -> String {
 
     out.push_str("}\n");
     out
+}
+
+// ─────────────────────────────────────────────────────────
+// Role-stub scaffolding — emit commented-out role blocks that
+// reflect patterns detected in the scan. Opt-in: authors uncomment
+// and tailor. Default Compositfile stays PASS-by-default.
+// ─────────────────────────────────────────────────────────
+
+fn emit_role_stubs(out: &mut String, resource_type: &str, resources: &[&Resource]) {
+    match resource_type {
+        "docker_service" => {
+            emit_docker_service_roles(out, resources);
+        }
+        "env_file" => {
+            emit_env_file_roles(out, resources);
+        }
+        _ => {}
+    }
+}
+
+fn emit_docker_service_roles(out: &mut String, resources: &[&Resource]) {
+    let images: Vec<&str> = resources
+        .iter()
+        .filter_map(|r| r.extra.get("image").and_then(|v| v.as_str()))
+        .collect();
+    let names: Vec<&str> = resources.iter().filter_map(|r| r.name.as_deref()).collect();
+    let paths: Vec<&str> = resources.iter().filter_map(|r| r.path.as_deref()).collect();
+
+    // -- Database role: detected if any image is a known DB family.
+    let db_families: &[&str] = &[
+        "postgres:",
+        "mysql:",
+        "mariadb:",
+        "mongo:",
+        "redis:",
+        "mcr.microsoft.com/mssql/",
+    ];
+    let matched_db_images: BTreeSet<String> = images
+        .iter()
+        .filter(|i| db_families.iter().any(|fam| i.starts_with(fam)))
+        .map(|s| s.to_string())
+        .collect();
+    if !matched_db_images.is_empty() {
+        let image_patterns: BTreeSet<String> = matched_db_images
+            .iter()
+            .filter_map(|img| {
+                db_families
+                    .iter()
+                    .find(|fam| img.starts_with(*fam))
+                    .map(|fam| format!("{fam}*"))
+            })
+            .collect();
+        let image_patterns: Vec<String> = image_patterns.into_iter().collect();
+        let pins: Vec<String> = matched_db_images.iter().cloned().collect();
+
+        out.push_str("\n      # --- Detected role: database ---\n");
+        out.push_str(&format!(
+            "      # Matched {} image(s): {}\n",
+            matched_db_images.len(),
+            pins.join(", ")
+        ));
+        out.push_str("      # role \"database\" {\n");
+        out.push_str("      #   match {\n");
+        out.push_str(&format!(
+            "      #     image     = [{}]\n",
+            quote_list(&image_patterns)
+        ));
+        out.push_str("      #     predicate = \"any\"\n");
+        out.push_str("      #   }\n");
+        out.push_str(&format!("      #   image_pin = [{}]\n", quote_list(&pins)));
+        out.push_str("      # }\n");
+    }
+
+    // -- API role: detected if any service name matches *-api / api-* / api.
+    let api_names: Vec<&str> = names
+        .iter()
+        .copied()
+        .filter(|n| looks_like_api_name(n))
+        .collect();
+    if !api_names.is_empty() {
+        let unique_prefixes: BTreeSet<String> = images
+            .iter()
+            .filter(|_| !api_names.is_empty())
+            .filter_map(|img| extract_registry_prefix(img))
+            .collect();
+        out.push_str("\n      # --- Detected role: api ---\n");
+        out.push_str(&format!(
+            "      # Service name(s) matched: {}\n",
+            api_names.join(", ")
+        ));
+        out.push_str("      # role \"api\" {\n");
+        out.push_str("      #   match {\n");
+        out.push_str("      #     name = [\"*-api\", \"api-*\", \"api\"]\n");
+        out.push_str("      #   }\n");
+        if !unique_prefixes.is_empty() {
+            let prefixes: Vec<String> = unique_prefixes.into_iter().collect();
+            out.push_str(&format!(
+                "      #   image_prefix = [{}]\n",
+                quote_list(&prefixes)
+            ));
+        } else {
+            out.push_str("      #   image_prefix = [\"ghcr.io/your-org/\"]\n");
+        }
+        out.push_str("      #   # must_expose = [8080]\n");
+        out.push_str("      # }\n");
+    }
+
+    // -- Monitoring role: detected if resources live under a monitoring path.
+    let monitoring_markers: &[&str] = &[
+        "monitoring/",
+        "monitoring\\",
+        "grafana/",
+        "prometheus/",
+        "cadvisor",
+        "watchtower",
+    ];
+    let has_monitoring = paths.iter().any(|p| {
+        monitoring_markers
+            .iter()
+            .any(|m| p.to_lowercase().contains(m))
+    });
+    if has_monitoring {
+        out.push_str("\n      # --- Detected role: monitoring ---\n");
+        out.push_str("      # Services with paths containing monitoring/grafana/prometheus\n");
+        out.push_str("      # role \"monitoring\" {\n");
+        out.push_str("      #   match {\n");
+        out.push_str(
+            "      #     path = [\"**/monitoring/**\", \"**/grafana/**\", \"**/prometheus/**\"]\n",
+        );
+        out.push_str("      #   }\n");
+        out.push_str("      #   must_attach_to = [\"monitoring\"]\n");
+        out.push_str("      # }\n");
+    }
+
+    // -- Search/Elasticsearch role.
+    let has_es = images
+        .iter()
+        .any(|i| i.starts_with("docker.elastic.co/elasticsearch/"));
+    if has_es {
+        out.push_str("\n      # --- Detected role: search-index ---\n");
+        out.push_str("      # role \"search-index\" {\n");
+        out.push_str("      #   match {\n");
+        out.push_str("      #     image = [\"docker.elastic.co/elasticsearch/*\"]\n");
+        out.push_str("      #   }\n");
+        out.push_str("      #   image_prefix = [\"docker.elastic.co/elasticsearch/\"]\n");
+        out.push_str("      # }\n");
+    }
+}
+
+fn emit_env_file_roles(out: &mut String, resources: &[&Resource]) {
+    let has_prod = resources.iter().any(|r| {
+        r.path
+            .as_deref()
+            .is_some_and(|p| p.contains(".env.production") || p.contains("/production/"))
+    });
+    if has_prod {
+        out.push_str("\n      # --- Detected role: production-env ---\n");
+        out.push_str("      # .env.production / ansible/**/production/** files detected\n");
+        out.push_str("      # role \"production-env\" {\n");
+        out.push_str("      #   match {\n");
+        out.push_str("      #     path = [\"**/.env.production\", \"**/production/**\"]\n");
+        out.push_str("      #   }\n");
+        out.push_str("      #   forbidden_env = [\"DEBUG\", \"VERBOSE\"]\n");
+        out.push_str("      #   # must_set_env = [\"DATABASE_URL\"]\n");
+        out.push_str("      # }\n");
+    }
+}
+
+fn looks_like_api_name(name: &str) -> bool {
+    let n = name.to_lowercase();
+    n == "api"
+        || n.ends_with("-api")
+        || n.ends_with("_api")
+        || n.starts_with("api-")
+        || n.starts_with("api_")
+}
+
+/// Heuristic: for an image like `ghcr.io/org/repo:tag` return `ghcr.io/org/`.
+/// Skips official Docker Hub images (no slash before the tag) and bare local
+/// builds. Returns None when no useful prefix exists.
+fn extract_registry_prefix(image: &str) -> Option<String> {
+    let no_tag = image.split(':').next().unwrap_or(image);
+    // Must contain at least one '/' to be registry-qualified and a '.' in the
+    // first segment to rule out docker-hub shorthand like "library/postgres".
+    let first_seg = no_tag.split('/').next()?;
+    if !first_seg.contains('.') {
+        return None;
+    }
+    // Cut at the second '/' to get "registry/org/" — drop the repo tail.
+    let mut parts = no_tag.splitn(3, '/');
+    let reg = parts.next()?;
+    let org = parts.next()?;
+    Some(format!("{reg}/{org}/"))
+}
+
+fn quote_list(items: &[String]) -> String {
+    items
+        .iter()
+        .map(|s| format!("\"{}\"", s))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::types::{Report, Resource, Summary};
+    use serde_json::Value;
+    use std::collections::HashMap;
+
+    fn mk_resource(
+        rt: &str,
+        name: Option<&str>,
+        path: Option<&str>,
+        image: Option<&str>,
+    ) -> Resource {
+        let mut extra = HashMap::new();
+        if let Some(img) = image {
+            extra.insert("image".to_string(), Value::String(img.to_string()));
+        }
+        Resource {
+            resource_type: rt.to_string(),
+            name: name.map(str::to_string),
+            path: path.map(str::to_string),
+            provider: None,
+            created: None,
+            created_by: None,
+            detected_by: "test".to_string(),
+            estimated_cost: None,
+            extra,
+        }
+    }
+
+    fn mk_report(resources: Vec<Resource>) -> Report {
+        let total = resources.len();
+        Report {
+            workspace: "test".to_string(),
+            generated: "2026-04-24T00:00:00Z".to_string(),
+            scanner_version: "test".to_string(),
+            scan_mode: None,
+            resources,
+            providers: vec![],
+            resolution: None,
+            summary: Summary {
+                total_resources: total,
+                providers: 0,
+                agent_created: 0,
+                agent_assisted: 0,
+                human_created: 0,
+                auto_detected: 0,
+                estimated_monthly_cost: "0 EUR".to_string(),
+            },
+        }
+    }
+
+    #[test]
+    fn database_role_stub_emitted_for_postgres_image() {
+        let report = mk_report(vec![mk_resource(
+            "docker_service",
+            Some("db"),
+            Some("./docker-compose.yml"),
+            Some("postgres:16"),
+        )]);
+        let content = generate_from_report("demo", &report);
+        assert!(content.contains("# --- Detected role: database ---"));
+        assert!(content.contains(r#"image_pin = ["postgres:16"]"#));
+        assert!(content.contains(r#"image     = ["postgres:*"]"#));
+    }
+
+    #[test]
+    fn api_role_stub_emitted_for_matching_names() {
+        let report = mk_report(vec![
+            mk_resource(
+                "docker_service",
+                Some("payments-api"),
+                Some("./docker-compose.yml"),
+                Some("ghcr.io/acme/payments:v1"),
+            ),
+            mk_resource(
+                "docker_service",
+                Some("web"),
+                Some("./docker-compose.yml"),
+                Some("nginx:alpine"),
+            ),
+        ]);
+        let content = generate_from_report("demo", &report);
+        assert!(content.contains("# --- Detected role: api ---"));
+        assert!(content.contains("Service name(s) matched: payments-api"));
+        assert!(
+            content.contains(r#"image_prefix = ["ghcr.io/acme/"]"#),
+            "should suggest the observed ghcr.io/acme prefix; got:\n{content}"
+        );
+    }
+
+    #[test]
+    fn monitoring_role_stub_emitted_for_monitoring_path() {
+        let report = mk_report(vec![mk_resource(
+            "docker_service",
+            Some("grafana"),
+            Some("./CustomerPortal.Monitoring/docker-compose.yml"),
+            Some("grafana/grafana:latest"),
+        )]);
+        let content = generate_from_report("demo", &report);
+        assert!(content.contains("# --- Detected role: monitoring ---"));
+    }
+
+    #[test]
+    fn production_env_stub_emitted_for_prod_env_file() {
+        let report = mk_report(vec![mk_resource(
+            "env_file",
+            None,
+            Some("./app/.env.production"),
+            None,
+        )]);
+        let content = generate_from_report("demo", &report);
+        assert!(content.contains("# --- Detected role: production-env ---"));
+        assert!(content.contains(r#"forbidden_env = ["DEBUG", "VERBOSE"]"#));
+    }
+
+    #[test]
+    fn no_stubs_emitted_when_no_patterns_match() {
+        let report = mk_report(vec![mk_resource(
+            "docker_service",
+            Some("web"),
+            Some("./docker-compose.yml"),
+            Some("nginx:alpine"),
+        )]);
+        let content = generate_from_report("demo", &report);
+        assert!(!content.contains("Detected role:"));
+    }
+
+    #[test]
+    fn stubs_are_commented_so_baseline_diff_still_passes() {
+        let report = mk_report(vec![mk_resource(
+            "docker_service",
+            Some("db"),
+            Some("./docker-compose.yml"),
+            Some("postgres:16"),
+        )]);
+        let content = generate_from_report("demo", &report);
+        // Every emitted "role " line must be commented, otherwise a fresh
+        // init would produce violations on first diff.
+        for line in content.lines() {
+            let trimmed = line.trim_start();
+            if trimmed.starts_with("role ") {
+                panic!("uncommented role block in init output: {line}");
+            }
+        }
+    }
+
+    #[test]
+    fn extract_registry_prefix_handles_common_cases() {
+        assert_eq!(
+            extract_registry_prefix("ghcr.io/acme/api:v1"),
+            Some("ghcr.io/acme/".to_string())
+        );
+        assert_eq!(
+            extract_registry_prefix("git.example.io/team/repo"),
+            Some("git.example.io/team/".to_string())
+        );
+        // Docker Hub shorthand — no dotted registry
+        assert_eq!(extract_registry_prefix("postgres:16"), None);
+        assert_eq!(extract_registry_prefix("library/alpine"), None);
+    }
+
+    #[test]
+    fn looks_like_api_name_matches_suffixes_and_prefixes() {
+        assert!(looks_like_api_name("api"));
+        assert!(looks_like_api_name("payments-api"));
+        assert!(looks_like_api_name("PAYMENTS_API"));
+        assert!(looks_like_api_name("api-gateway"));
+        assert!(!looks_like_api_name("web"));
+        assert!(!looks_like_api_name("apiary"));
+    }
 }

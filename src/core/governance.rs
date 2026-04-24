@@ -38,6 +38,49 @@ pub struct ScanSettings {
     /// Per-scanner on/off override. Missing keys default to enabled.
     #[serde(default)]
     pub scanners: HashMap<String, bool>,
+
+    /// RFC 006: env-file globs whose values may be substituted into other
+    /// resources (e.g. `${VAR}` in docker-compose). Empty = no resolution;
+    /// values never leave disk. Keys matching any `redact` pattern are
+    /// replaced with `<redacted>` before substitution so secret-looking
+    /// variables don't end up in the report.
+    #[serde(default)]
+    pub resolvable: Vec<String>,
+
+    /// RFC 006: glob-style patterns on env-var *keys* whose values MUST
+    /// be redacted even when `resolvable` allows substitution. Matched
+    /// case-insensitively against the key name. Defaults apply on top of
+    /// anything declared here.
+    #[serde(default)]
+    pub redact: Vec<String>,
+
+    /// RFC 007: Ansible-specific knobs. Empty defaults mean templates
+    /// are discovered but not rendered; set `ansible.extra_vars` to opt
+    /// into rendering.
+    #[serde(default)]
+    pub ansible: AnsibleSettings,
+}
+
+/// RFC 007: Ansible rendering knobs.
+///
+/// v0.1 supported `extra_vars` only. v0.2 adds inventory-aware rendering:
+/// each inventory listed in `inventories` produces a separate
+/// rendering per template, with variables merged from
+/// `all:vars` + matching group:vars + `extra_vars` (highest precedence).
+/// `host_vars/` precedence is still deferred — see RFC 007 §Open questions.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AnsibleSettings {
+    /// Variables that override any inventory-provided value. Equivalent
+    /// in spirit to `ansible-playbook --extra-vars`. Alone (no
+    /// `inventories`), templates render once with just these values.
+    #[serde(default)]
+    pub extra_vars: HashMap<String, String>,
+
+    /// Paths (relative to scan root) of inventory files to render for.
+    /// Each one produces a separate entry in `ansible_template.renderings`.
+    /// Omit for extra-vars-only rendering.
+    #[serde(default)]
+    pub inventories: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -125,6 +168,11 @@ pub struct AllowRule {
     pub allowed_images: Vec<String>,
     #[serde(default)]
     pub allowed_types: Vec<String>,
+    /// Role sub-blocks — RFC 005. Each role targets a subset of resources of
+    /// this type (via matcher predicates) and attaches stricter constraints
+    /// than the type-level ones above.
+    #[serde(default)]
+    pub roles: Vec<Role>,
 }
 
 /// Require that a resource type exists with at least `min` instances.
@@ -132,4 +180,66 @@ pub struct AllowRule {
 pub struct RequireRule {
     pub resource_type: String,
     pub min: usize,
+}
+
+/// Role — a named subset of resources within an `allow` block carrying its
+/// own constraints. See RFC 005.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Role {
+    pub name: String,
+    #[serde(default)]
+    pub matcher: Matcher,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub image_pin: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub image_prefix: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub must_expose: Vec<u16>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub must_attach_to: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub must_set_env: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub forbidden_env: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub must_have_file: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_count: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_count: Option<usize>,
+    /// RFC 007 template-rendering constraint: every rendering of a
+    /// matched `ansible_template` resource MUST expose the given keys
+    /// with values whose glob matches. Applies only when the role
+    /// targets `ansible_template` resources (match.type or detection
+    /// via resource_type scoping).
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub rendered_must_contain: HashMap<String, String>,
+}
+
+/// Matcher — selects which resources belong to a role.
+/// Empty matcher (all fields empty) selects every resource of the parent type.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Matcher {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub name: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub image: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub path: Vec<String>,
+    #[serde(default)]
+    pub predicate: Predicate,
+}
+
+impl Matcher {
+    pub fn is_empty(&self) -> bool {
+        self.name.is_empty() && self.image.is_empty() && self.path.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Predicate {
+    #[default]
+    All,
+    Any,
 }

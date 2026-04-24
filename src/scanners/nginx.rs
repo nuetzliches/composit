@@ -57,6 +57,7 @@ impl Scanner for NginxScanner {
         Ok(ScanResult {
             resources,
             providers: vec![],
+            resolution: None,
         })
     }
 }

@@ -66,6 +66,7 @@ impl Scanner for TraefikScanner {
         Ok(ScanResult {
             resources,
             providers: vec![],
+            resolution: None,
         })
     }
 }

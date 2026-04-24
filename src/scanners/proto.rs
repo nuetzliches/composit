@@ -44,6 +44,7 @@ impl Scanner for ProtoScanner {
         Ok(ScanResult {
             resources,
             providers: vec![],
+            resolution: None,
         })
     }
 }

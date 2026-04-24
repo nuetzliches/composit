@@ -19,15 +19,54 @@ pub struct ScanContext {
     pub exclude_patterns: Vec<glob::Pattern>,
 }
 
+/// Hard-wired exclusion patterns every scan applies on top of whatever the
+/// user declares in `scan.exclude_paths`. These directories are never useful
+/// targets (they're dependency caches, VCS internals, or build artefacts)
+/// and every scanner that walks the tree would otherwise have to re-invent
+/// the filter. Keeping them here means node_modules false-positives can't
+/// slip through even when the workspace has no Compositfile.
+pub const DEFAULT_EXCLUDES: &[&str] = &[
+    "**/node_modules/**",
+    "**/target/**",
+    "**/.git/**",
+    "**/.venv/**",
+    "**/__pycache__/**",
+    "**/dist/**",
+    "**/build/**",
+];
+
 impl ScanContext {
     pub fn is_excluded(&self, path: &Path) -> bool {
-        if self.exclude_patterns.is_empty() {
-            return false;
-        }
         let rel = path.strip_prefix(&self.dir).unwrap_or(path);
-        let rel_str = rel.to_string_lossy();
+        let rel_str = normalize_rel_path(&rel.to_string_lossy());
+
+        for p in default_exclude_patterns() {
+            if p.matches(&rel_str) {
+                return true;
+            }
+        }
         self.exclude_patterns.iter().any(|p| p.matches(&rel_str))
     }
+}
+
+/// Compile the hard-wired defaults lazily so we pay the glob-parse cost once
+/// per process. `LazyLock` keeps the helper internal (no need to plumb a
+/// thread-safe cache through ScanContext).
+fn default_exclude_patterns() -> &'static [glob::Pattern] {
+    use std::sync::OnceLock;
+    static PATTERNS: OnceLock<Vec<glob::Pattern>> = OnceLock::new();
+    PATTERNS.get_or_init(|| {
+        DEFAULT_EXCLUDES
+            .iter()
+            .filter_map(|p| glob::Pattern::new(p).ok())
+            .collect()
+    })
+}
+
+/// Normalise a relative path for glob matching: forward slashes only.
+/// Windows emits "Foo\\Bar\\baz" from strip_prefix; globs use '/'.
+fn normalize_rel_path(s: &str) -> String {
+    s.replace('\\', "/")
 }
 
 /// Compile a user-supplied entry into a glob pattern. Bare paths like
@@ -86,9 +125,25 @@ mod tests {
     }
 
     #[test]
-    fn empty_patterns_excludes_nothing() {
+    fn empty_user_patterns_still_applies_defaults() {
+        // Even without a Compositfile, node_modules / target / .git must be
+        // excluded so scanners never surface vendored or built artefacts.
         let c = ctx("/repo", &[]);
         assert!(!c.is_excluded(Path::new("/repo/tests/fixtures/any.yml")));
+        assert!(c.is_excluded(Path::new("/repo/node_modules/foo/bar.yml")));
+        assert!(c.is_excluded(Path::new("/repo/deep/nested/node_modules/bar.yml")));
+        assert!(c.is_excluded(Path::new("/repo/target/debug/foo")));
+        assert!(c.is_excluded(Path::new("/repo/.git/HEAD")));
+        assert!(c.is_excluded(Path::new("/repo/backend/.venv/lib/foo.py")));
+    }
+
+    #[test]
+    fn defaults_apply_on_windows_style_paths() {
+        // strip_prefix on Windows leaves backslashes. Globs use forward
+        // slashes, so paths must be normalised before matching or
+        // node_modules bleeds through on Windows.
+        let c = ctx("/repo", &[]);
+        assert!(c.is_excluded(Path::new("/repo/app\\node_modules\\pkg\\index.js")));
     }
 
     #[test]
@@ -138,9 +193,37 @@ impl ProviderTarget {
     }
 }
 
+#[derive(Default)]
 pub struct ScanResult {
     pub resources: Vec<Resource>,
     pub providers: Vec<Provider>,
+    /// RFC 006 resolution metadata. `None` when no resolution was attempted
+    /// (no `scan.resolvable` in the Compositfile); `Some` even when empty
+    /// so downstream code can show "resolution ran but found nothing".
+    pub resolution: Option<ResolutionInfo>,
+}
+
+/// Records what RFC 006 cross-file variable resolution did during a scan.
+/// Surfaced in the composit-report so diff can point to `env_files_used`
+/// and emit `unresolved_variable` info diagnostics.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct ResolutionInfo {
+    /// Relative paths (forward-slash) of env files consulted during the
+    /// resolution pass. Empty when no resolvable glob matched.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub env_files_used: Vec<String>,
+    /// `${VAR}` references the resolver could not fill in because the
+    /// variable was neither declared in a resolvable env file nor carried
+    /// a `:-default` fallback.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unresolved: Vec<UnresolvedVariable>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UnresolvedVariable {
+    pub resource_path: String,
+    pub field: String,
+    pub variable: String,
 }
 
 #[async_trait]

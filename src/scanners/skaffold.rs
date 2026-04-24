@@ -47,6 +47,7 @@ impl Scanner for SkaffoldScanner {
         Ok(ScanResult {
             resources,
             providers: vec![],
+            resolution: None,
         })
     }
 }

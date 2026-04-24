@@ -43,6 +43,7 @@ impl Scanner for RenderYamlScanner {
         Ok(ScanResult {
             resources,
             providers: vec![],
+            resolution: None,
         })
     }
 }

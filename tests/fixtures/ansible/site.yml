@@ -1,0 +1,16 @@
+- hosts: web
+  roles:
+    - common
+    - nginx
+  tasks:
+    - name: Ensure nginx is running
+      service:
+        name: nginx
+        state: started
+
+- hosts: db
+  tasks:
+    - name: Install postgres
+      apt:
+        name: postgresql
+        state: present

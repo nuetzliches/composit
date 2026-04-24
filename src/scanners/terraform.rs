@@ -103,6 +103,7 @@ impl Scanner for TerraformScanner {
         Ok(ScanResult {
             resources,
             providers: vec![],
+            resolution: None,
         })
     }
 }

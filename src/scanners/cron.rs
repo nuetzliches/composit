@@ -36,6 +36,7 @@ impl Scanner for CronScanner {
                 return Ok(ScanResult {
                     resources: vec![],
                     providers: vec![],
+                    resolution: None,
                 })
             }
         };
@@ -43,6 +44,7 @@ impl Scanner for CronScanner {
         Ok(ScanResult {
             resources: parse_crontab(&output),
             providers: vec![],
+            resolution: None,
         })
     }
 }

@@ -8,6 +8,7 @@ pub fn to_html(report: &Report) -> Result<String> {
     let resources_by_type = group_by_type(&report.resources);
     let attribution_breakdown = attribution_stats(&report.resources);
 
+    let filter_bar = render_filter_bar(&resources_by_type);
     let resource_sections = render_resource_sections(&resources_by_type);
     let attribution_rows = render_attribution_rows(&attribution_breakdown);
     let provider_rows = render_provider_rows(report);
@@ -136,6 +137,68 @@ tr:hover {{ background: rgba(88, 166, 255, 0.04); }}
 .mono {{ font-family: 'SF Mono', Consolas, monospace; font-size: 0.8rem; }}
 .muted {{ color: var(--text-muted); }}
 .detail {{ color: var(--text-muted); font-size: 0.8rem; }}
+.path-sub {{
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  margin-top: 0.15rem;
+  word-break: break-all;
+}}
+.filter-bar {{
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  align-items: center;
+}}
+.filter-bar .label {{
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-right: 0.5rem;
+}}
+.filter-bar label.chk {{
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.85rem;
+  color: var(--text);
+}}
+.filter-bar label.chk input {{
+  accent-color: var(--accent);
+  cursor: pointer;
+}}
+.filter-bar label.chk .count {{
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}}
+.filter-bar .actions {{
+  margin-left: auto;
+  display: flex;
+  gap: 0.5rem;
+}}
+.filter-bar button {{
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+  font-family: inherit;
+}}
+.filter-bar button:hover {{
+  color: var(--text);
+  border-color: var(--accent);
+}}
+section.hidden {{ display: none; }}
 .two-col {{
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -168,6 +231,8 @@ footer a {{ color: var(--accent); text-decoration: none; }}
 
 {summary_cards}
 
+{filter_bar}
+
 {resource_sections}
 
 <div class="two-col">
@@ -194,6 +259,7 @@ footer a {{ color: var(--accent); text-decoration: none; }}
         generated = html_escape(&report.generated),
         version = html_escape(&report.scanner_version),
         summary_cards = summary_cards,
+        filter_bar = filter_bar,
         resource_sections = resource_sections,
         attribution_rows = attribution_rows,
         provider_section = if report.providers.is_empty() {
@@ -362,6 +428,55 @@ fn render_summary_cards(report: &Report) -> String {
     format!(r#"<div class="cards">{}</div>"#, cards.join("\n"))
 }
 
+fn render_filter_bar(groups: &[(&str, Vec<&Resource>)]) -> String {
+    if groups.is_empty() {
+        return String::new();
+    }
+    let chips: Vec<String> = groups
+        .iter()
+        .map(|(rtype, resources)| {
+            format!(
+                r#"<label class="chk"><input type="checkbox" data-filter="{rtype}" checked> {rtype} <span class="count">({count})</span></label>"#,
+                rtype = html_escape(rtype),
+                count = resources.len()
+            )
+        })
+        .collect();
+
+    format!(
+        r##"<div class="filter-bar">
+  <span class="label">Filter</span>
+  {chips}
+  <div class="actions">
+    <button type="button" id="filter-all">All</button>
+    <button type="button" id="filter-none">None</button>
+  </div>
+</div>
+<script>
+(function() {{
+  const checkboxes = document.querySelectorAll('.filter-bar input[data-filter]');
+  function applyFilters() {{
+    checkboxes.forEach(cb => {{
+      const rtype = cb.dataset.filter;
+      const sec = document.querySelector('section[data-rtype="' + rtype + '"]');
+      if (sec) sec.classList.toggle('hidden', !cb.checked);
+    }});
+  }}
+  checkboxes.forEach(cb => cb.addEventListener('change', applyFilters));
+  document.getElementById('filter-all').addEventListener('click', () => {{
+    checkboxes.forEach(cb => cb.checked = true);
+    applyFilters();
+  }});
+  document.getElementById('filter-none').addEventListener('click', () => {{
+    checkboxes.forEach(cb => cb.checked = false);
+    applyFilters();
+  }});
+}})();
+</script>"##,
+        chips = chips.join("\n  ")
+    )
+}
+
 fn render_resource_sections(groups: &[(&str, Vec<&Resource>)]) -> String {
     let mut sections = Vec::new();
 
@@ -369,11 +484,18 @@ fn render_resource_sections(groups: &[(&str, Vec<&Resource>)]) -> String {
         let rows: Vec<String> = resources
             .iter()
             .map(|r| {
-                let name_or_path = r
-                    .name
-                    .as_deref()
-                    .or(r.path.as_deref())
-                    .unwrap_or("-");
+                let name = r.name.as_deref();
+                let path = r.path.as_deref();
+                let name_cell = match (name, path) {
+                    (Some(n), Some(p)) if n != p => format!(
+                        "{}<span class=\"path-sub mono\">{}</span>",
+                        html_escape(n),
+                        html_escape(p)
+                    ),
+                    (Some(n), _) => html_escape(n),
+                    (None, Some(p)) => html_escape(p),
+                    (None, None) => "-".to_string(),
+                };
 
                 let is_assisted = r
                     .extra
@@ -427,28 +549,25 @@ fn render_resource_sections(groups: &[(&str, Vec<&Resource>)]) -> String {
   <td class="muted">{}</td>
   <td class="detail">{}</td>
 </tr>"#,
-                    html_escape(name_or_path),
-                    attribution,
-                    last_mod_html,
-                    date,
-                    details
+                    name_cell, attribution, last_mod_html, date, details
                 )
             })
             .collect();
 
         sections.push(format!(
-            r#"<section>
-<h2>{} <span class="count">({})</span></h2>
+            r#"<section data-rtype="{rtype}">
+<h2>{rtype_label} <span class="count">({count})</span></h2>
 <table>
 <thead><tr><th>Name / Path</th><th>Created by</th><th>Last modified</th><th>Date</th><th>Details</th></tr></thead>
 <tbody>
-{}
+{rows}
 </tbody>
 </table>
 </section>"#,
-            html_escape(resource_type),
-            resources.len(),
-            rows.join("\n")
+            rtype = html_escape(resource_type),
+            rtype_label = html_escape(resource_type),
+            count = resources.len(),
+            rows = rows.join("\n")
         ));
     }
 
@@ -513,6 +632,18 @@ fn format_details(r: &Resource) -> String {
         let port_strs: Vec<&str> = ports.iter().filter_map(|p| p.as_str()).collect();
         if !port_strs.is_empty() {
             parts.push(format!("ports: {}", port_strs.join(", ")));
+        }
+    }
+    if let Some(networks) = r.extra.get("networks").and_then(|v| v.as_array()) {
+        let net_strs: Vec<&str> = networks.iter().filter_map(|n| n.as_str()).collect();
+        if !net_strs.is_empty() {
+            parts.push(format!("nets: {}", net_strs.join(", ")));
+        }
+    }
+    if let Some(volumes) = r.extra.get("volumes").and_then(|v| v.as_array()) {
+        let vol_strs: Vec<&str> = volumes.iter().filter_map(|v| v.as_str()).collect();
+        if !vol_strs.is_empty() && r.resource_type == "docker_compose" {
+            parts.push(format!("{} volumes", vol_strs.len()));
         }
     }
     if let Some(vars) = r.extra.get("variables").and_then(|v| v.as_u64()) {

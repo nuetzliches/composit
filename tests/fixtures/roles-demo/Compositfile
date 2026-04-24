@@ -1,0 +1,59 @@
+# Roles demo — exercises every RFC 005 role_* violation rule end-to-end.
+# Each role below intentionally mismatches one or more resources in the
+# accompanying docker-compose.yml + env files so composit diff surfaces
+# a known-good set of violations the e2e test asserts on.
+
+workspace "roles-demo" {
+
+  resources {
+    allow "docker_service" {
+      max            = 20
+      allowed_images = ["postgres:*", "ghcr.io/acme/*", "redis:*"]
+
+      # Database must pin a specific Postgres major, expose 5432, and
+      # join the "backend" network. The compose file uses postgres:latest
+      # (not pinned), no port, no backend attachment — three failures.
+      role "database" {
+        match {
+          name  = ["*db*", "*postgres*"]
+          image = ["postgres:*"]
+          predicate = "any"
+        }
+        image_pin      = ["postgres:16", "postgres:17"]
+        must_expose    = [5432]
+        must_attach_to = ["backend"]
+      }
+
+      # API services must come from the internal registry. The compose
+      # file has an "api" service using ghcr.io/other/api which fails
+      # the prefix check.
+      role "api" {
+        match {
+          name = ["api", "*-api"]
+        }
+        image_prefix = ["ghcr.io/acme/"]
+      }
+
+      # Count-based: require at least 2 frontend services. The fixture
+      # has zero — exercises role_count_below_min and matched_summary.
+      role "frontend" {
+        match { name = ["frontend-*"] }
+        min_count = 2
+      }
+    }
+
+    allow "env_file" {
+      max = 5
+
+      # Production env files must set DATABASE_URL and must not set DEBUG.
+      # The fixture's .env.production violates both.
+      role "production-env" {
+        match {
+          path = ["**/.env.production"]
+        }
+        must_set_env  = ["DATABASE_URL"]
+        forbidden_env = ["DEBUG"]
+      }
+    }
+  }
+}

@@ -20,6 +20,10 @@ third-party tools and other implementations target.
 | 001 | composit-report v0.1 format                | Draft  | `schemas/composit-report-v0.1.json`               |
 | 002 | Provider manifest: public + contract tiers | Draft  | `schemas/composit-provider-manifest-v0.1.json`    |
 | 003 | Contract manifest: response schema         | Draft  | `schemas/composit-contract-response-v0.1.json`    |
+| 004 | Compositfile HCL schema v0.1               | Draft  | `src/core/compositfile.rs` (implicit)             |
+| 005 | Compositfile resource roles & matchers     | Draft  | `examples/Compositfile-with-roles.example`         |
+| 006 | Cross-file variable resolution             | Draft  | `tests/fixtures/resolution-demo/`                  |
+| 007 | Jinja2 template resolution (Ansible)       | Draft  | `src/scanners/ansible.rs` + `tests/fixtures/jinja-demo/` |
 
 ## Process
 

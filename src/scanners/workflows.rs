@@ -193,6 +193,7 @@ impl Scanner for WorkflowScanner {
         Ok(ScanResult {
             resources,
             providers: vec![],
+            resolution: None,
         })
     }
 }

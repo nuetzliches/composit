@@ -1,0 +1,8 @@
+services:
+  gpu-worker:
+    image: ghcr.io/example/gpu-worker:2.1.0
+    networks:
+      - internal
+
+networks:
+  internal:
