@@ -269,21 +269,17 @@ Body text.
         let r = parse_spec(&p, dir.path(), "SKILL.md").expect("parses");
         assert_eq!(r.resource_type, "agent_spec");
         assert_eq!(r.name.as_deref(), Some("my-skill"));
-        assert_eq!(
-            r.extra.get("kind").and_then(|v| v.as_str()),
-            Some("skill")
-        );
+        assert_eq!(r.extra.get("kind").and_then(|v| v.as_str()), Some("skill"));
         let desc = r.extra.get("description").and_then(|v| v.as_str()).unwrap();
         assert!(
             desc.contains("multi-line") && desc.contains("folded"),
             "folded description should be flattened: got {desc}"
         );
-        assert!(
-            r.extra
-                .get("allowed_tools")
-                .and_then(|v| v.as_str())
-                .is_some_and(|s| s.contains("WebSearch"))
-        );
+        assert!(r
+            .extra
+            .get("allowed_tools")
+            .and_then(|v| v.as_str())
+            .is_some_and(|s| s.contains("WebSearch")));
     }
 
     #[test]
@@ -295,7 +291,10 @@ Body text.
 
         let r = parse_spec(&p, dir.path(), "SKILL.md").expect("heading fallback");
         // name falls back to directory basename
-        assert_eq!(r.name.as_deref(), dir.path().file_name().and_then(|n| n.to_str()));
+        assert_eq!(
+            r.name.as_deref(),
+            dir.path().file_name().and_then(|n| n.to_str())
+        );
     }
 
     #[test]
@@ -316,12 +315,12 @@ Body text.
         fs::write(&p, src).unwrap();
 
         let r = parse_spec(&p, dir.path(), "AGENTS.md").expect("free-form is OK for AGENTS.md");
-        assert_eq!(
-            r.extra.get("kind").and_then(|v| v.as_str()),
-            Some("agents")
-        );
+        assert_eq!(r.extra.get("kind").and_then(|v| v.as_str()), Some("agents"));
         // No frontmatter → name falls back to directory basename
-        assert_eq!(r.name.as_deref(), dir.path().file_name().and_then(|n| n.to_str()));
+        assert_eq!(
+            r.name.as_deref(),
+            dir.path().file_name().and_then(|n| n.to_str())
+        );
     }
 
     #[test]
@@ -332,10 +331,7 @@ Body text.
         fs::write(&p, src).unwrap();
 
         let r = parse_spec(&p, dir.path(), "CLAUDE.md").expect("claude is recorded");
-        assert_eq!(
-            r.extra.get("kind").and_then(|v| v.as_str()),
-            Some("claude")
-        );
+        assert_eq!(r.extra.get("kind").and_then(|v| v.as_str()), Some("claude"));
     }
 
     #[test]

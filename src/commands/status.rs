@@ -214,22 +214,30 @@ fn print_status(report: &Report, live_info: &HashMap<String, LiveInfo>) {
             // Contract-tier details from the scan report (no live fetch needed).
             if matches!(p.auth_mode, Some(AuthMode::Contract)) {
                 if let Some(contract) = &p.contract {
-                    let tier_label = contract
-                        .pricing_tier
-                        .as_deref()
-                        .unwrap_or("contract");
+                    let tier_label = contract.pricing_tier.as_deref().unwrap_or("contract");
                     let expiry = DateTime::parse_from_rfc3339(&contract.expires_at)
                         .ok()
                         .map(|ts| {
-                            let days = ts.with_timezone(&Utc).signed_duration_since(Utc::now()).num_days();
+                            let days = ts
+                                .with_timezone(&Utc)
+                                .signed_duration_since(Utc::now())
+                                .num_days();
                             if days < 0 {
-                                format!("expired {} day{} ago", -days, if -days == 1 { "" } else { "s" })
-                                    .red()
-                                    .to_string()
+                                format!(
+                                    "expired {} day{} ago",
+                                    -days,
+                                    if -days == 1 { "" } else { "s" }
+                                )
+                                .red()
+                                .to_string()
                             } else {
-                                format!("expires in {} day{}", days, if days == 1 { "" } else { "s" })
-                                    .cyan()
-                                    .to_string()
+                                format!(
+                                    "expires in {} day{}",
+                                    days,
+                                    if days == 1 { "" } else { "s" }
+                                )
+                                .cyan()
+                                .to_string()
                             }
                         })
                         .unwrap_or_else(|| contract.expires_at.dimmed().to_string());

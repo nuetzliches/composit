@@ -2518,8 +2518,14 @@ mod tests {
 
     #[test]
     fn matches_any_pattern_literal_and_glob() {
-        assert!(matches_any_pattern("postgres:16", &["postgres:16".to_string()]));
-        assert!(!matches_any_pattern("postgres:latest", &["postgres:16".to_string()]));
+        assert!(matches_any_pattern(
+            "postgres:16",
+            &["postgres:16".to_string()]
+        ));
+        assert!(!matches_any_pattern(
+            "postgres:latest",
+            &["postgres:16".to_string()]
+        ));
         assert!(matches_any_pattern("myapp:1.2.3", &["myapp:*".to_string()]));
         assert!(!matches_any_pattern("rogue:1.0", &["myapp:*".to_string()]));
         assert!(matches_any_pattern(
@@ -2703,7 +2709,13 @@ mod tests {
     fn run_role(role: Role, resources: &[&Resource]) -> (Vec<Violation>, usize) {
         let mut violations = Vec::new();
         let mut passed = 0;
-        check_role_constraints(&role, "docker_service", resources, &mut violations, &mut passed);
+        check_role_constraints(
+            &role,
+            "docker_service",
+            resources,
+            &mut violations,
+            &mut passed,
+        );
         (violations, passed)
     }
 
@@ -2819,8 +2831,14 @@ mod tests {
 
         let (v, _) = run_role(role, &[&r]);
         let rules: Vec<&str> = v.iter().map(|x| x.rule.as_str()).collect();
-        assert!(rules.contains(&"role_env_var_missing"), "must_set_env should fire");
-        assert!(rules.contains(&"role_env_var_forbidden"), "forbidden_env should fire");
+        assert!(
+            rules.contains(&"role_env_var_missing"),
+            "must_set_env should fire"
+        );
+        assert!(
+            rules.contains(&"role_env_var_forbidden"),
+            "forbidden_env should fire"
+        );
     }
 
     #[test]

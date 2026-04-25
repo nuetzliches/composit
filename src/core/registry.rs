@@ -842,7 +842,12 @@ mod tests {
         let keys = keys_of(&resources[0]);
         assert_eq!(
             keys,
-            vec!["HOOKAIDO_PULL_TOKEN", "HOOKAIDO_INGRESS_SECRET", "DATABASE_URL", "API_KEY"],
+            vec![
+                "HOOKAIDO_PULL_TOKEN",
+                "HOOKAIDO_INGRESS_SECRET",
+                "DATABASE_URL",
+                "API_KEY"
+            ],
             "no user redact patterns → all key names visible"
         );
     }

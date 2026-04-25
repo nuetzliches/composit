@@ -270,8 +270,14 @@ fn parse_contract_body(body: &serde_json::Value, expected_provider: &str) -> Opt
                     });
                     Some(ContractCapability {
                         cap_type,
-                        product: cap.get("product").and_then(|v| v.as_str()).map(String::from),
-                        endpoint: cap.get("endpoint").and_then(|v| v.as_str()).map(String::from),
+                        product: cap
+                            .get("product")
+                            .and_then(|v| v.as_str())
+                            .map(String::from),
+                        endpoint: cap
+                            .get("endpoint")
+                            .and_then(|v| v.as_str())
+                            .map(String::from),
                         tools: cap.get("tools").and_then(|v| v.as_u64()),
                         rate_limit,
                     })
@@ -310,12 +316,19 @@ fn find_contract_pointer(manifest: &serde_json::Value, want_type: &str) -> Optio
             continue;
         }
         let url = entry.get("url").and_then(|v| v.as_str())?.to_string();
-        let header = auth.get("header").and_then(|v| v.as_str()).map(String::from);
+        let header = auth
+            .get("header")
+            .and_then(|v| v.as_str())
+            .map(String::from);
         let discovery_url = auth
             .get("discovery_url")
             .and_then(|v| v.as_str())
             .map(String::from);
-        return Some(ContractPointer { url, header, discovery_url });
+        return Some(ContractPointer {
+            url,
+            header,
+            discovery_url,
+        });
     }
     None
 }
@@ -508,7 +521,10 @@ mod tests {
         let ptr = find_contract_pointer(&manifest, "api-key").expect("api-key matched");
         assert_eq!(ptr.url, "https://p.example.com/contract");
         assert_eq!(ptr.header.as_deref(), Some("X-Custom-Key"));
-        assert!(ptr.discovery_url.is_none(), "api-key pointer has no discovery_url");
+        assert!(
+            ptr.discovery_url.is_none(),
+            "api-key pointer has no discovery_url"
+        );
 
         let oauth_ptr = find_contract_pointer(&manifest, "oauth2").expect("oauth2 matched");
         assert_eq!(oauth_ptr.url, "https://p.example.com/oauth-contract");
@@ -588,7 +604,10 @@ mod tests {
         let croniq = &info.capabilities[0];
         assert_eq!(croniq.cap_type, "scheduling");
         assert_eq!(croniq.product.as_deref(), Some("croniq"));
-        assert_eq!(croniq.endpoint.as_deref(), Some("https://mcp.nuetzliche.it/croniq"));
+        assert_eq!(
+            croniq.endpoint.as_deref(),
+            Some("https://mcp.nuetzliche.it/croniq")
+        );
         assert_eq!(croniq.tools, Some(12));
         let rl = croniq.rate_limit.as_ref().expect("rate_limit parsed");
         assert_eq!(rl.requests_per_minute, Some(120));

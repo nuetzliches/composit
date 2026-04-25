@@ -239,9 +239,7 @@ require (
             Some("1.22")
         );
         assert_eq!(
-            r.extra
-                .get("direct_requires")
-                .and_then(|v| v.as_u64()),
+            r.extra.get("direct_requires").and_then(|v| v.as_u64()),
             Some(1)
         );
     }

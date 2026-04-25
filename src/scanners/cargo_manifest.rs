@@ -113,10 +113,7 @@ fn parse_manifest(path: &Path, base_dir: &Path) -> Vec<Resource> {
             serde_json::Value::Number(serde_json::Number::from(sections.workspace_members.len())),
         );
         if let Some(v) = &sections.workspace_version {
-            extra.insert(
-                "version".to_string(),
-                serde_json::Value::String(v.clone()),
-            );
+            extra.insert("version".to_string(), serde_json::Value::String(v.clone()));
         }
         out.push(Resource {
             resource_type: "cargo_workspace".to_string(),
@@ -136,22 +133,13 @@ fn parse_manifest(path: &Path, base_dir: &Path) -> Vec<Resource> {
     if sections.has_package {
         let mut extra = HashMap::new();
         if let Some(v) = &sections.package_version {
-            extra.insert(
-                "version".to_string(),
-                serde_json::Value::String(v.clone()),
-            );
+            extra.insert("version".to_string(), serde_json::Value::String(v.clone()));
         }
         if let Some(e) = &sections.package_edition {
-            extra.insert(
-                "edition".to_string(),
-                serde_json::Value::String(e.clone()),
-            );
+            extra.insert("edition".to_string(), serde_json::Value::String(e.clone()));
         }
         if let Some(l) = &sections.package_license {
-            extra.insert(
-                "license".to_string(),
-                serde_json::Value::String(l.clone()),
-            );
+            extra.insert("license".to_string(), serde_json::Value::String(l.clone()));
         }
         out.push(Resource {
             resource_type: "cargo_crate".to_string(),
@@ -362,10 +350,7 @@ version = "0.1.0"
 
         let resources = parse_manifest(&p, dir.path());
         assert_eq!(resources.len(), 2);
-        let types: Vec<&str> = resources
-            .iter()
-            .map(|r| r.resource_type.as_str())
-            .collect();
+        let types: Vec<&str> = resources.iter().map(|r| r.resource_type.as_str()).collect();
         assert!(types.contains(&"cargo_workspace"));
         assert!(types.contains(&"cargo_crate"));
     }
