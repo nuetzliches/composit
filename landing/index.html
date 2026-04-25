@@ -437,24 +437,23 @@ footer .legal a { margin: 0 .5rem; }
 <section>
   <div class="container">
     <h2>How it works</h2>
-    <p class="sub">Three commands. IS-state vs. SHOULD-state. No SaaS required.</p>
+    <p class="sub">Init, edit, diff. IS-state vs. SHOULD-state. No SaaS required.</p>
     <div class="steps">
       <div class="step">
         <div class="n">1</div>
-        <h3>Scan</h3>
-        <p>22 built-in scanners cover containers, Terraform, ingress, observability, CI workflows, cron, env files, MCP — and more. Zero setup.</p>
-        <code>composit scan</code>
+        <h3>Init</h3>
+        <p>22 built-in scanners cover containers, Terraform, ingress, observability, CI workflows, cron, env files, MCP — and more. Zero setup; scaffolds a Compositfile from scan results.</p>
+        <code>composit init</code>
       </div>
       <div class="step">
         <div class="n">2</div>
         <h3>Declare</h3>
-        <p>Scaffold a <code>Compositfile</code> from scan results, then edit: approved providers, budgets, resource constraints, policy references.</p>
-        <code>composit init</code>
+        <p>Review the scaffold and lock in the SHOULD-state: approved providers, budgets, resource constraints, policy references. Manual edit, no command.</p>
       </div>
       <div class="step">
         <div class="n">3</div>
         <h3>Diff</h3>
-        <p>Compare reality against intent. Get errors and warnings with severity and rule IDs. Terminal, JSON, YAML, or HTML output.</p>
+        <p>Compare reality against intent. Errors and warnings with severity and rule IDs. Terminal, JSON, YAML, or HTML output.</p>
         <code>composit diff</code>
       </div>
     </div>
