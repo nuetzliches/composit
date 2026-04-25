@@ -6,11 +6,11 @@ const { execFileSync } = require("child_process");
 const { join } = require("path");
 
 const PLATFORMS = {
-  "linux-x64":    "@composit/cli-linux-x64",
-  "linux-arm64":  "@composit/cli-linux-arm64",
-  "darwin-x64":   "@composit/cli-darwin-x64",
-  "darwin-arm64": "@composit/cli-darwin-arm64",
-  "win32-x64":    "@composit/cli-win32-x64",
+  "linux-x64":    "@nuetzliches/composit-linux-x64",
+  "linux-arm64":  "@nuetzliches/composit-linux-arm64",
+  "darwin-x64":   "@nuetzliches/composit-darwin-x64",
+  "darwin-arm64": "@nuetzliches/composit-darwin-arm64",
+  "win32-x64":    "@nuetzliches/composit-win32-x64",
 };
 
 const key = `${process.platform}-${process.arch}`;
@@ -27,7 +27,7 @@ try {
 } catch {
   process.stderr.write(
     `composit: optional dependency ${pkg} is not installed.\n` +
-    `  Try: npm install -g @composit/cli\n`
+    `  Try: npm install -g @nuetzliches/composit\n`
   );
   process.exit(1);
 }
