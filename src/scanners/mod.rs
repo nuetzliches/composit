@@ -1,5 +1,7 @@
+pub mod agent_spec;
 pub mod ansible;
 pub mod caddyfile;
+pub mod cargo_manifest;
 pub mod cron;
 pub mod db_migrations;
 pub mod deploy_scripts;
@@ -7,6 +9,7 @@ pub mod docker;
 pub mod env_files;
 pub mod extra_patterns;
 pub mod fly_toml;
+pub mod go_module;
 pub mod grafana;
 pub mod kubernetes;
 pub mod mcp_config;
@@ -49,4 +52,7 @@ pub fn register_default_scanners(registry: &mut ScannerRegistry) {
     registry.register(Box::new(db_migrations::DbMigrationsScanner));
     registry.register(Box::new(deploy_scripts::DeployScriptsScanner));
     registry.register(Box::new(ansible::AnsibleScanner));
+    registry.register(Box::new(agent_spec::AgentSpecScanner));
+    registry.register(Box::new(cargo_manifest::CargoManifestScanner));
+    registry.register(Box::new(go_module::GoModuleScanner));
 }
