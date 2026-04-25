@@ -195,16 +195,6 @@ section .sub { color: var(--muted); margin-bottom: 2.5rem; max-width: 640px; }
 }
 .tab-btn:hover { color: var(--text); }
 .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
-.tab-badge {
-  display: inline-block;
-  padding: .1rem .35rem;
-  border-radius: 3px;
-  font-size: .68rem;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-  letter-spacing: .01em;
-}
-.badge-ok   { background: rgba(63,185,80,.15); color: var(--green); }
-.badge-soon { background: rgba(139,148,158,.08); color: var(--muted); border: 1px solid var(--border); }
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
 .tab-panel-header {
@@ -481,24 +471,12 @@ footer .legal a { margin: 0 .5rem; }
       <!-- ── Install tabs ──────────────────────────────────────── -->
       <div class="install-tabs">
         <div class="tab-bar" role="tablist">
-          <button class="tab-btn" role="tab" data-tab="codespaces">
-            codespaces <span class="tab-badge badge-ok">available</span>
-          </button>
-          <button class="tab-btn" role="tab" data-tab="brew">
-            brew <span class="tab-badge badge-ok">available</span>
-          </button>
-          <button class="tab-btn" role="tab" data-tab="npx">
-            npx <span class="tab-badge badge-ok">available</span>
-          </button>
-          <button class="tab-btn active" role="tab" data-tab="cargo">
-            cargo <span class="tab-badge badge-ok">available</span>
-          </button>
-          <button class="tab-btn" role="tab" data-tab="curl">
-            curl <span class="tab-badge badge-ok">available</span>
-          </button>
-          <button class="tab-btn" role="tab" data-tab="docker">
-            docker <span class="tab-badge badge-ok">available</span>
-          </button>
+          <button class="tab-btn" role="tab" data-tab="codespaces">codespaces</button>
+          <button class="tab-btn" role="tab" data-tab="brew">brew</button>
+          <button class="tab-btn" role="tab" data-tab="npx">npx</button>
+          <button class="tab-btn active" role="tab" data-tab="cargo">cargo</button>
+          <button class="tab-btn" role="tab" data-tab="curl">curl</button>
+          <button class="tab-btn" role="tab" data-tab="docker">docker</button>
         </div>
 
         <!-- codespaces -->
