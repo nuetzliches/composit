@@ -45,8 +45,18 @@ pub fn enrich_attribution(resources: &mut [Resource], base_dir: &Path) {
             continue;
         }
 
-        // Get the first commit that introduced this file
-        if let Some(info) = git_file_info(base_dir, rel_path, true) {
+        // Get the first commit that introduced this file. Some files have
+        // histories that don't surface a clean "added" commit
+        // (merge-only introductions, complex rename chains, history
+        // grafts) — `--diff-filter=A --follow --reverse` then returns
+        // empty even though the file is tracked. Fall back to the most
+        // recent commit so the report still names someone responsible
+        // and `created_by` doesn't silently disappear for compound
+        // resources where one source file produces many entries
+        // (docker-compose → N services, Caddyfile → N sites).
+        let creation_info = git_file_info(base_dir, rel_path, true)
+            .or_else(|| git_file_info(base_dir, rel_path, false));
+        if let Some(info) = creation_info {
             let (attribution, extra) = classify_commit(&info);
             resource.created_by = Some(attribution);
             if resource.created.is_none() {
