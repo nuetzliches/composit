@@ -38,15 +38,6 @@ a drive-by PR.
   "deny if `docker_service.image` ends with `:latest`") rather than
   the request-shaped inputs most existing Rego libraries expect.
 
-- **npm publish pipeline.** Zero-install distribution via
-  `npx @composit/cli init`. Pattern from biome / esbuild / turbo:
-  a meta package plus one optional-dependency platform package per
-  target (linux-x64, darwin-arm64, etc.). The release workflow (v0.2.0)
-  already produces the five platform tarballs; remaining work is
-  claiming the `@composit` npm scope, generating the per-platform
-  sub-packages from the release artifacts, and a publish step in the
-  release workflow.
-
 - **Version-sync automation.** Releases currently require manually
   bumping `Cargo.toml`, the npm `package.json`, and the brew formula
   template in lockstep. `cargo-release` with a release hook that

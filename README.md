@@ -23,11 +23,12 @@ review them.
 ```bash
 brew install nuetzliches/tap/composit                                          # macOS / Linux
 curl -fsSL https://nuetzliches.github.io/composit/install.sh | sh              # macOS / Linux, no toolchain
+npx @nutz/composit --help                                                      # Node ≥18, no toolchain
 cargo install --git https://github.com/nuetzliches/composit                    # any platform with a Rust toolchain
 docker pull ghcr.io/nuetzliches/composit                                       # CI / no-toolchain
 ```
 
-Prefer zero-install? **[Open in Codespaces](https://codespaces.new/nuetzliches/composit)** — `composit` is on `PATH` after the prebuild. An `npx`-wrapped distribution is on the [roadmap](docs/ROADMAP.md).
+Prefer zero-install? **[Open in Codespaces](https://codespaces.new/nuetzliches/composit)** — `composit` is on `PATH` after the prebuild.
 
 ---
 
