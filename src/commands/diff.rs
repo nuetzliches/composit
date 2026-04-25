@@ -794,9 +794,11 @@ fn check_resolution(report: &Report) -> ViolationCategory {
                     message: "Scan found ${VAR} references but cross-file resolution is disabled"
                         .to_string(),
                     details: Some(
-                        "Add `scan { resolvable = [\".env\"] }` to your Compositfile to enable \
-                         RFC 006 variable substitution (default redaction applies to *_KEY, \
-                         *_SECRET, *_TOKEN, *_PASSWORD)."
+                        "`composit init` writes a commented `scan { resolvable = [\".env\"] }` \
+                         block when env files are detected — uncomment it to enable RFC 006 \
+                         variable substitution. If your Compositfile is hand-written, add the \
+                         block at the top of the workspace block. Default redaction applies to \
+                         *_KEY, *_SECRET, *_TOKEN, *_PASSWORD."
                             .to_string(),
                     ),
                     expected: Some("resolvable = [\".env\"]".to_string()),
