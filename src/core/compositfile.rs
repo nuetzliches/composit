@@ -207,20 +207,11 @@ fn parse_auth_block(block: &hcl::Block, provider_name: &str) -> Result<AuthRef> 
         )
     })?;
 
-    // v0.1: only api-key is normative. oauth2 is reserved for the RFC 002
-    // roadmap but rejected here until the CLI grows the fetch path.
     match auth_type.as_str() {
-        "api-key" => {}
-        "oauth2" => {
-            return Err(anyhow!(
-                "Provider '{}' declares auth.type = \"oauth2\"; that method is on the RFC 002 \
-                 roadmap but not yet implemented. Use \"api-key\" for now.",
-                provider_name
-            ));
-        }
+        "api-key" | "oauth2" => {}
         other => {
             return Err(anyhow!(
-                "Provider '{}' auth.type = \"{}\" is not recognised. Valid: \"api-key\".",
+                "Provider '{}' auth.type = \"{}\" is not recognised. Valid: \"api-key\", \"oauth2\".",
                 provider_name,
                 other
             ));
@@ -737,8 +728,8 @@ mod tests {
     }
 
     #[test]
-    fn test_oauth2_rejected_in_v0_1() {
-        let err = parse_hcl(
+    fn test_oauth2_accepted() {
+        let gov = parse_hcl(
             r#"
             workspace "test" {
               provider "croniq" {
@@ -746,14 +737,37 @@ mod tests {
                 trust    = "contract"
                 auth {
                   type = "oauth2"
+                  env  = "CRONIQ_CREDENTIALS"
                 }
               }
             }
             "#,
         )
-        .expect_err("oauth2 is on the roadmap, not implemented");
-        let msg = format!("{}", err);
-        assert!(msg.contains("oauth2") || msg.contains("OAuth"));
+        .expect("oauth2 is now a supported auth type");
+        let p = &gov.providers[0];
+        let auth = p.auth.as_ref().expect("auth block present");
+        assert_eq!(auth.auth_type, "oauth2");
+        assert_eq!(auth.env.as_deref(), Some("CRONIQ_CREDENTIALS"));
+    }
+
+    #[test]
+    fn test_unknown_auth_type_rejected() {
+        let err = parse_hcl(
+            r#"
+            workspace "test" {
+              provider "croniq" {
+                manifest = "https://example.com/.well-known/composit.json"
+                trust    = "contract"
+                auth {
+                  type = "mtls"
+                }
+              }
+            }
+            "#,
+        )
+        .expect_err("unknown auth types should be rejected");
+        let msg = format!("{err}");
+        assert!(msg.contains("mtls") && msg.contains("not recognised"));
     }
 
     #[test]

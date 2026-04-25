@@ -60,10 +60,10 @@ pub struct Provider {
     pub contract: Option<ContractInfo>,
 }
 
-/// Subset of the RFC 003 contract response that `composit` v0.1 consumes.
-/// The response carries more (endpoints, tools, sla, rate_limit) but v0.1
-/// only needs the governance surface — enough to emit `contract_expired`
-/// and to surface the tier in reports.
+/// Subset of the RFC 003 contract response that `composit` consumes.
+/// Governance surface (`id`, `issued_at`, `expires_at`, `pricing_tier`) is
+/// required for diff rules; `sla` is optional informational output for
+/// `composit status`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContractInfo {
     /// Stable identifier for the (contract, identity) pair. Opaque.
@@ -77,6 +77,57 @@ pub struct ContractInfo {
     /// e.g. "free", "team", "enterprise"). Informational.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pricing_tier: Option<String>,
+    /// Optional SLA declaration from the contract response (RFC 003 §sla).
+    /// Surfaced in `composit status`; no diff rule depends on it in v0.1.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sla: Option<SlaInfo>,
+    /// Personalized capability entries (RFC 003 §capabilities[]).
+    /// Each entry carries the concrete endpoint and tool count for this identity.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub capabilities: Vec<ContractCapability>,
+}
+
+/// Optional service-level claim published inside a contract response.
+/// All fields are optional per RFC 003; an absent `sla` object is valid.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SlaInfo {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uptime_pct: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub incident_contact: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_time_ms_p99: Option<u64>,
+}
+
+/// Per-capability entry from the contract response (RFC 003 §capabilities[]).
+/// Personalized: the same contract URL returns different endpoints for different
+/// identities. Surfaced in `composit status`; no diff rule depends on it in v0.1.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContractCapability {
+    /// Matches `capabilities[*].type` in the public manifest.
+    #[serde(rename = "type")]
+    pub cap_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub product: Option<String>,
+    /// Concrete, personalized call endpoint for this capability.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub endpoint: Option<String>,
+    /// Number of tools the identity can invoke via this capability.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rate_limit: Option<RateLimitInfo>,
+}
+
+/// Rate-limit declaration from a contract capability (RFC 003 §rate_limit).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RateLimitInfo {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requests_per_minute: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requests_per_hour: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub burst: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -2440,6 +2440,8 @@ mod tests {
             issued_at: "2026-01-01T00:00:00Z".to_string(),
             expires_at: expires_at.to_string(),
             pricing_tier: Some("team".to_string()),
+            sla: None,
+            capabilities: vec![],
         }
     }
 
@@ -2505,6 +2507,398 @@ mod tests {
                     || d.contains("contract.provider")
                     || d.contains("contract.{")),
             "details should point at the RFC 003 envelope requirement"
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Helper: matches_any_pattern and normalize_path
+    // ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn matches_any_pattern_literal_and_glob() {
+        assert!(matches_any_pattern("postgres:16", &["postgres:16".to_string()]));
+        assert!(!matches_any_pattern("postgres:latest", &["postgres:16".to_string()]));
+        assert!(matches_any_pattern("myapp:1.2.3", &["myapp:*".to_string()]));
+        assert!(!matches_any_pattern("rogue:1.0", &["myapp:*".to_string()]));
+        assert!(matches_any_pattern(
+            "registry.example.com/team/app:v2",
+            &["registry.example.com/**".to_string()]
+        ));
+    }
+
+    #[test]
+    fn normalize_path_strips_dot_slash_and_backslashes() {
+        assert_eq!(normalize_path("./docker-compose.yml"), "docker-compose.yml");
+        assert_eq!(normalize_path("services/api.yml"), "services/api.yml");
+        assert_eq!(
+            normalize_path("services\\api.yml"),
+            "services/api.yml",
+            "Windows backslashes should be normalised"
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Helper: extractor functions
+    // ─────────────────────────────────────────────────────────
+
+    fn resource_with_ports(ports: &[&str]) -> Resource {
+        let mut r = make_resource("docker_service");
+        r.extra.insert(
+            "ports".to_string(),
+            serde_json::Value::Array(
+                ports
+                    .iter()
+                    .map(|p| serde_json::Value::String(p.to_string()))
+                    .collect(),
+            ),
+        );
+        r
+    }
+
+    #[test]
+    fn extract_ports_bare_number() {
+        let r = resource_with_ports(&["8080"]);
+        assert_eq!(extract_container_ports(&r), vec![8080u16]);
+    }
+
+    #[test]
+    fn extract_ports_host_container_mapping() {
+        // "host_port:container_port" — only the container side matters.
+        let r = resource_with_ports(&["80:8080", "5432:5432"]);
+        let ports = extract_container_ports(&r);
+        assert!(ports.contains(&8080));
+        assert!(ports.contains(&5432));
+        assert!(!ports.contains(&80), "host port should not appear");
+    }
+
+    #[test]
+    fn extract_ports_ip_host_container_mapping() {
+        // "ip:host:container" — only the container side matters.
+        let r = resource_with_ports(&["127.0.0.1:5090:9000"]);
+        let ports = extract_container_ports(&r);
+        assert_eq!(ports, vec![9000u16]);
+    }
+
+    #[test]
+    fn extract_networks_returns_names() {
+        let mut r = make_resource("docker_service");
+        r.extra.insert(
+            "networks".to_string(),
+            serde_json::json!(["backend", "monitoring"]),
+        );
+        assert_eq!(extract_networks(&r), vec!["backend", "monitoring"]);
+    }
+
+    #[test]
+    fn extract_env_keys_reads_keys_field() {
+        let mut r = make_resource("env_file");
+        r.extra.insert(
+            "keys".to_string(),
+            serde_json::json!(["DATABASE_URL", "API_KEY"]),
+        );
+        assert_eq!(
+            extract_env_keys(&r),
+            vec!["DATABASE_URL".to_string(), "API_KEY".to_string()]
+        );
+    }
+
+    #[test]
+    fn image_for_matching_prefers_resolved() {
+        let mut r = make_resource("docker_service");
+        r.extra
+            .insert("image".to_string(), serde_json::json!("${APP_IMAGE}"));
+        r.extra.insert(
+            "resolved_image".to_string(),
+            serde_json::json!("myapp:1.2.3"),
+        );
+        assert_eq!(
+            image_for_matching(&r).as_deref(),
+            Some("myapp:1.2.3"),
+            "resolved_image must take precedence over image template"
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // RFC 005 — role_matches
+    // ─────────────────────────────────────────────────────────
+
+    fn resource_with_image(name: &str, image: &str) -> Resource {
+        let mut r = make_resource("docker_service");
+        r.name = Some(name.to_string());
+        r.extra
+            .insert("image".to_string(), serde_json::json!(image));
+        r
+    }
+
+    #[test]
+    fn role_matches_empty_matcher_selects_all() {
+        let role = Role {
+            name: "any".to_string(),
+            ..Default::default()
+        };
+        assert!(role_matches(&role, &make_resource("docker_service")));
+    }
+
+    #[test]
+    fn role_matches_by_name_glob() {
+        let role = Role {
+            name: "db".to_string(),
+            matcher: Matcher {
+                name: vec!["db-*".to_string()],
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let mut hit = make_resource("docker_service");
+        hit.name = Some("db-primary".to_string());
+        let mut miss = make_resource("docker_service");
+        miss.name = Some("api".to_string());
+
+        assert!(role_matches(&role, &hit));
+        assert!(!role_matches(&role, &miss));
+    }
+
+    #[test]
+    fn role_matches_by_image_glob() {
+        let role = Role {
+            name: "postgres".to_string(),
+            matcher: Matcher {
+                image: vec!["postgres:*".to_string()],
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let hit = resource_with_image("db", "postgres:16");
+        let miss = resource_with_image("api", "myapp:1.0");
+        assert!(role_matches(&role, &hit));
+        assert!(!role_matches(&role, &miss));
+    }
+
+    #[test]
+    fn role_matches_any_predicate_uses_or_logic() {
+        let role = Role {
+            name: "multi".to_string(),
+            matcher: Matcher {
+                name: vec!["db-*".to_string()],
+                image: vec!["redis:*".to_string()],
+                predicate: Predicate::Any,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        // name matches, image doesn't → still selected under Any
+        let r = resource_with_image("db-replica", "postgres:16");
+        assert!(role_matches(&role, &r));
+        // neither matches
+        let r2 = resource_with_image("api", "myapp:1.0");
+        assert!(!role_matches(&role, &r2));
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // RFC 005 — check_role_constraints
+    // ─────────────────────────────────────────────────────────
+
+    fn run_role(role: Role, resources: &[&Resource]) -> (Vec<Violation>, usize) {
+        let mut violations = Vec::new();
+        let mut passed = 0;
+        check_role_constraints(&role, "docker_service", resources, &mut violations, &mut passed);
+        (violations, passed)
+    }
+
+    #[test]
+    fn role_image_pin_violation_and_pass() {
+        let role = Role {
+            name: "api".to_string(),
+            image_pin: vec!["myapp:1.2.3".to_string()],
+            ..Default::default()
+        };
+        let bad = resource_with_image("api", "myapp:latest");
+        let (v, passed) = run_role(role.clone(), &[&bad]);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].rule, "role_image_not_pinned");
+        assert_eq!(passed, 0);
+
+        let good = resource_with_image("api", "myapp:1.2.3");
+        let (v, passed) = run_role(role, &[&good]);
+        assert!(v.is_empty());
+        assert_eq!(passed, 1);
+    }
+
+    #[test]
+    fn role_image_prefix_mismatch() {
+        let role = Role {
+            name: "internal".to_string(),
+            image_prefix: vec!["registry.internal/".to_string()],
+            ..Default::default()
+        };
+        let bad = resource_with_image("svc", "dockerhub.io/myapp:1.0");
+        let (v, _) = run_role(role.clone(), &[&bad]);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].rule, "role_image_prefix_mismatch");
+
+        let good = resource_with_image("svc", "registry.internal/myapp:1.0");
+        let (v, passed) = run_role(role, &[&good]);
+        assert!(v.is_empty());
+        assert_eq!(passed, 1);
+    }
+
+    #[test]
+    fn role_min_count_below_minimum() {
+        let role = Role {
+            name: "replica".to_string(),
+            min_count: Some(3),
+            ..Default::default()
+        };
+        let r = resource_with_image("svc", "myapp:1.0");
+        let (v, _) = run_role(role, &[&r]);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].rule, "role_count_below_min");
+    }
+
+    #[test]
+    fn role_max_count_above_maximum() {
+        let role = Role {
+            name: "singleton".to_string(),
+            max_count: Some(1),
+            ..Default::default()
+        };
+        let r1 = resource_with_image("svc-a", "myapp:1.0");
+        let r2 = resource_with_image("svc-b", "myapp:1.0");
+        let (v, _) = run_role(role, &[&r1, &r2]);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].rule, "role_count_above_max");
+    }
+
+    #[test]
+    fn role_must_expose_port_missing_and_present() {
+        let role = Role {
+            name: "web".to_string(),
+            must_expose: vec![8080],
+            ..Default::default()
+        };
+        let bad = resource_with_ports(&["9000"]);
+        let (v, _) = run_role(role.clone(), &[&bad]);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].rule, "role_port_missing");
+
+        let good = resource_with_ports(&["8080"]);
+        let (v, passed) = run_role(role, &[&good]);
+        assert!(v.is_empty());
+        assert_eq!(passed, 1);
+    }
+
+    #[test]
+    fn role_must_attach_to_network_missing() {
+        let role = Role {
+            name: "backend".to_string(),
+            must_attach_to: vec!["internal".to_string()],
+            ..Default::default()
+        };
+        let mut r = make_resource("docker_service");
+        r.extra
+            .insert("networks".to_string(), serde_json::json!(["public"]));
+        let (v, _) = run_role(role, &[&r]);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].rule, "role_network_missing");
+    }
+
+    #[test]
+    fn role_must_set_env_missing_and_forbidden_present() {
+        let role = Role {
+            name: "secure".to_string(),
+            must_set_env: vec!["DATABASE_URL".to_string()],
+            forbidden_env: vec!["DEBUG".to_string()],
+            ..Default::default()
+        };
+        let mut r = make_resource("env_file");
+        // Has DEBUG (forbidden) but not DATABASE_URL (required)
+        r.extra
+            .insert("keys".to_string(), serde_json::json!(["DEBUG", "PORT"]));
+
+        let (v, _) = run_role(role, &[&r]);
+        let rules: Vec<&str> = v.iter().map(|x| x.rule.as_str()).collect();
+        assert!(rules.contains(&"role_env_var_missing"), "must_set_env should fire");
+        assert!(rules.contains(&"role_env_var_forbidden"), "forbidden_env should fire");
+    }
+
+    #[test]
+    fn role_must_have_file_missing() {
+        let role = Role {
+            name: "api".to_string(),
+            must_have_file: vec!["Dockerfile".to_string()],
+            ..Default::default()
+        };
+        // Resource path doesn't satisfy the glob
+        let mut r = make_resource("docker_service");
+        r.path = Some("docker-compose.yml".to_string());
+        let (v, _) = run_role(role, &[&r]);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].rule, "role_file_missing");
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // check_resolution (RFC 006)
+    // ─────────────────────────────────────────────────────────
+
+    fn report_with_templated_image() -> Report {
+        let mut r = make_resource("docker_service");
+        r.extra
+            .insert("image".to_string(), serde_json::json!("${APP_IMAGE}"));
+        make_report(vec![], vec![r], "0 EUR")
+    }
+
+    #[test]
+    fn resolution_disabled_surfaces_when_templates_present_but_no_resolver() {
+        let report = report_with_templated_image();
+        let gov = make_governance(vec![], "500 EUR");
+        let diff = compute_diff(&gov, &report, Path::new("."));
+        let cat = find_category(&diff, "resolution");
+        assert!(
+            cat.violations
+                .iter()
+                .any(|v| v.rule == "resolution_disabled"),
+            "resolution_disabled must fire when ${{}} templates exist but report.resolution is None"
+        );
+    }
+
+    #[test]
+    fn resolution_no_warning_when_no_templates() {
+        let report = make_report(vec![], vec![make_resource("docker_service")], "0 EUR");
+        let gov = make_governance(vec![], "500 EUR");
+        let diff = compute_diff(&gov, &report, Path::new("."));
+        let cat = find_category(&diff, "resolution");
+        assert!(
+            cat.violations
+                .iter()
+                .all(|v| v.rule != "resolution_disabled"),
+            "no resolution_disabled when no templates present"
+        );
+    }
+
+    #[test]
+    fn resolution_unresolved_variable_surfaces_per_variable() {
+        use crate::core::scanner::{ResolutionInfo, UnresolvedVariable};
+        let mut report = report_with_templated_image();
+        report.resolution = Some(ResolutionInfo {
+            env_files_used: vec![".env".to_string()],
+            unresolved: vec![UnresolvedVariable {
+                variable: "APP_IMAGE".to_string(),
+                resource_path: "docker-compose.yml".to_string(),
+                field: "image".to_string(),
+            }],
+        });
+        let gov = make_governance(vec![], "500 EUR");
+        let diff = compute_diff(&gov, &report, Path::new("."));
+        let cat = find_category(&diff, "resolution");
+        let unresolved: Vec<_> = cat
+            .violations
+            .iter()
+            .filter(|v| v.rule == "unresolved_variable")
+            .collect();
+        assert_eq!(unresolved.len(), 1);
+        assert!(
+            unresolved[0].message.contains("APP_IMAGE"),
+            "message should name the unresolved variable"
         );
     }
 }

@@ -7,7 +7,10 @@ use async_trait::async_trait;
 use reqwest::{Client, StatusCode};
 
 use crate::core::scanner::{ProviderTarget, ScanContext, ScanResult, Scanner};
-use crate::core::types::{AuthMode, ContractInfo, Provider, ProviderStatus, Resource};
+use crate::core::types::{
+    AuthMode, ContractCapability, ContractInfo, Provider, ProviderStatus, RateLimitInfo, Resource,
+    SlaInfo,
+};
 
 pub struct McpProviderScanner;
 
@@ -145,18 +148,28 @@ async fn upgrade_to_contract(client: &Client, provider: &mut Provider, target: &
         }
     };
 
-    // 3. Fetch the contract URL with the credential.
-    let header_name = pointer.header.as_deref().unwrap_or("X-Composit-Api-Key");
-    let resp = client
-        .get(&pointer.url)
-        .header(header_name, &token)
-        .send()
-        .await;
-    let resp = match resp {
-        Ok(r) => r,
-        Err(_) => {
-            provider.auth_error = Some("fetch_failed".to_string());
-            return;
+    // 3. Fetch the contract URL — api-key (header) or oauth2 (client credentials).
+    let resp = if let Some(disc_url) = &pointer.discovery_url {
+        match fetch_via_oauth2(client, &pointer.url, disc_url, &token).await {
+            Some(r) => r,
+            None => {
+                provider.auth_error = Some("fetch_failed".to_string());
+                return;
+            }
+        }
+    } else {
+        let header_name = pointer.header.as_deref().unwrap_or("X-Composit-Api-Key");
+        match client
+            .get(&pointer.url)
+            .header(header_name, &token)
+            .send()
+            .await
+        {
+            Ok(r) => r,
+            Err(_) => {
+                provider.auth_error = Some("fetch_failed".to_string());
+                return;
+            }
         }
     };
 
@@ -216,18 +229,74 @@ fn parse_contract_body(body: &serde_json::Value, expected_provider: &str) -> Opt
         .and_then(|v| v.as_str())
         .map(String::from);
 
+    let sla = body.get("sla").and_then(|s| {
+        let uptime_pct = s.get("uptime_pct").and_then(|v| v.as_f64());
+        let incident_contact = s
+            .get("incident_contact")
+            .and_then(|v| v.as_str())
+            .map(String::from);
+        let response_time_ms_p99 = s.get("response_time_ms_p99").and_then(|v| v.as_u64());
+        if uptime_pct.is_none() && incident_contact.is_none() && response_time_ms_p99.is_none() {
+            None
+        } else {
+            Some(SlaInfo {
+                uptime_pct,
+                incident_contact,
+                response_time_ms_p99,
+            })
+        }
+    });
+
+    let capabilities = body
+        .get("capabilities")
+        .and_then(|c| c.as_array())
+        .map(|caps| {
+            caps.iter()
+                .filter_map(|cap| {
+                    let cap_type = cap.get("type")?.as_str()?.to_string();
+                    let rate_limit = cap.get("rate_limit").and_then(|rl| {
+                        let rpm = rl.get("requests_per_minute").and_then(|v| v.as_u64());
+                        let rph = rl.get("requests_per_hour").and_then(|v| v.as_u64());
+                        let burst = rl.get("burst").and_then(|v| v.as_u64());
+                        if rpm.is_none() && rph.is_none() && burst.is_none() {
+                            None
+                        } else {
+                            Some(RateLimitInfo {
+                                requests_per_minute: rpm,
+                                requests_per_hour: rph,
+                                burst,
+                            })
+                        }
+                    });
+                    Some(ContractCapability {
+                        cap_type,
+                        product: cap.get("product").and_then(|v| v.as_str()).map(String::from),
+                        endpoint: cap.get("endpoint").and_then(|v| v.as_str()).map(String::from),
+                        tools: cap.get("tools").and_then(|v| v.as_u64()),
+                        rate_limit,
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
     Some(ContractInfo {
         id,
         issued_at,
         expires_at,
         pricing_tier,
+        sla,
+        capabilities,
     })
 }
 
 #[derive(Debug, Clone)]
 struct ContractPointer {
     url: String,
+    /// api-key: name of the request header (default "X-Composit-Api-Key").
     header: Option<String>,
+    /// oauth2: OIDC/AS discovery URL for client-credentials token fetch.
+    discovery_url: Option<String>,
 }
 
 /// Find the first `contracts[]` entry whose `auth.type` matches `want_type`.
@@ -241,13 +310,60 @@ fn find_contract_pointer(manifest: &serde_json::Value, want_type: &str) -> Optio
             continue;
         }
         let url = entry.get("url").and_then(|v| v.as_str())?.to_string();
-        let header = auth
-            .get("header")
+        let header = auth.get("header").and_then(|v| v.as_str()).map(String::from);
+        let discovery_url = auth
+            .get("discovery_url")
             .and_then(|v| v.as_str())
             .map(String::from);
-        return Some(ContractPointer { url, header });
+        return Some(ContractPointer { url, header, discovery_url });
     }
     None
+}
+
+/// OAuth2 client-credentials flow (RFC 002 §Auth — roadmap).
+///
+/// `credentials` must be `"client_id:client_secret"`. The discovery document
+/// at `discovery_url` (OIDC AS metadata or RFC 8414) must expose a
+/// `token_endpoint`. Returns `None` on any network or parse failure so the
+/// caller can fall back to `auth_error = "fetch_failed"`.
+async fn fetch_via_oauth2(
+    client: &Client,
+    contract_url: &str,
+    discovery_url: &str,
+    credentials: &str,
+) -> Option<reqwest::Response> {
+    let (client_id, client_secret) = credentials.split_once(':').unwrap_or((credentials, ""));
+
+    let discovery: serde_json::Value = client
+        .get(discovery_url)
+        .send()
+        .await
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+
+    let token_endpoint = discovery.get("token_endpoint").and_then(|v| v.as_str())?;
+
+    let token_resp: serde_json::Value = client
+        .post(token_endpoint)
+        .basic_auth(client_id, Some(client_secret))
+        .form(&[("grant_type", "client_credentials")])
+        .send()
+        .await
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+
+    let access_token = token_resp.get("access_token").and_then(|v| v.as_str())?;
+
+    client
+        .get(contract_url)
+        .bearer_auth(access_token)
+        .send()
+        .await
+        .ok()
 }
 
 /// Pure function: given a parsed manifest and the base URL, return the
@@ -392,6 +508,12 @@ mod tests {
         let ptr = find_contract_pointer(&manifest, "api-key").expect("api-key matched");
         assert_eq!(ptr.url, "https://p.example.com/contract");
         assert_eq!(ptr.header.as_deref(), Some("X-Custom-Key"));
+        assert!(ptr.discovery_url.is_none(), "api-key pointer has no discovery_url");
+
+        let oauth_ptr = find_contract_pointer(&manifest, "oauth2").expect("oauth2 matched");
+        assert_eq!(oauth_ptr.url, "https://p.example.com/oauth-contract");
+        assert_eq!(oauth_ptr.discovery_url.as_deref(), Some("https://..."));
+        assert!(oauth_ptr.header.is_none(), "oauth2 pointer has no header");
 
         assert!(find_contract_pointer(&manifest, "mtls").is_none());
     }
@@ -421,6 +543,81 @@ mod tests {
         assert_eq!(info.issued_at, "2026-04-01T00:00:00Z");
         assert_eq!(info.expires_at, "2027-04-01T00:00:00Z");
         assert_eq!(info.pricing_tier.as_deref(), Some("team"));
+        assert!(info.sla.is_none());
+        assert!(info.capabilities.is_empty());
+    }
+
+    #[test]
+    fn parse_contract_body_extracts_sla_and_capabilities() {
+        let body = json!({
+            "composit": "0.1.0",
+            "contract": {
+                "id": "c-1",
+                "provider": "nuetzliche",
+                "issued_at": "2026-01-01T00:00:00Z",
+                "expires_at": "2027-01-01T00:00:00Z"
+            },
+            "capabilities": [
+                {
+                    "type": "scheduling",
+                    "product": "croniq",
+                    "endpoint": "https://mcp.nuetzliche.it/croniq",
+                    "tools": 12,
+                    "rate_limit": { "requests_per_minute": 120, "burst": 20 }
+                },
+                {
+                    "type": "events",
+                    "product": "hookaido"
+                }
+            ],
+            "sla": {
+                "uptime_pct": 99.5,
+                "incident_contact": "sre@nuetzliche.it",
+                "response_time_ms_p99": 800
+            }
+        });
+
+        let info = parse_contract_body(&body, "nuetzliche").expect("parses");
+
+        let sla = info.sla.expect("sla present");
+        assert_eq!(sla.uptime_pct, Some(99.5));
+        assert_eq!(sla.incident_contact.as_deref(), Some("sre@nuetzliche.it"));
+        assert_eq!(sla.response_time_ms_p99, Some(800));
+
+        assert_eq!(info.capabilities.len(), 2);
+        let croniq = &info.capabilities[0];
+        assert_eq!(croniq.cap_type, "scheduling");
+        assert_eq!(croniq.product.as_deref(), Some("croniq"));
+        assert_eq!(croniq.endpoint.as_deref(), Some("https://mcp.nuetzliche.it/croniq"));
+        assert_eq!(croniq.tools, Some(12));
+        let rl = croniq.rate_limit.as_ref().expect("rate_limit parsed");
+        assert_eq!(rl.requests_per_minute, Some(120));
+        assert_eq!(rl.burst, Some(20));
+        assert!(rl.requests_per_hour.is_none());
+
+        // Sparse capability: just type + product, no endpoint/tools/rate_limit.
+        let hookaido = &info.capabilities[1];
+        assert_eq!(hookaido.cap_type, "events");
+        assert!(hookaido.endpoint.is_none());
+        assert!(hookaido.tools.is_none());
+        assert!(hookaido.rate_limit.is_none());
+    }
+
+    #[test]
+    fn parse_contract_body_empty_sla_block_is_none() {
+        // RFC 003 §sla: all sub-fields optional; empty `sla: {}` should
+        // collapse to `None` rather than carry a meaningless object.
+        let body = json!({
+            "contract": {
+                "id": "c-1",
+                "provider": "x",
+                "issued_at": "2026-01-01T00:00:00Z",
+                "expires_at": "2027-01-01T00:00:00Z"
+            },
+            "sla": {}
+        });
+        let info = parse_contract_body(&body, "x").expect("parses");
+        assert!(info.sla.is_none(), "empty sla object collapses to None");
     }
 
     #[test]

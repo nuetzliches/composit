@@ -11,10 +11,8 @@
 //! This is enough to turn a `policy` block in the Compositfile from
 //! "file exists on disk" into "file exists and declares package X with
 //! N rules, including an allow/deny entrypoint". Runtime evaluation
-//! against scan-derived inputs is deliberately out of scope — the
-//! Rego files in real repos (e.g. powerbrain's `opa-policies/pb/`)
-//! expect request-shaped inputs, not composit reports, so evaluating
-//! them here would produce misleading results.
+//! of policies against the scan report happens in `core::opa_eval`,
+//! which is called by `commands::diff::check_policies`.
 
 /// What a `.rego` file declares. Extracted syntactically, so this is
 /// "the author's stated intent", not the runtime semantics.

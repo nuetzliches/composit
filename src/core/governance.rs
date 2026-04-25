@@ -121,7 +121,8 @@ pub struct ProviderRule {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthRef {
     /// Method advertised by the provider's public manifest.
-    /// Currently `"api-key"`; `"oauth2"` is on the RFC 002 roadmap.
+    /// Supported: `"api-key"` (header credential) and `"oauth2"` (client-credentials
+    /// grant; `env` holds `client_id:client_secret`).
     #[serde(rename = "type")]
     pub auth_type: String,
     /// Name of the environment variable that holds the credential value.
