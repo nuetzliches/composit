@@ -259,6 +259,73 @@ Each `renderings[]` entry carries:
 (via `rendered_must_contain`). Vault-encrypted templates never carry
 renderings and surface `vault_unsupported` Info in the diff.
 
+### `agent_spec`
+
+Emitted by `agent_spec` scanner for `SKILL.md`, `AGENTS.md`, and
+`CLAUDE.md` files at any depth in the workspace. Surfaces the YAML
+frontmatter where present (Anthropic skill manifests) plus the
+filename kind so role rules can scope to skills vs. free-form
+agent instructions.
+
+| Key             | Type    | Notes                                                                  |
+|-----------------|---------|------------------------------------------------------------------------|
+| `kind`          | string  | `"skill"` (SKILL.md), `"agents"` (AGENTS.md), `"claude"` (CLAUDE.md)    |
+| `description`   | string  | YAML frontmatter `description`; folded scalars collapse to one line     |
+| `allowed_tools` | string  | YAML frontmatter `allowed-tools` value (verbatim — array or string)     |
+| `model`         | string  | YAML frontmatter `model`, when present                                  |
+| `version`       | string  | YAML frontmatter `version`, when present                                |
+| `lines`         | integer | total line count of the file                                            |
+
+`name` falls back to the directory basename when frontmatter has no
+`name:` field — keeps `skills/<id>/SKILL.md` repos distinguishable
+without polluting the resource list with `null` names.
+
+**Detection rules:** `SKILL.md` requires either parseable YAML
+frontmatter or a top-level heading containing the word "skill"
+(case-insensitive). `AGENTS.md` / `CLAUDE.md` are recorded whenever
+they exist — they're free-form by convention.
+
+### `cargo_workspace` / `cargo_crate`
+
+Emitted by `cargo_manifest` scanner for `Cargo.toml`. A single
+manifest can produce both resources when it declares `[workspace]`
+and `[package]` simultaneously (root binary + workspace).
+
+`cargo_workspace`:
+
+| Key            | Type     | Notes                                        |
+|----------------|----------|----------------------------------------------|
+| `members`      | string[] | values from `[workspace] members = [ … ]`     |
+| `member_count` | integer  | length of `members`                           |
+| `version`      | string   | `[workspace.package] version`, when present   |
+
+`cargo_crate`:
+
+| Key       | Type   | Notes                              |
+|-----------|--------|------------------------------------|
+| `version` | string | `[package] version`                |
+| `edition` | string | `[package] edition` (e.g. `2024`)   |
+| `license` | string | `[package] license`, when present   |
+
+`name` for `cargo_crate` comes from `[package] name`. For
+`cargo_workspace` it falls back to the parent directory basename
+(workspace roots usually don't carry their own `name`).
+
+`Cargo.toml` files inside `target/` are skipped (vendored builds).
+
+### `go_module`
+
+Emitted by `go_module` scanner for `go.mod` files. Multi-module
+repos surface one resource per `go.mod`; `vendor/` is skipped.
+
+| Key                 | Type    | Notes                                              |
+|---------------------|---------|----------------------------------------------------|
+| `go_version`        | string  | from `go <version>` directive                      |
+| `direct_requires`   | integer | count of `require` entries without `// indirect`   |
+| `indirect_requires` | integer | count of `require` entries with `// indirect`      |
+
+`name` is the module path declared by `module <path>`.
+
 ## Adding a new attribute
 
 1. Update the scanner to emit the key into `resource.extra`.

@@ -91,7 +91,7 @@ files. It reads declarations out of the tree and compares.
 
 ## What it scans
 
-22 built-in scanners with fixtures under `tests/fixtures/` and E2E
+25 built-in scanners with fixtures under `tests/fixtures/` and E2E
 coverage in `tests/scanner_e2e.rs`:
 
 | Category              | Scanners                                                                   |
@@ -105,7 +105,8 @@ coverage in `tests/scanner_e2e.rs`:
 | **Data**              | `db_migrations`                                                            |
 | **APIs**              | `proto`                                                                    |
 | **Policy**            | `opa_policy`                                                               |
-| **Agent tooling**     | `mcp_config`, `mcp_provider`                                               |
+| **Agent tooling**     | `mcp_config`, `mcp_provider`, `agent_spec` (SKILL.md, AGENTS.md, CLAUDE.md) |
+| **Source manifests**  | `cargo_manifest` (workspaces + crates), `go_module`                        |
 
 Custom file patterns via a `scan { extra_patterns { … } }` block in
 the Compositfile. New scanner? [`src/scanners/nginx.rs`](src/scanners/nginx.rs)
@@ -154,9 +155,11 @@ and [RFC 002](docs/rfcs/002-provider-manifest-tiers.md).
 
 ### Policy Interface
 
-OPA/Rego rules that constrain what agents can provision. Today the
-scanner emits the rule inventory; runtime evaluation is on the
-[roadmap](docs/ROADMAP.md). See [`examples/policies/`](examples/policies/).
+OPA/Rego rules that constrain what agents can provision. The
+`opa_policy` scanner extracts each rule's package, entrypoints and
+metadata; `composit diff` evaluates `deny`/`allow` rules against the
+scan report and surfaces violations as `policy_violation` errors. See
+[`examples/policies/`](examples/policies/).
 
 ---
 

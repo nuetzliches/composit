@@ -127,7 +127,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "description": "Canonical resource type. Scanners emit stable type strings (e.g. docker_service, terraform_resource, cron_job). See docs/schemas/resource-types.md for the registry.",
+          "description": "Canonical resource type. Scanners emit stable type strings (e.g. docker_service, terraform_resource, cron_job). See docs/SCANNER-ATTRIBUTES.md for the per-type attribute contract.",
           "minLength": 1,
           "examples": [
             "docker_compose",
@@ -139,12 +139,24 @@
             "terraform_module",
             "caddyfile",
             "caddy_site",
+            "nginx_config",
             "workflow",
+            "cron_job",
+            "deploy_script",
             "prometheus_config",
             "prometheus_rules",
-            "cron_job",
+            "grafana_dashboard",
+            "grafana_datasource",
+            "tempo_config",
+            "db_migrations",
+            "proto_file",
+            "opa_policy",
             "mcp_server",
-            "mcp_capability"
+            "mcp_capability",
+            "agent_spec",
+            "cargo_workspace",
+            "cargo_crate",
+            "go_module"
           ]
         },
         "name": {

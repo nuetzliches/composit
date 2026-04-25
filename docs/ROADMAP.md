@@ -31,19 +31,6 @@ a drive-by PR.
 
 ## Open CLI work
 
-- **OPA runtime evaluation.** Today the `opa_policy` scanner parses
-  `.rego` (package, rule heads, entrypoints) and `composit diff` reports
-  `policy_parsed`. Actual rule evaluation against scan-derived inputs
-  is the next milestone. Needs a composit-specific input shape (e.g.
-  "deny if `docker_service.image` ends with `:latest`") rather than
-  the request-shaped inputs most existing Rego libraries expect.
-
-- **Version-sync automation.** Releases currently require manually
-  bumping `Cargo.toml`, the npm `package.json`, and the brew formula
-  template in lockstep. `cargo-release` with a release hook that
-  rewrites the matching lines would collapse this into a single
-  `cargo release 0.3.0` invocation.
-
 - **Scanner benchmark.** A reproducible coverage benchmark across a
   curated set of public repos — per-scanner resource counts and
   regression alerts when a scanner silently stops detecting something
@@ -67,10 +54,12 @@ leanest references.
 
 ## Spec follow-ups
 
-- **OAuth2 flow.** Currently `trust = "contract"` only accepts
-  `auth.type = "api-key"`. OAuth2 is reserved in the parser but
-  rejected — we turn it on when a second provider needs it, and
-  codify the flow as its own RFC.
+- **OAuth2 flow as a normative RFC.** The CLI ships a working
+  client-credentials implementation (env holds `client_id:client_secret`,
+  scanner discovers the token endpoint and uses the access token as
+  Bearer on the contract URL). What's still open is publishing this as
+  its own RFC so external providers have a target to aim at, and
+  resolving the open scope question of how scopes/refresh fit RFC 002.
 
 - **Multi-tier contracts.** RFC 002 Open Question #3 — can a provider
   publish several paid tiers (free/basic/pro) in one manifest, each
@@ -80,11 +69,6 @@ leanest references.
   that holds multiple contracts with the same provider (different
   billing entities, dev vs. prod) may need one manifest to support
   several credentials simultaneously.
-
-- **Full contract-response consumption.** `composit status --live`
-  currently reads only `contract.{id, issued_at, expires_at, pricing_tier}`
-  from the contract response. `endpoints`, `tools`, `sla`, `rate_limits`
-  are defined in RFC 003 but not yet surfaced in the CLI.
 
 ---
 

@@ -145,8 +145,8 @@ a credential at scan time.
 
 | Attribute | Type          | Required | Description |
 |-----------|---------------|----------|-------------|
-| `type`    | string (enum) | yes      | Auth method. Valid in v0.1: `"api-key"`. `"oauth2"` is on the RFC 002 roadmap but rejected by the parser. |
-| `env`     | string        | no       | Name of the environment variable that holds the credential. When omitted, composit cannot authenticate; `composit diff` surfaces a `contract_auth_missing` diagnostic. |
+| `type`    | string (enum) | yes      | Auth method. Valid: `"api-key"` (env holds the API-key value, sent as a header) or `"oauth2"` (env holds `client_id:client_secret`; scanner runs the client-credentials flow against the manifest's `discovery_url`). |
+| `env`     | string        | no       | Name of the environment variable that holds the credential (api-key value, or `client_id:client_secret` for oauth2). When omitted, composit cannot authenticate; `composit diff` surfaces a `contract_auth_missing` diagnostic. |
 
 composit never reads a secret from the tracked file itself. `env` is a
 level of indirection: the credential lives in the environment, not the
@@ -519,10 +519,11 @@ workspace "production" {
    inferred from the CLI version. This mirrors the report format question
    in RFC 001 § Open questions.
 
-3. **`auth.type = "oauth2"`** — OAuth2 is reserved on the RFC 002 roadmap
-   but the parser rejects it today. When should it be promoted, and what
-   additional attributes does it require (`token_url`, `client_id`,
-   `client_secret_env`)?
+3. **OAuth2 attribute split** — v0.1 of OAuth2 support packs the
+   `client_id` and `client_secret` into a single env var
+   (`client_id:client_secret`). Should the Compositfile grow explicit
+   attributes (`client_id_env`, `client_secret_env`) so secret-rotation
+   tooling can target each half independently?
 
 4. **Allowlist granularity for `allowed_images`** — Currently a prefix
    match. Should it support exact pinning (`ghcr.io/acme/api@sha256:…`)
