@@ -120,10 +120,12 @@ impl ScannerRegistry {
             resolve_docker_service_variables(&mut all_resources, &context.dir, resolvable, redact);
 
         // Apply scan.redact to env_file.keys so operators can hide
-        // sensitive key *names* (not just values) from the report. The
-        // default redaction list already handles *_SECRET / *_KEY /
-        // *_TOKEN / *_PASSWORD / DATABASE_URL; user patterns compose
-        // on top.
+        // sensitive key *names* — opt-in only. Defaults (*_SECRET, *_KEY,
+        // *_TOKEN, *_PASSWORD, DATABASE_URL, JWT_SECRET) apply to VALUES
+        // during ${VAR} substitution but NOT to key names: knowing a
+        // service has a `DATABASE_URL` is governance-relevant, only the
+        // value would be sensitive. User-declared patterns redact names
+        // for callers who need stricter privacy (e.g. customer-named keys).
         redact_env_file_keys(&mut all_resources, redact);
 
         // RFC 007: render Ansible `.j2` templates. v0.1 did extra_vars
@@ -643,12 +645,17 @@ fn short_checksum(s: &str) -> String {
 }
 
 fn redact_env_file_keys(resources: &mut [Resource], user_redact: &[String]) {
-    // Compile redaction globs once. User entries match against the
-    // upper-cased key so `*_URL` catches both `api_url` and `API_URL`.
+    // Only user-declared patterns redact key names. The default
+    // `*_KEY/_SECRET/_TOKEN/_PASSWORD` list applies to VALUES (in
+    // `read_env_file_values`) — names are governance signal and stay
+    // visible unless the operator explicitly opts in.
     let patterns: Vec<glob::Pattern> = user_redact
         .iter()
         .filter_map(|p| glob::Pattern::new(p).ok())
         .collect();
+    if patterns.is_empty() {
+        return;
+    }
     for r in resources.iter_mut() {
         if r.resource_type != "env_file" {
             continue;
@@ -661,7 +668,8 @@ fn redact_env_file_keys(resources: &mut [Resource], user_redact: &[String]) {
         };
         for item in arr.iter_mut() {
             let Some(s) = item.as_str() else { continue };
-            if should_redact(s, &patterns) {
+            let upper = s.to_uppercase();
+            if patterns.iter().any(|p| p.matches(&upper)) {
                 *item = serde_json::Value::String("<redacted>".to_string());
             }
         }
@@ -781,6 +789,87 @@ mod tests {
                 resolution: None,
             })
         }
+    }
+
+    fn env_file_with_keys(keys: &[&str]) -> Resource {
+        let mut extra = HashMap::new();
+        extra.insert(
+            "keys".to_string(),
+            serde_json::Value::Array(
+                keys.iter()
+                    .map(|k| serde_json::Value::String(k.to_string()))
+                    .collect(),
+            ),
+        );
+        Resource {
+            resource_type: "env_file".to_string(),
+            name: None,
+            path: Some("./.env".to_string()),
+            provider: None,
+            created: None,
+            created_by: None,
+            detected_by: "env_files".to_string(),
+            estimated_cost: None,
+            extra,
+        }
+    }
+
+    fn keys_of(r: &Resource) -> Vec<String> {
+        r.extra
+            .get("keys")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn redact_env_file_keys_no_patterns_leaves_keys_intact() {
+        // Default redact suffixes (*_KEY, *_SECRET, …) apply to VALUES
+        // during ${VAR} substitution but MUST NOT hide key names —
+        // knowing a service has a `DATABASE_URL` env var is governance
+        // signal, only the value would be sensitive.
+        let mut resources = vec![env_file_with_keys(&[
+            "HOOKAIDO_PULL_TOKEN",
+            "HOOKAIDO_INGRESS_SECRET",
+            "DATABASE_URL",
+            "API_KEY",
+        ])];
+        redact_env_file_keys(&mut resources, &[]);
+        let keys = keys_of(&resources[0]);
+        assert_eq!(
+            keys,
+            vec!["HOOKAIDO_PULL_TOKEN", "HOOKAIDO_INGRESS_SECRET", "DATABASE_URL", "API_KEY"],
+            "no user redact patterns → all key names visible"
+        );
+    }
+
+    #[test]
+    fn redact_env_file_keys_user_patterns_hide_only_matching_names() {
+        // User opts into name-redaction with specific globs.
+        let mut resources = vec![env_file_with_keys(&[
+            "CUSTOMER_ACME_API_KEY",
+            "CUSTOMER_BETA_API_KEY",
+            "GENERIC_API_KEY",
+        ])];
+        redact_env_file_keys(&mut resources, &["CUSTOMER_*".to_string()]);
+        let keys = keys_of(&resources[0]);
+        assert_eq!(
+            keys,
+            vec!["<redacted>", "<redacted>", "GENERIC_API_KEY"],
+            "user pattern hides matching names; non-matching stays"
+        );
+    }
+
+    #[test]
+    fn redact_env_file_keys_case_insensitive_match() {
+        let mut resources = vec![env_file_with_keys(&["customer_url", "PUBLIC_URL"])];
+        redact_env_file_keys(&mut resources, &["*_URL".to_string()]);
+        let keys = keys_of(&resources[0]);
+        assert_eq!(keys, vec!["<redacted>", "<redacted>"]);
     }
 
     #[tokio::test]
