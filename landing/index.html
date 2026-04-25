@@ -485,16 +485,16 @@ footer .legal a { margin: 0 .5rem; }
             codespaces <span class="tab-badge badge-ok">available</span>
           </button>
           <button class="tab-btn" role="tab" data-tab="brew">
-            brew <span class="tab-badge badge-soon">soon</span>
+            brew <span class="tab-badge badge-ok">available</span>
           </button>
           <button class="tab-btn" role="tab" data-tab="npx">
-            npx <span class="tab-badge badge-soon">soon</span>
+            npx <span class="tab-badge badge-ok">available</span>
           </button>
           <button class="tab-btn active" role="tab" data-tab="cargo">
             cargo <span class="tab-badge badge-ok">available</span>
           </button>
           <button class="tab-btn" role="tab" data-tab="curl">
-            curl <span class="tab-badge badge-soon">soon</span>
+            curl <span class="tab-badge badge-ok">available</span>
           </button>
           <button class="tab-btn" role="tab" data-tab="docker">
             docker <span class="tab-badge badge-ok">available</span>
@@ -521,7 +521,7 @@ composit diff    <span class="comment"># compare intent vs. reality</span></pre>
         <!-- brew -->
         <div class="tab-panel" id="tab-brew" role="tabpanel">
           <div class="tab-panel-header">
-            <span>macOS · Linux — requires first release</span>
+            <span>macOS · Linux</span>
           </div>
           <div class="tab-section">
             <div class="tab-section-head">
@@ -532,24 +532,24 @@ composit diff    <span class="comment"># compare intent vs. reality</span></pre>
 brew tap nuetzliches/tap
 brew install composit</pre>
           </div>
-          <div class="tab-note">Formula at <a href="https://github.com/nuetzliches/composit/blob/main/install/brew/composit.rb" target="_blank" rel="noopener">install/brew/composit.rb</a> — SHA256 placeholders filled on first GitHub release.</div>
+          <div class="tab-note">Formula tracked at <a href="https://github.com/nuetzliches/homebrew-tap/blob/main/Formula/composit.rb" target="_blank" rel="noopener">nuetzliches/homebrew-tap</a>; auto-bumped by the release workflow.</div>
         </div>
 
         <!-- npx -->
         <div class="tab-panel" id="tab-npx" role="tabpanel">
           <div class="tab-panel-header">
-            <span>Zero-install · CI-friendly — requires first release</span>
+            <span>Zero-install · CI-friendly</span>
           </div>
           <div class="tab-section">
             <div class="tab-section-head">
               <span>Use</span>
-              <button type="button" class="qs-copy" data-copy="npx @composit/cli init">Copy</button>
+              <button type="button" class="qs-copy" data-copy="npx @nutz/composit init">Copy</button>
             </div>
 <pre><span class="comment"># No install step — npx downloads on first use.</span>
-npx @composit/cli init
-npx @composit/cli diff --output json</pre>
+npx @nutz/composit init
+npx @nutz/composit diff --output json</pre>
           </div>
-          <div class="tab-note">Meta-package at <a href="https://github.com/nuetzliches/composit/blob/main/install/npm/package.json" target="_blank" rel="noopener">install/npm/</a> — selects a platform binary via optional dependencies (biome / esbuild pattern).</div>
+          <div class="tab-note">Meta-package <a href="https://www.npmjs.com/package/@nutz/composit" target="_blank" rel="noopener">@nutz/composit</a> selects a platform binary via optional dependencies (biome / esbuild pattern).</div>
         </div>
 
         <!-- cargo -->
@@ -571,7 +571,7 @@ cargo install --git https://github.com/nuetzliches/composit</pre>
         <!-- curl -->
         <div class="tab-panel" id="tab-curl" role="tabpanel">
           <div class="tab-panel-header">
-            <span>macOS · Linux — requires first release</span>
+            <span>macOS · Linux</span>
           </div>
           <div class="tab-section">
             <div class="tab-section-head">

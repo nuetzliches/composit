@@ -188,26 +188,26 @@ jobs:
     name: Publish to npm
     runs-on: ubuntu-latest
     needs: release
-    # Requires the secret COMPOSIT_DEPLOY_TOKEN (an npm automation token
-    # with publish rights to the @nutz scope). When the secret is absent
-    # the job short-circuits so the rest of the release still completes.
-    env:
-      NPM_TOKEN: ${{ secrets.COMPOSIT_DEPLOY_TOKEN }}
+    # Auth via npm Trusted Publishers (OIDC). Each of the six packages
+    # (@nutz/composit + 5 platform sub-packages) must list this workflow
+    # as a Trusted Publisher on npmjs.com — otherwise publish fails with
+    # 401. No long-lived NPM_TOKEN required.
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v6
-        if: env.NPM_TOKEN != ''
       - uses: actions/setup-node@v4
-        if: env.NPM_TOKEN != ''
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org
+      - name: Upgrade npm to OIDC-capable version
+        run: npm install -g npm@latest
       - uses: actions/download-artifact@v8
-        if: env.NPM_TOKEN != ''
         with:
           pattern: composit-*
           path: artifacts
       - name: Flatten artifacts
-        if: env.NPM_TOKEN != ''
         shell: bash
         run: |
           set -euo pipefail
@@ -215,22 +215,18 @@ jobs:
           find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} artifacts-flat/ \;
           ls -la artifacts-flat
       - name: Build sub-packages
-        if: env.NPM_TOKEN != ''
         shell: bash
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF#refs/tags/v}"
           node install/npm/build-packages.mjs "$VERSION" artifacts-flat dist/npm
       - name: Publish platform sub-packages, then meta
-        if: env.NPM_TOKEN != ''
         shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.COMPOSIT_DEPLOY_TOKEN }}
         run: |
           set -euo pipefail
           for d in dist/npm/*/; do
             name=$(basename "$d")
             [ "$name" = "meta" ] && continue
-            (cd "$d" && npm publish --access public)
+            (cd "$d" && npm publish --provenance --access public)
           done
-          (cd dist/npm/meta && npm publish --access public)
+          (cd dist/npm/meta && npm publish --provenance --access public)
