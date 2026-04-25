@@ -472,9 +472,9 @@ footer .legal a { margin: 0 .5rem; }
       <div class="install-tabs">
         <div class="tab-bar" role="tablist">
           <button class="tab-btn" role="tab" data-tab="codespaces">codespaces</button>
-          <button class="tab-btn" role="tab" data-tab="brew">brew</button>
+          <button class="tab-btn active" role="tab" data-tab="brew">brew</button>
           <button class="tab-btn" role="tab" data-tab="npx">npx</button>
-          <button class="tab-btn active" role="tab" data-tab="cargo">cargo</button>
+          <button class="tab-btn" role="tab" data-tab="cargo">cargo</button>
           <button class="tab-btn" role="tab" data-tab="curl">curl</button>
           <button class="tab-btn" role="tab" data-tab="docker">docker</button>
         </div>
@@ -497,7 +497,7 @@ composit diff    <span class="comment"># compare intent vs. reality</span></pre>
         </div>
 
         <!-- brew -->
-        <div class="tab-panel" id="tab-brew" role="tabpanel">
+        <div class="tab-panel active" id="tab-brew" role="tabpanel">
           <div class="tab-panel-header">
             <span>macOS · Linux</span>
           </div>
@@ -531,7 +531,7 @@ npx @nutz/composit diff --output json</pre>
         </div>
 
         <!-- cargo -->
-        <div class="tab-panel active" id="tab-cargo" role="tabpanel">
+        <div class="tab-panel" id="tab-cargo" role="tabpanel">
           <div class="tab-panel-header">
             <span>Rust toolchain required</span>
           </div>
