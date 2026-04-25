@@ -1,0 +1,32 @@
+# cargo-release configuration
+# Usage: cargo release patch   (or minor / major)
+# Docs:  https://github.com/crate-ci/cargo-release
+#
+# install: cargo install cargo-release
+#
+# What this automates:
+#   1. Bumps version in Cargo.toml
+#   2. Updates brew formula version in install/brew/composit.rb
+#   3. Commits with "Bump to vX.Y.Z"
+#   4. Tags vX.Y.Z
+#   5. Pushes commit + tag  →  triggers CI release pipeline
+#
+# npm version is injected at publish-time by install/npm/build-packages.mjs
+# (npm/package.json intentionally stays at "0.0.0").
+#
+# Brew SHA256s are computed and written by the release CI workflow
+# (requires HOMEBREW_TAP_TOKEN secret); only the version line is synced here.
+
+sign-commit = false
+sign-tag    = false
+push        = true
+publish     = false
+
+pre-release-commit-message = "Bump to v{{version}}"
+tag-message = "v{{version}}"
+
+[[pre-release-replacements]]
+file    = "install/brew/composit.rb"
+search  = "version \"[0-9]+\\.[0-9]+\\.[0-9]+\""
+replace = "version \"{{version}}\""
+exactly = 1
