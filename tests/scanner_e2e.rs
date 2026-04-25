@@ -1203,3 +1203,159 @@ fn demo_drift_exits_nonzero_in_strict_mode() {
         "strict diff with errors must exit 1"
     );
 }
+
+// ─────────────────────────────────────────────────────────
+// Scanners shipped after v0.3.2 — agent_spec, cargo_manifest, go_module
+// ─────────────────────────────────────────────────────────
+
+#[test]
+fn scan_agent_spec_fixture_finds_skill_and_agents() {
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("agent_spec", tmp.path());
+
+    let out = run_scan(tmp.path());
+    assert!(out.status.success());
+
+    let content = fs::read_to_string(tmp.path().join("composit-report.json")).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let resources = report["resources"].as_array().unwrap();
+
+    let specs: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("agent_spec"))
+        .collect();
+
+    // SKILL.md (frontmatter), AGENTS.md, skills/heading-only/SKILL.md.
+    // docs/SKILL.md must NOT appear (no frontmatter, no skill heading).
+    assert_eq!(
+        specs.len(),
+        3,
+        "expected exactly 3 agent_spec resources; got: {:#?}",
+        specs.iter().map(|r| r["path"].as_str()).collect::<Vec<_>>()
+    );
+
+    // Top-level SKILL.md with frontmatter.
+    let widget = specs
+        .iter()
+        .find(|r| r["name"].as_str() == Some("widget-skill"))
+        .expect("widget-skill from frontmatter name");
+    assert_eq!(widget["kind"].as_str(), Some("skill"));
+    assert_eq!(widget["version"].as_str(), Some("1.2.3"));
+    let desc = widget["description"].as_str().unwrap();
+    assert!(
+        desc.contains("multi-line") && desc.contains("collapse"),
+        "folded scalar must collapse to one line; got: {desc}"
+    );
+    assert!(widget["allowed_tools"]
+        .as_str()
+        .is_some_and(|s| s.contains("WebSearch")));
+
+    // AGENTS.md (free-form, no frontmatter).
+    let agents = specs
+        .iter()
+        .find(|r| r["kind"].as_str() == Some("agents"))
+        .expect("AGENTS.md detected");
+    assert_eq!(agents["path"].as_str(), Some("./AGENTS.md"));
+
+    // Heading-only SKILL.md fallback.
+    let heading = specs
+        .iter()
+        .find(|r| {
+            r["path"]
+                .as_str()
+                .is_some_and(|p| p.contains("heading-only"))
+        })
+        .expect("heading-only SKILL.md falls back to dir name");
+    assert_eq!(heading["name"].as_str(), Some("heading-only"));
+
+    // Bare SKILL.md without frontmatter or heading must be excluded.
+    assert!(
+        !specs.iter().any(|r| r["path"]
+            .as_str()
+            .is_some_and(|p| p.ends_with("docs/SKILL.md"))),
+        "docs/SKILL.md without frontmatter or skill heading must NOT be recorded"
+    );
+}
+
+#[test]
+fn scan_cargo_manifest_fixture_finds_workspace_and_crates() {
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("cargo_manifest", tmp.path());
+
+    let out = run_scan(tmp.path());
+    assert!(out.status.success());
+
+    let content = fs::read_to_string(tmp.path().join("composit-report.json")).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let resources = report["resources"].as_array().unwrap();
+
+    // Workspace root: 1 cargo_workspace (root Cargo.toml has no [package]).
+    let workspaces: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("cargo_workspace"))
+        .collect();
+    assert_eq!(workspaces.len(), 1);
+    let ws = workspaces[0];
+    assert_eq!(ws["member_count"].as_u64(), Some(2));
+    assert_eq!(ws["version"].as_str(), Some("0.1.0"));
+
+    // Member crates: 2.
+    let crates: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("cargo_crate"))
+        .collect();
+    assert_eq!(crates.len(), 2);
+
+    let foo = crates
+        .iter()
+        .find(|r| r["name"].as_str() == Some("foo"))
+        .expect("foo crate");
+    assert_eq!(foo["version"].as_str(), Some("0.2.0"));
+    assert_eq!(foo["edition"].as_str(), Some("2021"));
+    assert_eq!(foo["license"].as_str(), Some("MIT"));
+
+    // bar has no license — that field must be absent, not "null".
+    let bar = crates
+        .iter()
+        .find(|r| r["name"].as_str() == Some("bar"))
+        .expect("bar crate");
+    assert!(
+        bar.get("license").is_none() || bar["license"].is_null(),
+        "absent license should not appear; got: {:?}",
+        bar.get("license")
+    );
+}
+
+#[test]
+fn scan_go_module_fixture_finds_module_and_requires() {
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("go_module", tmp.path());
+
+    let out = run_scan(tmp.path());
+    assert!(out.status.success());
+
+    let content = fs::read_to_string(tmp.path().join("composit-report.json")).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let resources = report["resources"].as_array().unwrap();
+
+    let modules: Vec<_> = resources
+        .iter()
+        .filter(|r| r["type"].as_str() == Some("go_module"))
+        .collect();
+    // Multi-module repo: root go.mod + subapp/go.mod.
+    assert_eq!(modules.len(), 2);
+
+    let root = modules
+        .iter()
+        .find(|r| r["name"].as_str() == Some("example.com/widgetshop"))
+        .expect("root module");
+    assert_eq!(root["go_version"].as_str(), Some("1.22"));
+    assert_eq!(root["direct_requires"].as_u64(), Some(2));
+    assert_eq!(root["indirect_requires"].as_u64(), Some(2));
+
+    let sub = modules
+        .iter()
+        .find(|r| r["name"].as_str() == Some("example.com/widgetshop/subapp"))
+        .expect("subapp module");
+    assert_eq!(sub["direct_requires"].as_u64(), Some(1));
+}
