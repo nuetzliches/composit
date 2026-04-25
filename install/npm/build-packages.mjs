@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Generate npm publish-ready directories for the meta package
-// (@nuetzliches/composit) and the five platform sub-packages from a directory
+// (@nutz/composit) and the five platform sub-packages from a directory
 // of release artifacts (.tar.gz / .zip).
 //
 // usage: build-packages.mjs <version> <artifacts-dir> <out-dir>
@@ -59,7 +59,7 @@ for (const p of PLATFORMS) {
   rmSync(stage, { recursive: true, force: true });
 
   const subPkg = {
-    name: `@nuetzliches/composit-${p.key}`,
+    name: `@nutz/composit-${p.key}`,
     version,
     description: `composit binary for ${p.os}-${p.cpu}`,
     homepage: "https://nuetzliches.github.io/composit",
@@ -75,7 +75,7 @@ for (const p of PLATFORMS) {
 const meta = JSON.parse(readFileSync(join(here, "package.json"), "utf8"));
 meta.version = version;
 for (const p of PLATFORMS) {
-  meta.optionalDependencies[`@nuetzliches/composit-${p.key}`] = version;
+  meta.optionalDependencies[`@nutz/composit-${p.key}`] = version;
 }
 
 const metaDir = join(outDir, "meta");

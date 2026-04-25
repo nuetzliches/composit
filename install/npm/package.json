@@ -1,5 +1,5 @@
 {
-  "name": "@nuetzliches/composit",
+  "name": "@nutz/composit",
   "version": "0.0.0",
   "description": "Governance-as-Code for AI-generated infrastructure — scan declarations, diff against a Compositfile, surface drift.",
   "keywords": ["governance", "iac", "mcp", "ai-agents", "drift", "composit"],
@@ -9,11 +9,11 @@
   "bin": { "composit": "bin/composit.js" },
   "files": ["bin/"],
   "optionalDependencies": {
-    "@nuetzliches/composit-linux-x64":    "0.0.0",
-    "@nuetzliches/composit-linux-arm64":  "0.0.0",
-    "@nuetzliches/composit-darwin-x64":   "0.0.0",
-    "@nuetzliches/composit-darwin-arm64": "0.0.0",
-    "@nuetzliches/composit-win32-x64":    "0.0.0"
+    "@nutz/composit-linux-x64":    "0.0.0",
+    "@nutz/composit-linux-arm64":  "0.0.0",
+    "@nutz/composit-darwin-x64":   "0.0.0",
+    "@nutz/composit-darwin-arm64": "0.0.0",
+    "@nutz/composit-win32-x64":    "0.0.0"
   },
   "engines": { "node": ">=18" }
 }

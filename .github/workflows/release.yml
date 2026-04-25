@@ -188,11 +188,11 @@ jobs:
     name: Publish to npm
     runs-on: ubuntu-latest
     needs: release
-    # Requires the secret NPM_TOKEN (an npm automation token with publish
-    # rights to the @nuetzliches scope). When the secret is absent the job
-    # short-circuits so the rest of the release still completes.
+    # Requires the secret COMPOSIT_DEPLOY_TOKEN (an npm automation token
+    # with publish rights to the @nutz scope). When the secret is absent
+    # the job short-circuits so the rest of the release still completes.
     env:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      NPM_TOKEN: ${{ secrets.COMPOSIT_DEPLOY_TOKEN }}
     steps:
       - uses: actions/checkout@v6
         if: env.NPM_TOKEN != ''
@@ -225,7 +225,7 @@ jobs:
         if: env.NPM_TOKEN != ''
         shell: bash
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.COMPOSIT_DEPLOY_TOKEN }}
         run: |
           set -euo pipefail
           for d in dist/npm/*/; do
