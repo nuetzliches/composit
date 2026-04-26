@@ -2,7 +2,7 @@ class Composit < Formula
   desc "Governance-as-Code for AI-generated infrastructure"
   homepage "https://nuetzliches.github.io/composit"
   license "MIT"
-  version "0.4.0"
+  version "0.4.1"
 
   on_macos do
     on_arm do
