@@ -114,9 +114,7 @@ impl ScannerRegistry {
         // which env-file globs are allowed to supply values. Without it,
         // `${VAR}` stays literal in the report and shows up as
         // `unresolved_variable` in the diff.
-        let resolvable = scan
-            .and_then(|s| s.resolvable.as_deref())
-            .unwrap_or(&[]);
+        let resolvable = scan.and_then(|s| s.resolvable.as_deref()).unwrap_or(&[]);
         let redact = scan.map(|s| s.redact.as_slice()).unwrap_or(&[]);
         let resolution =
             resolve_docker_service_variables(&mut all_resources, &context.dir, resolvable, redact);

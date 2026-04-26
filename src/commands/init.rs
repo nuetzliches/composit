@@ -41,11 +41,7 @@ pub fn run_init(
         let ts = chrono::Utc::now().format("%Y%m%dT%H%M%SZ");
         let backup_path = dir.join(format!("Compositfile.backup.{ts}"));
         std::fs::copy(&compositfile_path, &backup_path)?;
-        println!(
-            "  {} {}",
-            "Backup written:".yellow(),
-            backup_path.display()
-        );
+        println!("  {} {}", "Backup written:".yellow(), backup_path.display());
     }
 
     let workspace = workspace_name.unwrap_or_else(|| workspace_from_dir(dir));
@@ -562,8 +558,14 @@ mod tests {
         run_init(dir.path(), Some("test-ws".to_string()), None, true).unwrap();
 
         let new_content = std::fs::read_to_string(&path).unwrap();
-        assert!(!new_content.contains("old content"), "old content must be gone");
-        assert!(new_content.contains("test-ws"), "new file must use workspace name");
+        assert!(
+            !new_content.contains("old content"),
+            "old content must be gone"
+        );
+        assert!(
+            new_content.contains("test-ws"),
+            "new file must use workspace name"
+        );
 
         let backups: Vec<_> = std::fs::read_dir(dir.path())
             .unwrap()
