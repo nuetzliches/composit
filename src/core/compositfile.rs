@@ -61,7 +61,7 @@ pub fn parse_compositfile(path: &Path) -> Result<Governance> {
 /// valid no-op.
 fn parse_scan_block(block: &hcl::Block) -> Result<ScanSettings> {
     let exclude_paths = get_string_array_attr(&block.body, "exclude");
-    let resolvable = get_string_array_attr(&block.body, "resolvable");
+    let resolvable = get_optional_string_array_attr(&block.body, "resolvable");
     let redact = get_string_array_attr(&block.body, "redact");
 
     let mut extra_patterns = Vec::new();
@@ -515,6 +515,12 @@ fn get_string_attr(body: &Body, key: &str) -> Option<String> {
 
 /// Extract a string array attribute from an HCL body.
 fn get_string_array_attr(body: &Body, key: &str) -> Vec<String> {
+    get_optional_string_array_attr(body, key).unwrap_or_default()
+}
+
+/// Like `get_string_array_attr` but returns `None` when the attribute is absent.
+/// Use this when the caller needs to distinguish "not declared" from "declared as []".
+fn get_optional_string_array_attr(body: &Body, key: &str) -> Option<Vec<String>> {
     body.attributes()
         .find(|a| a.key.as_str() == key)
         .map(|a| match &a.expr {
@@ -527,7 +533,6 @@ fn get_string_array_attr(body: &Body, key: &str) -> Vec<String> {
                 .collect(),
             _ => vec![],
         })
-        .unwrap_or_default()
 }
 
 /// Extract an unsigned integer attribute from an HCL body.
@@ -1095,8 +1100,6 @@ mod tests {
 
     #[test]
     fn test_missing_scan_block_yields_default_empty_settings() {
-        // A Compositfile without a scan block must still produce a valid
-        // Governance — governance and scan tuning are independently optional.
         let gov = parse_hcl(
             r#"
             workspace "test" {
@@ -1108,5 +1111,87 @@ mod tests {
         assert!(gov.scan.exclude_paths.is_empty());
         assert!(gov.scan.extra_patterns.is_empty());
         assert!(gov.scan.scanners.is_empty());
+        // No scan block → resolvable absent → None (not opted out)
+        assert!(gov.scan.resolvable.is_none());
+    }
+
+    #[test]
+    fn test_resolvable_absent_is_none() {
+        // No resolvable key → None (diff should suggest it)
+        let gov = parse_hcl(
+            r#"
+            workspace "test" {
+              scan { exclude = [] }
+            }
+            "#,
+        )
+        .unwrap();
+        assert!(gov.scan.resolvable.is_none());
+    }
+
+    #[test]
+    fn test_resolvable_empty_array_is_some_empty() {
+        // resolvable = [] → Some([]) — explicit opt-out, diff stays silent.
+        let gov = parse_hcl(
+            r#"
+            workspace "test" {
+              scan { resolvable = [] }
+            }
+            "#,
+        )
+        .unwrap();
+        assert_eq!(gov.scan.resolvable, Some(vec![]));
+    }
+
+    #[test]
+    fn test_resolvable_with_values() {
+        let gov = parse_hcl(
+            r#"
+            workspace "test" {
+              scan { resolvable = [".env", ".env.local"] }
+            }
+            "#,
+        )
+        .unwrap();
+        assert_eq!(
+            gov.scan.resolvable,
+            Some(vec![".env".to_string(), ".env.local".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_cron_scanner_disabled_by_default() {
+        let gov = parse_hcl(
+            r#"
+            workspace "test" {}
+            "#,
+        )
+        .unwrap();
+        assert!(
+            !gov.scan.is_scanner_enabled("cron"),
+            "cron scanner must be opt-in (host-state, not repo-state)"
+        );
+        assert!(
+            gov.scan.is_scanner_enabled("docker"),
+            "docker scanner must remain enabled by default"
+        );
+    }
+
+    #[test]
+    fn test_cron_scanner_opt_in_via_scanners_block() {
+        let gov = parse_hcl(
+            r#"
+            workspace "test" {
+              scan {
+                scanners { cron = true }
+              }
+            }
+            "#,
+        )
+        .unwrap();
+        assert!(
+            gov.scan.is_scanner_enabled("cron"),
+            "cron must be enabled when explicitly set to true"
+        );
     }
 }

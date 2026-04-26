@@ -60,6 +60,10 @@ pub enum Commands {
         /// Generate a minimal template without running a scan
         #[arg(long)]
         minimal: bool,
+
+        /// Overwrite an existing Compositfile (writes a timestamped .backup first)
+        #[arg(long)]
+        force: bool,
     },
     /// Compare Compositfile governance against scan report
     Diff {

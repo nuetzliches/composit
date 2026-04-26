@@ -40,12 +40,14 @@ pub struct ScanSettings {
     pub scanners: HashMap<String, bool>,
 
     /// RFC 006: env-file globs whose values may be substituted into other
-    /// resources (e.g. `${VAR}` in docker-compose). Empty = no resolution;
-    /// values never leave disk. Keys matching any `redact` pattern are
-    /// replaced with `<redacted>` before substitution so secret-looking
-    /// variables don't end up in the report.
+    /// resources (e.g. `${VAR}` in docker-compose). Values never leave disk.
+    /// Keys matching any `redact` pattern are replaced with `<redacted>`.
+    ///
+    /// `None`       = field absent from Compositfile → diff suggests it when `${VAR}` found.
+    /// `Some([])`   = deliberately opted out → diff stays silent.
+    /// `Some([..])` = resolution enabled with these env-file globs.
     #[serde(default)]
-    pub resolvable: Vec<String>,
+    pub resolvable: Option<Vec<String>>,
 
     /// RFC 006: glob-style patterns on env-var *keys* whose values MUST
     /// be redacted even when `resolvable` allows substitution. Matched
@@ -94,7 +96,11 @@ pub struct ExtraPattern {
 
 impl ScanSettings {
     pub fn is_scanner_enabled(&self, scanner_id: &str) -> bool {
-        self.scanners.get(scanner_id).copied().unwrap_or(true)
+        match self.scanners.get(scanner_id).copied() {
+            Some(v) => v,
+            // cron reads host-state (`crontab -l`), not repo-state — opt-in only.
+            None => scanner_id != "cron",
+        }
     }
 }
 

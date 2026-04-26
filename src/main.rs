@@ -5,7 +5,7 @@ mod output;
 mod scanners;
 
 use std::fs;
-use std::io::{self, Write};
+
 use std::path::Path;
 
 use anyhow::Result;
@@ -43,24 +43,9 @@ async fn main() -> Result<()> {
             dir,
             workspace,
             minimal,
+            force,
         } => {
             let dir = fs::canonicalize(&dir)?;
-
-            // Check before the expensive scan — abort early if user declines overwrite.
-            let compositfile_path = dir.join("Compositfile");
-            if compositfile_path.exists() {
-                print!(
-                    "  {} Compositfile already exists. Overwrite? [y/N] ",
-                    "!".yellow()
-                );
-                io::stdout().flush()?;
-                let mut input = String::new();
-                io::stdin().read_line(&mut input)?;
-                if !input.trim().eq_ignore_ascii_case("y") {
-                    println!("  {}", "Aborted.".yellow());
-                    return Ok(());
-                }
-            }
 
             let report = if !minimal {
                 Some(build_report(&dir, vec![], false).await?)
@@ -75,7 +60,7 @@ async fn main() -> Result<()> {
                 fs::write(dir.join("composit-report.yaml"), output::yaml::to_yaml(r)?)?;
             }
 
-            commands::init::run_init(&dir, workspace, report.as_ref())?;
+            commands::init::run_init(&dir, workspace, report.as_ref(), force)?;
         }
         Commands::Diff {
             dir,

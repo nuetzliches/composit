@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use colored::Colorize;
 
 use crate::core::types::{Report, Resource};
@@ -23,7 +23,31 @@ const AGENT_HEADER: &str = "\
 
 ";
 
-pub fn run_init(dir: &Path, workspace_name: Option<String>, report: Option<&Report>) -> Result<()> {
+pub fn run_init(
+    dir: &Path,
+    workspace_name: Option<String>,
+    report: Option<&Report>,
+    force: bool,
+) -> Result<()> {
+    let compositfile_path = dir.join("Compositfile");
+
+    if compositfile_path.exists() {
+        if !force {
+            bail!(
+                "Compositfile already exists at {}; pass --force to overwrite",
+                compositfile_path.display()
+            );
+        }
+        let ts = chrono::Utc::now().format("%Y%m%dT%H%M%SZ");
+        let backup_path = dir.join(format!("Compositfile.backup.{ts}"));
+        std::fs::copy(&compositfile_path, &backup_path)?;
+        println!(
+            "  {} {}",
+            "Backup written:".yellow(),
+            backup_path.display()
+        );
+    }
+
     let workspace = workspace_name.unwrap_or_else(|| workspace_from_dir(dir));
 
     let content = match report {
@@ -31,7 +55,6 @@ pub fn run_init(dir: &Path, workspace_name: Option<String>, report: Option<&Repo
         None => generate_minimal(&workspace),
     };
 
-    let compositfile_path = dir.join("Compositfile");
     std::fs::write(&compositfile_path, &content)?;
 
     let display_path = std::env::current_dir()
@@ -509,6 +532,61 @@ mod tests {
                 estimated_monthly_cost: "0 EUR".to_string(),
             },
         }
+    }
+
+    #[test]
+    fn init_refuses_if_compositfile_exists_without_force() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("Compositfile");
+        std::fs::write(&path, "old content").unwrap();
+
+        let err = run_init(dir.path(), None, None, false).unwrap_err();
+        assert!(
+            err.to_string().contains("--force"),
+            "error should mention --force: {}",
+            err
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "old content",
+            "existing file must not be modified"
+        );
+    }
+
+    #[test]
+    fn init_force_writes_backup_and_overwrites() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("Compositfile");
+        std::fs::write(&path, "old content").unwrap();
+
+        run_init(dir.path(), Some("test-ws".to_string()), None, true).unwrap();
+
+        let new_content = std::fs::read_to_string(&path).unwrap();
+        assert!(!new_content.contains("old content"), "old content must be gone");
+        assert!(new_content.contains("test-ws"), "new file must use workspace name");
+
+        let backups: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .starts_with("Compositfile.backup.")
+            })
+            .collect();
+        assert_eq!(backups.len(), 1, "expected exactly one backup file");
+        assert_eq!(
+            std::fs::read_to_string(backups[0].path()).unwrap(),
+            "old content"
+        );
+    }
+
+    #[test]
+    fn init_without_existing_file_does_not_need_force() {
+        let dir = tempfile::tempdir().unwrap();
+        run_init(dir.path(), Some("fresh".to_string()), None, false).unwrap();
+        let content = std::fs::read_to_string(dir.path().join("Compositfile")).unwrap();
+        assert!(content.contains("fresh"));
     }
 
     #[test]

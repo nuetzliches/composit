@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::cli::DiffOutputFormat;
 use crate::core::compositfile::parse_compositfile;
-use crate::core::governance::{Governance, Predicate, ProviderRule, Role};
+use crate::core::governance::{Governance, Predicate, ProviderRule, Role, ScanSettings};
 use crate::core::types::{AuthMode, Provider, Report, Resource, ScanMode};
 
 // ─────────────────────────────────────────────────────────
@@ -142,7 +142,7 @@ pub fn compute_diff_opts(
         check_providers(governance, report, offline),
         check_budgets(governance, report),
         check_resources(governance, report),
-        check_resolution(report),
+        check_resolution(report, &governance.scan),
         check_policies(governance, base_dir, report),
     ];
 
@@ -762,12 +762,14 @@ fn check_resources(governance: &Governance, report: &Report) -> ViolationCategor
 }
 
 /// Surface RFC 006 resolution artefacts as diff signals. Emits:
-/// - `resolution_disabled` (Info) once, when the report carries no
-///   resolution metadata but scanners found `${VAR}` references that
-///   could benefit from it. Points the operator at `scan.resolvable`.
-/// - `unresolved_variable` (Info) per variable that couldn't be filled
-///   in by the resolver.
-fn check_resolution(report: &Report) -> ViolationCategory {
+/// - `resolution_disabled` (Info) once, when the report carries no resolution
+///   metadata, `${VAR}` references were found, AND the Compositfile has no
+///   `scan { resolvable = [...] }` block (i.e. `scan.resolvable` is `None`).
+///   Silenced when `resolvable = []` is declared explicitly — that signals a
+///   deliberate opt-out.
+/// - `unresolved_variable` (Info) per variable that couldn't be filled in by
+///   the resolver.
+fn check_resolution(report: &Report, scan: &ScanSettings) -> ViolationCategory {
     let mut violations = Vec::new();
     let mut passed = 0;
 
@@ -787,7 +789,9 @@ fn check_resolution(report: &Report) -> ViolationCategory {
 
     match &report.resolution {
         None => {
-            if has_templated {
+            // Only nag when resolvable is absent entirely — `resolvable = []`
+            // means the operator deliberately opted out and wants silence.
+            if has_templated && scan.resolvable.is_none() {
                 violations.push(Violation {
                     severity: Severity::Info,
                     rule: "resolution_disabled".to_string(),
@@ -798,7 +802,8 @@ fn check_resolution(report: &Report) -> ViolationCategory {
                          block when env files are detected — uncomment it to enable RFC 006 \
                          variable substitution. If your Compositfile is hand-written, add the \
                          block at the top of the workspace block. Default redaction applies to \
-                         *_KEY, *_SECRET, *_TOKEN, *_PASSWORD."
+                         *_KEY, *_SECRET, *_TOKEN, *_PASSWORD. \
+                         To silence this diagnostic permanently, set `scan { resolvable = [] }`."
                             .to_string(),
                     ),
                     expected: Some("resolvable = [\".env\"]".to_string()),
@@ -2892,6 +2897,23 @@ mod tests {
                 .iter()
                 .all(|v| v.rule != "resolution_disabled"),
             "no resolution_disabled when no templates present"
+        );
+    }
+
+    #[test]
+    fn resolution_disabled_silenced_when_resolvable_explicitly_empty() {
+        // `scan { resolvable = [] }` means "I know, I deliberately opted out".
+        // The info must not fire even when ${VAR} refs are present.
+        let report = report_with_templated_image();
+        let mut gov = make_governance(vec![], "500 EUR");
+        gov.scan.resolvable = Some(vec![]); // explicit opt-out
+        let diff = compute_diff(&gov, &report, Path::new("."));
+        let cat = find_category(&diff, "resolution");
+        assert!(
+            cat.violations
+                .iter()
+                .all(|v| v.rule != "resolution_disabled"),
+            "resolution_disabled must be silent when resolvable = [] (explicit opt-out)"
         );
     }
 
