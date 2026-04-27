@@ -1,6 +1,6 @@
 [package]
 name = "composit"
-version = "0.4.1"
+version = "0.5.0"
 edition = "2021"
 description = "Governance-as-Code for AI-generated infrastructure — scan declarations, diff against a Compositfile, surface drift."
 license = "MIT"
