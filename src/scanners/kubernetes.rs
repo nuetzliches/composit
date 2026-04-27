@@ -9,6 +9,7 @@ use serde_yaml::Value;
 
 use crate::core::scanner::{ScanContext, ScanResult, Scanner};
 use crate::core::types::Resource;
+use crate::core::yaml_utils::yaml_string_map_to_json;
 
 pub struct KubernetesScanner;
 
@@ -159,6 +160,17 @@ fn parse_helm_chart(content: &str, display_path: &str) -> Option<Resource> {
         serde_json::Value::Number(serde_json::Number::from(dependencies)),
     );
 
+    // Helm 3.5+ `Chart.yaml` may carry top-level `annotations:` that upstream
+    // tools use to record provenance back to the spec they generated from.
+    // Surfaced verbatim so a downstream provenance-resolution pass can
+    // promote configured keys to a structured `provenance` block.
+    if let Some(annotations) = doc.get("annotations").and_then(|v| v.as_mapping()) {
+        let map = yaml_string_map_to_json(annotations);
+        if !map.is_empty() {
+            extra.insert("annotations".to_string(), serde_json::Value::Object(map));
+        }
+    }
+
     Some(Resource {
         resource_type: "helm_chart".to_string(),
         name: Some(name.to_string()),
@@ -274,6 +286,29 @@ fn manifest_from_doc(doc: &Value, display_path: &str) -> Option<Resource> {
     );
     if let Some(ns) = namespace {
         extra.insert("namespace".to_string(), serde_json::Value::String(ns));
+    }
+
+    // metadata.labels and metadata.annotations are spec'd as `map[string]string`
+    // and are the primary surface upstream generators (Argo, Flux, OAM, …) use
+    // to record provenance. Surfaced verbatim so a downstream provenance pass
+    // can promote configured keys to a structured `provenance` block.
+    if let Some(labels) = metadata
+        .and_then(|m| m.get("labels"))
+        .and_then(|v| v.as_mapping())
+    {
+        let map = yaml_string_map_to_json(labels);
+        if !map.is_empty() {
+            extra.insert("labels".to_string(), serde_json::Value::Object(map));
+        }
+    }
+    if let Some(annotations) = metadata
+        .and_then(|m| m.get("annotations"))
+        .and_then(|v| v.as_mapping())
+    {
+        let map = yaml_string_map_to_json(annotations);
+        if !map.is_empty() {
+            extra.insert("annotations".to_string(), serde_json::Value::Object(map));
+        }
     }
 
     Some(Resource {
@@ -405,5 +440,132 @@ dependencies:
         assert!(should_skip(Path::new("/repo/prometheus.yml")));
         assert!(should_skip(Path::new("/repo/.github/workflows/ci.yml")));
         assert!(!should_skip(Path::new("/repo/k8s/deployment.yaml")));
+    }
+
+    #[test]
+    fn test_manifest_extracts_labels_and_annotations() {
+        // Multi-doc YAML: first doc carries both labels and annotations,
+        // second doc has neither. The first must surface both maps; the
+        // second must omit the keys entirely so we don't pollute reports
+        // with empty objects.
+        let yaml = r#"
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    tier: backend
+  annotations:
+    vendor/source-spec: specs/api.yaml
+    vendor/workload-name: api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-svc
+"#;
+        let resources = parse_k8s_manifests(yaml, "./all.yaml");
+        assert_eq!(resources.len(), 2);
+
+        let dep = &resources[0];
+        let labels = dep
+            .extra
+            .get("labels")
+            .and_then(|v| v.as_object())
+            .expect("deployment labels present");
+        assert_eq!(
+            labels
+                .get("app.kubernetes.io/managed-by")
+                .and_then(|v| v.as_str()),
+            Some("argocd")
+        );
+        let annotations = dep
+            .extra
+            .get("annotations")
+            .and_then(|v| v.as_object())
+            .expect("deployment annotations present");
+        assert_eq!(
+            annotations
+                .get("vendor/source-spec")
+                .and_then(|v| v.as_str()),
+            Some("specs/api.yaml")
+        );
+
+        let svc = &resources[1];
+        assert!(
+            !svc.extra.contains_key("labels"),
+            "service without labels must not emit empty `labels` key"
+        );
+        assert!(
+            !svc.extra.contains_key("annotations"),
+            "service without annotations must not emit empty `annotations` key"
+        );
+    }
+
+    #[test]
+    fn test_manifest_coerces_nonstring_label_values() {
+        // K8s validates `map[string]string`, but YAML can still serialize
+        // `replicas: 3` as a label value. Coerce rather than drop so the
+        // operator sees the metadata.
+        let yaml = r#"
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  labels:
+    replicas: 3
+    enabled: true
+"#;
+        let resources = parse_k8s_manifests(yaml, "./d.yaml");
+        let labels = resources[0]
+            .extra
+            .get("labels")
+            .and_then(|v| v.as_object())
+            .unwrap();
+        assert_eq!(labels.get("replicas").and_then(|v| v.as_str()), Some("3"));
+        assert_eq!(labels.get("enabled").and_then(|v| v.as_str()), Some("true"));
+    }
+
+    #[test]
+    fn test_helm_chart_extracts_annotations() {
+        let yaml = r#"
+apiVersion: v2
+name: widgetshop
+version: 0.3.1
+annotations:
+  vendor/source-spec: specs/widgetshop.yaml
+  category: platform
+"#;
+        let r = parse_helm_chart(yaml, "./chart/Chart.yaml").unwrap();
+        let annotations = r
+            .extra
+            .get("annotations")
+            .and_then(|v| v.as_object())
+            .expect("chart annotations present");
+        assert_eq!(
+            annotations
+                .get("vendor/source-spec")
+                .and_then(|v| v.as_str()),
+            Some("specs/widgetshop.yaml")
+        );
+        assert_eq!(
+            annotations.get("category").and_then(|v| v.as_str()),
+            Some("platform")
+        );
+    }
+
+    #[test]
+    fn test_helm_chart_without_annotations_omits_key() {
+        let yaml = r#"
+apiVersion: v2
+name: widgetshop
+version: 0.3.1
+"#;
+        let r = parse_helm_chart(yaml, "./chart/Chart.yaml").unwrap();
+        assert!(
+            !r.extra.contains_key("annotations"),
+            "no annotations in Chart.yaml → no `annotations` key emitted"
+        );
     }
 }

@@ -139,6 +139,22 @@ impl ScannerRegistry {
         let inventories = scan.map(|s| &s.ansible.inventories).unwrap_or(&empty_invs);
         render_ansible_templates(&mut all_resources, extra_vars, inventories, &context.dir);
 
+        // Issue #20: promote configured label/annotation keys to a
+        // structured `provenance` block on each resource. No-op when the
+        // Compositfile didn't opt in.
+        let empty_keys: Vec<String> = Vec::new();
+        let prov_labels = scan
+            .map(|s| s.provenance_labels.as_slice())
+            .unwrap_or(&empty_keys);
+        let prov_annotations = scan
+            .map(|s| s.provenance_annotations.as_slice())
+            .unwrap_or(&empty_keys);
+        crate::core::provenance::apply_provenance(
+            &mut all_resources,
+            prov_labels,
+            prov_annotations,
+        );
+
         Ok(ScanResult {
             resources: all_resources,
             providers: all_providers,

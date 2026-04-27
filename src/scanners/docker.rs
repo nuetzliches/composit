@@ -7,6 +7,7 @@ use glob::glob;
 
 use crate::core::scanner::{ScanContext, ScanResult, Scanner};
 use crate::core::types::Resource;
+use crate::core::yaml_utils::yaml_string_map_to_json;
 
 pub struct DockerScanner;
 
@@ -283,6 +284,38 @@ fn scan_compose_file(path: &Path, base_dir: &Path) -> Result<(Resource, Vec<Reso
             }
         }
 
+        // Service labels — Compose spec allows two forms:
+        //   labels:
+        //     - "key=value"     # list form
+        //   labels:
+        //     key: value        # map form
+        // Both normalise to a JSON object so downstream consumers (governance
+        // rules, provenance resolution) don't have to care about the source
+        // shape.
+        if let Some(labels) = value.get("labels") {
+            let label_map = if let Some(seq) = labels.as_sequence() {
+                let mut m = serde_json::Map::new();
+                for entry in seq {
+                    if let Some(s) = entry.as_str() {
+                        if let Some((k, v)) = s.split_once('=') {
+                            m.insert(
+                                k.trim().to_string(),
+                                serde_json::Value::String(v.trim().to_string()),
+                            );
+                        }
+                    }
+                }
+                m
+            } else if let Some(map) = labels.as_mapping() {
+                yaml_string_map_to_json(map)
+            } else {
+                serde_json::Map::new()
+            };
+            if !label_map.is_empty() {
+                extra.insert("labels".to_string(), serde_json::Value::Object(label_map));
+            }
+        }
+
         // Compose file reference
         extra.insert(
             "compose_file".to_string(),
@@ -382,5 +415,86 @@ volumes:
             scan_compose_file(&dir.path().join("docker-compose.yml"), dir.path()).unwrap();
         assert_eq!(compose_res.resource_type, "docker_compose");
         assert!(services.is_empty());
+    }
+
+    #[test]
+    fn test_service_labels_list_form() {
+        // Compose spec list form: ["k=v", "k2=v2"]. Both entries normalise to
+        // a JSON object so callers don't have to parse `=` themselves.
+        let dir = tempdir().unwrap();
+        let compose = r#"
+services:
+  api:
+    image: ghcr.io/acme/api:1
+    labels:
+      - "app.kubernetes.io/managed-by=argocd"
+      - "vendor/source-spec=specs/api.yaml"
+"#;
+        write(dir.path(), "docker-compose.yml", compose);
+        let (_, services) =
+            scan_compose_file(&dir.path().join("docker-compose.yml"), dir.path()).unwrap();
+        let labels = services[0]
+            .extra
+            .get("labels")
+            .and_then(|v| v.as_object())
+            .expect("labels object present");
+        assert_eq!(
+            labels
+                .get("app.kubernetes.io/managed-by")
+                .and_then(|v| v.as_str()),
+            Some("argocd")
+        );
+        assert_eq!(
+            labels.get("vendor/source-spec").and_then(|v| v.as_str()),
+            Some("specs/api.yaml")
+        );
+    }
+
+    #[test]
+    fn test_service_labels_map_form() {
+        // Compose spec also allows the inline-map form. Same JSON output.
+        let dir = tempdir().unwrap();
+        let compose = r#"
+services:
+  api:
+    image: ghcr.io/acme/api:1
+    labels:
+      app.kubernetes.io/managed-by: flux
+      tier: backend
+"#;
+        write(dir.path(), "docker-compose.yml", compose);
+        let (_, services) =
+            scan_compose_file(&dir.path().join("docker-compose.yml"), dir.path()).unwrap();
+        let labels = services[0]
+            .extra
+            .get("labels")
+            .and_then(|v| v.as_object())
+            .expect("labels object present");
+        assert_eq!(
+            labels
+                .get("app.kubernetes.io/managed-by")
+                .and_then(|v| v.as_str()),
+            Some("flux")
+        );
+        assert_eq!(labels.get("tier").and_then(|v| v.as_str()), Some("backend"));
+    }
+
+    #[test]
+    fn test_service_without_labels_omits_extra_key() {
+        // No labels in source → no `labels` key in extra. Keeps existing
+        // reports byte-identical for services that don't carry metadata.
+        let dir = tempdir().unwrap();
+        let compose = r#"
+services:
+  api:
+    image: ghcr.io/acme/api:1
+"#;
+        write(dir.path(), "docker-compose.yml", compose);
+        let (_, services) =
+            scan_compose_file(&dir.path().join("docker-compose.yml"), dir.path()).unwrap();
+        assert!(
+            !services[0].extra.contains_key("labels"),
+            "no labels in compose → no `labels` key emitted"
+        );
     }
 }

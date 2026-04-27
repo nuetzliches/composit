@@ -1,0 +1,20 @@
+# Issue #20 fixture: opt into provenance promotion and trigger an
+# image_not_allowed violation so the diff message ends with the
+# `(source: ...)` suffix.
+workspace "provenance-demo" {
+  resources {
+    allow "docker_service" {
+      allowed_images = ["allowed/*"]
+    }
+  }
+
+  scan {
+    provenance_labels = [
+      "app.kubernetes.io/managed-by",
+      "vendor/source",
+    ]
+    provenance_annotations = [
+      "vendor/workload-name",
+    ]
+  }
+}

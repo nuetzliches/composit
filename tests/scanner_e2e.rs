@@ -1359,3 +1359,118 @@ fn scan_go_module_fixture_finds_module_and_requires() {
         .expect("subapp module");
     assert_eq!(sub["direct_requires"].as_u64(), Some(1));
 }
+
+#[test]
+fn scan_provenance_fixture_promotes_configured_keys() {
+    // Issue #20 end-to-end: a Compositfile that opts certain label and
+    // annotation keys into provenance promotion must result in resources
+    // carrying a structured `provenance` block in the scan report.
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("provenance", tmp.path());
+
+    let out = run_scan(tmp.path());
+    assert!(
+        out.status.success(),
+        "composit scan failed:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let content = fs::read_to_string(tmp.path().join("composit-report.json")).unwrap();
+    let report: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let resources = report["resources"].as_array().unwrap();
+
+    // Compose service `api`: provenance.source_kind comes from the
+    // first matching label (vendor/source order in Compositfile is
+    // managed-by → vendor/source, so source_kind = argocd).
+    let api_service = resources
+        .iter()
+        .find(|r| r["type"].as_str() == Some("docker_service") && r["name"].as_str() == Some("api"))
+        .expect("docker_service api present");
+    let prov = api_service
+        .get("provenance")
+        .expect("compose service has provenance");
+    assert_eq!(prov["source_kind"].as_str(), Some("argocd"));
+    // Compose has no annotations, so source_ref must be absent.
+    assert!(
+        prov.get("source_ref").map(|v| v.is_null()).unwrap_or(true),
+        "compose service should not carry source_ref (no annotations in compose spec)"
+    );
+    let raw = prov["raw"].as_object().expect("raw map");
+    assert_eq!(
+        raw.get("app.kubernetes.io/managed-by")
+            .and_then(|v| v.as_str()),
+        Some("argocd")
+    );
+    assert_eq!(
+        raw.get("vendor/source").and_then(|v| v.as_str()),
+        Some("specs/api.yaml")
+    );
+
+    // K8s Deployment carries both a managed-by label and a workload-name
+    // annotation, so source_kind AND source_ref must be set.
+    let deployment = resources
+        .iter()
+        .find(|r| {
+            r["type"].as_str() == Some("kubernetes_manifest")
+                && r["name"].as_str() == Some("Deployment/api")
+        })
+        .expect("kubernetes_manifest Deployment/api present");
+    let dep_prov = deployment
+        .get("provenance")
+        .expect("k8s deployment has provenance");
+    assert_eq!(dep_prov["source_kind"].as_str(), Some("flux"));
+    assert_eq!(dep_prov["source_ref"].as_str(), Some("api"));
+}
+
+#[test]
+fn diff_provenance_fixture_appends_source_suffix_to_image_violation() {
+    // Issue #20: when a violation fires on a resource with provenance set,
+    // the diff message must end with `(source: ...)` so the report points
+    // at the upstream spec rather than the generated artefact.
+    let tmp = tempfile::tempdir().unwrap();
+    copy_fixture("provenance", tmp.path());
+
+    // Scan first (YAML output is the default the diff command reads).
+    let scan = run_scan_yaml(tmp.path());
+    assert!(
+        scan.status.success(),
+        "composit scan failed:\n{}",
+        String::from_utf8_lossy(&scan.stderr)
+    );
+
+    let diff = run_diff_json(tmp.path(), false);
+    // Non-zero exit is fine — the fixture is designed to produce a
+    // violation. We care about the message body, not the exit code.
+    let stdout = String::from_utf8_lossy(&diff.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&diff.stderr).to_string();
+    let report: serde_json::Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "diff --output json must emit valid JSON: {e}\nexit: {:?}\nstdout:\n{stdout}\nstderr:\n{stderr}",
+            diff.status.code()
+        )
+    });
+
+    let mut all_messages: Vec<String> = Vec::new();
+    for cat in report["categories"].as_array().unwrap_or(&Vec::new()) {
+        for v in cat["violations"].as_array().unwrap_or(&Vec::new()) {
+            if let Some(msg) = v["message"].as_str() {
+                all_messages.push(msg.to_string());
+            }
+        }
+    }
+
+    let image_msg = all_messages
+        .iter()
+        .find(|m| m.contains("Image \"external/unapproved:1.0\""))
+        .unwrap_or_else(|| {
+            panic!(
+                "expected an image_not_allowed violation for `external/unapproved:1.0`. \
+                 messages were: {:#?}",
+                all_messages
+            )
+        });
+    assert!(
+        image_msg.contains("(source: argocd)"),
+        "expected source suffix on image_not_allowed message, got: {image_msg}"
+    );
+}
