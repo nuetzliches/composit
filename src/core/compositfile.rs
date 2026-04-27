@@ -63,6 +63,11 @@ fn parse_scan_block(block: &hcl::Block) -> Result<ScanSettings> {
     let exclude_paths = get_string_array_attr(&block.body, "exclude");
     let resolvable = get_optional_string_array_attr(&block.body, "resolvable");
     let redact = get_string_array_attr(&block.body, "redact");
+    // Issue #20: opt-in provenance promotion. Each list names label /
+    // annotation keys whose values get lifted to a structured `provenance`
+    // block on every resource that carries them.
+    let provenance_labels = get_string_array_attr(&block.body, "provenance_labels");
+    let provenance_annotations = get_string_array_attr(&block.body, "provenance_annotations");
 
     let mut extra_patterns = Vec::new();
     for inner in block.body.blocks() {
@@ -139,6 +144,8 @@ fn parse_scan_block(block: &hcl::Block) -> Result<ScanSettings> {
         resolvable,
         redact,
         ansible,
+        provenance_labels,
+        provenance_annotations,
     })
 }
 
@@ -940,6 +947,53 @@ mod tests {
         assert_eq!(gov.scan.extra_patterns[0].glob, "modules/**/*.tf");
         assert_eq!(gov.scan.scanners.get("prometheus"), Some(&false));
         assert!(gov.scan.is_scanner_enabled("docker"));
+    }
+
+    #[test]
+    fn test_scan_block_reads_provenance_attributes() {
+        // Issue #20: provenance_labels and provenance_annotations are
+        // string arrays inside `scan { }`. Both default to empty when
+        // absent, which keeps the feature off for users who don't opt in.
+        let gov = parse_hcl(
+            r#"
+            workspace "test" {
+              scan {
+                provenance_labels      = ["app.kubernetes.io/managed-by", "vendor/source"]
+                provenance_annotations = ["vendor/workload-name"]
+              }
+            }
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            gov.scan.provenance_labels,
+            vec![
+                "app.kubernetes.io/managed-by".to_string(),
+                "vendor/source".to_string(),
+            ]
+        );
+        assert_eq!(
+            gov.scan.provenance_annotations,
+            vec!["vendor/workload-name".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_scan_block_omitting_provenance_yields_empty_lists() {
+        // Without the new attributes the lists must default to empty —
+        // that's how `apply_provenance` short-circuits as a no-op for
+        // users who haven't opted in.
+        let gov = parse_hcl(
+            r#"
+            workspace "test" {
+              scan {}
+            }
+            "#,
+        )
+        .unwrap();
+        assert!(gov.scan.provenance_labels.is_empty());
+        assert!(gov.scan.provenance_annotations.is_empty());
     }
 
     #[test]

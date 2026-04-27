@@ -670,8 +670,10 @@ fn check_resources(governance: &Governance, report: &Report) -> ViolationCategor
                                 severity: Severity::Error,
                                 rule: "image_not_allowed".to_string(),
                                 message: format!(
-                                    "Image \"{}\" not in allowed list for {}",
-                                    image, rule.resource_type
+                                    "Image \"{}\" not in allowed list for {}{}",
+                                    image,
+                                    rule.resource_type,
+                                    provenance_suffix(r)
                                 ),
                                 details: r.path.clone(),
                                 expected: Some(rule.allowed_images.join("\n")),
@@ -693,8 +695,10 @@ fn check_resources(governance: &Governance, report: &Report) -> ViolationCategor
                                 severity: Severity::Error,
                                 rule: "resource_subtype_not_allowed".to_string(),
                                 message: format!(
-                                    "Resource type \"{}\" not in allowed types for {}",
-                                    rt, rule.resource_type
+                                    "Resource type \"{}\" not in allowed types for {}{}",
+                                    rt,
+                                    rule.resource_type,
+                                    provenance_suffix(r)
                                 ),
                                 details: r.path.clone(),
                                 expected: Some(rule.allowed_types.join("\n")),
@@ -854,8 +858,9 @@ fn check_resolution(report: &Report, scan: &ScanSettings) -> ViolationCategory {
                 severity: Severity::Info,
                 rule: "vault_unsupported".to_string(),
                 message: format!(
-                    "Template {} is ansible-vault encrypted and was not rendered",
-                    r.path.as_deref().unwrap_or("-")
+                    "Template {} is ansible-vault encrypted and was not rendered{}",
+                    r.path.as_deref().unwrap_or("-"),
+                    provenance_suffix(r)
                 ),
                 details: Some(
                     "composit does not decrypt vault files. Role constraints on \
@@ -1145,6 +1150,25 @@ fn string_list(items: &[String]) -> String {
     items.join("\n")
 }
 
+/// Issue #20: when a resource carries a `provenance` block (set by the
+/// post-scan `apply_provenance` pass), append `(source: <kind> <ref>)` to
+/// the violation message so reports point operators to the upstream spec
+/// rather than the generated artefact. Empty string when no provenance
+/// is present, so callers can append unconditionally.
+fn provenance_suffix(r: &Resource) -> String {
+    let Some(prov) = r.extra.get("provenance").and_then(|v| v.as_object()) else {
+        return String::new();
+    };
+    let kind = prov.get("source_kind").and_then(|v| v.as_str());
+    let source_ref = prov.get("source_ref").and_then(|v| v.as_str());
+    match (kind, source_ref) {
+        (Some(k), Some(rf)) => format!(" (source: {} {})", k, rf),
+        (Some(k), None) => format!(" (source: {})", k),
+        (None, Some(rf)) => format!(" (source: {})", rf),
+        (None, None) => String::new(),
+    }
+}
+
 /// Human-readable summary of which resources a role matched. Used in the
 /// `details` field of role violations so the HTML diff shows authors
 /// *which* services tripped the rule, not just how many.
@@ -1248,8 +1272,10 @@ fn check_role_constraints(
                         severity: Severity::Error,
                         rule: "role_image_not_pinned".to_string(),
                         message: format!(
-                            "Role \"{}\": image \"{}\" not in pinned list",
-                            role.name, image
+                            "Role \"{}\": image \"{}\" not in pinned list{}",
+                            role.name,
+                            image,
+                            provenance_suffix(r)
                         ),
                         details: Some(detail.clone()),
                         expected: Some(string_list(&role.image_pin)),
@@ -1270,8 +1296,10 @@ fn check_role_constraints(
                         severity: Severity::Error,
                         rule: "role_image_prefix_mismatch".to_string(),
                         message: format!(
-                            "Role \"{}\": image \"{}\" does not match any allowed prefix",
-                            role.name, image
+                            "Role \"{}\": image \"{}\" does not match any allowed prefix{}",
+                            role.name,
+                            image,
+                            provenance_suffix(r)
                         ),
                         details: Some(detail.clone()),
                         expected: Some(string_list(&role.image_prefix)),
@@ -1297,8 +1325,11 @@ fn check_role_constraints(
                     severity: Severity::Error,
                     rule: "role_port_missing".to_string(),
                     message: format!(
-                        "Role \"{}\": required ports {:?} not exposed (missing {:?})",
-                        role.name, role.must_expose, missing
+                        "Role \"{}\": required ports {:?} not exposed (missing {:?}){}",
+                        role.name,
+                        role.must_expose,
+                        missing,
+                        provenance_suffix(r)
                     ),
                     details: Some(detail.clone()),
                     expected: Some(
@@ -1336,13 +1367,14 @@ fn check_role_constraints(
                     severity: Severity::Error,
                     rule: "role_network_missing".to_string(),
                     message: format!(
-                        "Role \"{}\": not attached to required networks ({})",
+                        "Role \"{}\": not attached to required networks ({}){}",
                         role.name,
                         missing
                             .iter()
                             .map(|s| s.as_str())
                             .collect::<Vec<_>>()
-                            .join(", ")
+                            .join(", "),
+                        provenance_suffix(r)
                     ),
                     details: Some(detail.clone()),
                     expected: Some(string_list(&role.must_attach_to)),
@@ -1371,13 +1403,14 @@ fn check_role_constraints(
                         severity: Severity::Error,
                         rule: "role_env_var_missing".to_string(),
                         message: format!(
-                            "Role \"{}\": env vars not set: {}",
+                            "Role \"{}\": env vars not set: {}{}",
                             role.name,
                             missing
                                 .iter()
                                 .map(|s| s.as_str())
                                 .collect::<Vec<_>>()
-                                .join(", ")
+                                .join(", "),
+                            provenance_suffix(r)
                         ),
                         details: Some(detail.clone()),
                         expected: Some(string_list(&role.must_set_env)),
@@ -1402,13 +1435,14 @@ fn check_role_constraints(
                         severity: Severity::Error,
                         rule: "role_env_var_forbidden".to_string(),
                         message: format!(
-                            "Role \"{}\": forbidden env vars present: {}",
+                            "Role \"{}\": forbidden env vars present: {}{}",
                             role.name,
                             present
                                 .iter()
                                 .map(|s| s.as_str())
                                 .collect::<Vec<_>>()
-                                .join(", ")
+                                .join(", "),
+                            provenance_suffix(r)
                         ),
                         details: Some(detail.clone()),
                         expected: Some(string_list(&role.forbidden_env)),
@@ -1478,8 +1512,9 @@ fn check_role_constraints(
                             severity: Severity::Error,
                             rule: "template_value_mismatch".to_string(),
                             message: format!(
-                                "Role \"{}\": template rendering ({}) key \"{}\" does not satisfy \"{}\"",
-                                role.name, src_tag, key, expected_glob
+                                "Role \"{}\": template rendering ({}) key \"{}\" does not satisfy \"{}\"{}",
+                                role.name, src_tag, key, expected_glob,
+                                provenance_suffix(r)
                             ),
                             details: Some(format!("{} @ {}", role_tag, path)),
                             expected: Some(format!("{} = {}", key, expected_glob)),

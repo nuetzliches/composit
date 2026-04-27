@@ -61,6 +61,21 @@ pub struct ScanSettings {
     /// into rendering.
     #[serde(default)]
     pub ansible: AnsibleSettings,
+
+    /// Issue #20: label keys whose values get promoted to a structured
+    /// `provenance` block on the resource. The first key from this list
+    /// that matches an actual label provides `provenance.source_kind`;
+    /// every match is also recorded under `provenance.raw`. Empty default
+    /// means provenance promotion is off (labels still surface verbatim
+    /// via Layer 1).
+    #[serde(default)]
+    pub provenance_labels: Vec<String>,
+
+    /// Issue #20: annotation counterpart to `provenance_labels`. The first
+    /// matching annotation provides `provenance.source_ref`. Empty default
+    /// means provenance promotion is off for annotations.
+    #[serde(default)]
+    pub provenance_annotations: Vec<String>,
 }
 
 /// RFC 007: Ansible rendering knobs.
