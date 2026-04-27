@@ -10,19 +10,21 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # Job display name MUST stay `test` so it matches the required-status-check
+  # context configured in the `main` branch protection rule. A matrix would
+  # expand the name to `test (<value>)` and silently break the protection
+  # gate on every PR. Add a new toolchain by giving it its own job (and
+  # adding its name to the protection rule) instead of reintroducing a
+  # matrix here.
   test:
-    name: test (rust ${{ matrix.rust }})
+    name: test
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        rust: [stable]
     steps:
       - uses: actions/checkout@v6
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ matrix.rust }}
           components: clippy, rustfmt
 
       - name: Cache cargo registry and target
